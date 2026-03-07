@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/di/locator.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../core/widgets/illustrations.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
@@ -69,7 +70,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: NotionTheme.primaryText))
+          ? const Center(child: FoodLoader())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [

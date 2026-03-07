@@ -157,14 +157,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 child: ElevatedButton(
                                   onPressed: _isLoading ? null : _submit,
                                   child: _isLoading
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: NotionTheme.background,
-                                          ),
-                                        )
+                                      ? const FoodLoaderInline(size: 18)
                                       : const Text('Continue'),
                                 ),
                               ),

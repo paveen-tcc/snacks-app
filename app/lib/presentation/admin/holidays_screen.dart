@@ -100,7 +100,7 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
         child: const Icon(Icons.add, color: NotionTheme.background),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: NotionTheme.primaryText))
+          ? const Center(child: FoodLoader())
           : _holidays.isEmpty
               ? Center(
                   child: Column(

@@ -80,7 +80,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: NotionTheme.primaryText))
+          ? const Center(child: FoodLoader())
           : _error != null
               ? Center(child: Text('Failed to load history', style: Theme.of(context).textTheme.bodyMedium))
               : _items.isEmpty

@@ -48,11 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, state) {
           if (state is HomeLoading) {
             return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(
-                  color: NotionTheme.primaryText,
-                ),
-              ),
+              body: Center(child: FoodLoader()),
             );
           }
 
@@ -156,14 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 _homeBloc.add(SubmitOrder());
                               },
                         child: state.isSubmitting
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: NotionTheme.background,
-                                  strokeWidth: 2,
-                                ),
-                              )
+                            ? const FoodLoaderInline(size: 18)
                             : Text(
                                 state.todaysOrder != null &&
                                         state.todaysOrder?.snackId ==
@@ -362,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         if (state.drinks.isEmpty)
-          const Center(child: CircularProgressIndicator(strokeWidth: 2, color: NotionTheme.primaryText))
+          const Center(child: FoodLoader(size: 28))
         else
           Wrap(
             spacing: 10,

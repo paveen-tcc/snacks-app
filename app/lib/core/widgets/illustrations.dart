@@ -1,4 +1,129 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// An animated food-themed loading indicator.
+/// Three food emoji bounce in sequence with a subtle haptic tap on each cycle.
+class FoodLoader extends StatefulWidget {
+  final double size;
+  final bool haptic;
+
+  const FoodLoader({super.key, this.size = 32, this.haptic = true});
+
+  @override
+  State<FoodLoader> createState() => _FoodLoaderState();
+}
+
+class _FoodLoaderState extends State<FoodLoader> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  static const _items = ['🍿', '🍩', '☕'];
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          if (widget.haptic) HapticFeedback.lightImpact();
+          _ctrl.forward(from: 0);
+        }
+      })
+      ..forward();
+    if (widget.haptic) HapticFeedback.lightImpact();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(_items.length, (i) {
+            // Each item bounces in sequence: 0.0-0.33, 0.33-0.66, 0.66-1.0
+            final start = i / _items.length;
+            final end = (i + 1) / _items.length;
+            final t = _ctrl.value;
+            double bounce = 0;
+            if (t >= start && t < end) {
+              final local = (t - start) / (end - start);
+              bounce = math.sin(local * math.pi);
+            }
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: widget.size * 0.08),
+              child: Transform.translate(
+                offset: Offset(0, -bounce * widget.size * 0.35),
+                child: Text(_items[i], style: TextStyle(fontSize: widget.size * 0.55)),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
+/// A compact inline food loader (single bouncing emoji) for buttons.
+class FoodLoaderInline extends StatefulWidget {
+  final double size;
+  final bool haptic;
+
+  const FoodLoaderInline({super.key, this.size = 20, this.haptic = true});
+
+  @override
+  State<FoodLoaderInline> createState() => _FoodLoaderInlineState();
+}
+
+class _FoodLoaderInlineState extends State<FoodLoaderInline>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  static const _items = ['🍿', '🍩', '☕'];
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          setState(() => _index = (_index + 1) % _items.length);
+          if (widget.haptic) HapticFeedback.selectionClick();
+          _ctrl.forward(from: 0);
+        }
+      })
+      ..forward();
+    if (widget.haptic) HapticFeedback.selectionClick();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        final bounce = math.sin(_ctrl.value * math.pi);
+        return Transform.translate(
+          offset: Offset(0, -bounce * widget.size * 0.3),
+          child: Text(
+            _items[_index],
+            style: TextStyle(fontSize: widget.size),
+          ),
+        );
+      },
+    );
+  }
+}
 
 /// Notion-style warm illustration color palette.
 class IllustrationColors {

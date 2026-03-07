@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/locator.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../core/widgets/illustrations.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class SummaryScreen extends StatefulWidget {
@@ -70,7 +71,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: NotionTheme.primaryText))
+          ? const Center(child: FoodLoader())
           : _data == null
               ? const Center(child: Text('Failed to load summary'))
               : ListView(

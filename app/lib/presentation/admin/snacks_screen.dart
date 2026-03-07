@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/di/locator.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../core/widgets/illustrations.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminSnacksScreen extends StatefulWidget {
@@ -131,7 +132,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
         child: const Icon(Icons.add, color: NotionTheme.background),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: NotionTheme.primaryText))
+          ? const Center(child: FoodLoader())
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: _snacks.length,
