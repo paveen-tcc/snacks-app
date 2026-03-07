@@ -28,7 +28,7 @@ class ApiClient {
           final token = prefs.getString('auth_token');
 
           if (token != null) {
-            options.headers['Authorization'] = 'Bearer \$token';
+            options.headers['Authorization'] = 'Bearer $token';
           }
 
           return handler.next(options);

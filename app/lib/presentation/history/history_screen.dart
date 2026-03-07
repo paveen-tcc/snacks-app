@@ -1,24 +1,75 @@
 import 'package:flutter/material.dart';
+import '../../core/di/locator.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../data/local/app_database.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Mock history data
-    final history = [
-      {'date': 'Today', 'snack': 'Samosa', 'status': 'Ordered'},
-      {'date': 'Yesterday', 'snack': 'Chicken Puff', 'status': 'Delivered'},
-      {'date': 'Wed, Feb 14', 'snack': 'Vada Pav', 'status': 'Delivered'},
-      {
-        'date': 'Tue, Feb 13',
-        'snack': 'Default (Samosa)',
-        'status': 'Delivered',
-      },
-      {'date': 'Mon, Feb 12', 'snack': 'Chicken Puff', 'status': 'Delivered'},
-    ];
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
 
+class _HistoryScreenState extends State<HistoryScreen> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final api = locator<ApiClient>();
+      final db = locator<AppDatabase>();
+
+      final results = await Future.wait([
+        api.dio.get('/orders/history'),
+        db.select(db.localSnacks).get(),
+      ]);
+
+      final historyRes = results[0] as dynamic;
+      final history = List<Map<String, dynamic>>.from(historyRes.data['history']);
+      final snacks = results[1] as List<LocalSnack>;
+      final snackMap = {for (final s in snacks) s.id: s};
+
+      final items = history.map((order) {
+        final snack = snackMap[order['snackId'] as String];
+        return {
+          'date': order['date'] as String,
+          'snackName': snack?.name ?? 'Unknown',
+          'snackEmoji': snack?.emoji ?? '🍽️',
+          'isDefault': order['isDefaultAssigned'] ?? false,
+        };
+      }).toList();
+
+      // Sort newest first
+      items.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
+
+      setState(() { _items = items; _loading = false; });
+    } catch (e) {
+      setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  String _formatDate(String dateStr) {
+    final dt = DateTime.parse(dateStr);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(dt.year, dt.month, dt.day);
+    if (date == today) return 'Today';
+    if (date == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${days[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order History'),
@@ -27,45 +78,61 @@ class HistoryScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: history.length,
-        separatorBuilder: (context, index) => const Divider(),
-        itemBuilder: (context, index) {
-          final item = history[index];
-          final isToday = item['date'] == 'Today';
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: NotionTheme.primaryText))
+          : _error != null
+              ? Center(child: Text('Failed to load history', style: Theme.of(context).textTheme.bodyMedium))
+              : _items.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🍽️', style: TextStyle(fontSize: 40)),
+                          const SizedBox(height: 12),
+                          Text('No order history yet', style: Theme.of(context).textTheme.bodyLarge),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _items.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final item = _items[index];
+                        final dateLabel = _formatDate(item['date'] as String);
+                        final isToday = dateLabel == 'Today';
+                        final isDefault = item['isDefault'] as bool;
 
-          return ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              item['date']!,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                color: isToday
-                    ? NotionTheme.blueAccent
-                    : NotionTheme.primaryText,
-              ),
-            ),
-            subtitle: Text(
-              item['snack']!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: NotionTheme.surfaceHover,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                item['status']!,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
-          );
-        },
-      ),
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Text(
+                            item['snackEmoji'] as String,
+                            style: const TextStyle(fontSize: 28),
+                          ),
+                          title: Text(
+                            item['snackName'] as String,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            dateLabel,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: isToday ? NotionTheme.blueAccent : NotionTheme.secondaryText,
+                              fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                          trailing: isDefault
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: NotionTheme.surfaceHover,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text('Default', style: TextStyle(fontSize: 11)),
+                                )
+                              : null,
+                        );
+                      },
+                    ),
     );
   }
 }

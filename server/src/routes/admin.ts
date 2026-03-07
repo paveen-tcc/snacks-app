@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db';
-import { snacks, appSettings, holidays, shutdownDays, users } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { snacks, appSettings, holidays, shutdownDays, users, orders, hotDrinks, drinkVotes } from '../db/schema';
+import { eq, sql } from 'drizzle-orm';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
 
@@ -11,6 +11,15 @@ const adminRoutes = new Hono<AuthContext>();
 adminRoutes.use('*', authMiddleware, adminMiddleware);
 
 // --- Snacks Management ---
+
+adminRoutes.get('/snacks', async (c) => {
+    try {
+        const allSnacks = await db.select().from(snacks).orderBy(snacks.sortOrder);
+        return c.json({ snacks: allSnacks }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
 
 adminRoutes.post('/snacks', async (c) => {
     try {
@@ -86,6 +95,44 @@ adminRoutes.put('/settings', async (c) => {
     }
 });
 
+// --- Summary ---
+
+adminRoutes.get('/summary', async (c) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+
+        const orderCounts = await db
+            .select({
+                snackId: orders.snackId,
+                snackName: snacks.name,
+                snackEmoji: snacks.emoji,
+                count: sql<number>`count(*)`.mapWith(Number),
+            })
+            .from(orders)
+            .innerJoin(snacks, eq(orders.snackId, snacks.id))
+            .where(sql`${orders.date} = ${today}`)
+            .groupBy(orders.snackId, snacks.name, snacks.emoji);
+
+        const drinkCounts = await db
+            .select({
+                drinkId: drinkVotes.drinkId,
+                drinkName: hotDrinks.name,
+                drinkEmoji: hotDrinks.emoji,
+                count: sql<number>`count(*)`.mapWith(Number),
+            })
+            .from(drinkVotes)
+            .innerJoin(hotDrinks, eq(drinkVotes.drinkId, hotDrinks.id))
+            .where(sql`${drinkVotes.date} = ${today}`)
+            .groupBy(drinkVotes.drinkId, hotDrinks.name, hotDrinks.emoji);
+
+        const totalOrders = orderCounts.reduce((sum, item) => sum + item.count, 0);
+
+        return c.json({ date: today, orders: orderCounts, drinks: drinkCounts, totalOrders }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
 // --- User Management ---
 
 adminRoutes.post('/users/:id/admin', async (c) => {
@@ -99,6 +146,54 @@ adminRoutes.post('/users/:id/admin', async (c) => {
             .returning();
 
         return c.json({ user: updatedUser }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.get('/users', async (c) => {
+    try {
+        const allUsers = await db
+            .select({ id: users.id, username: users.username, email: users.email, isAdmin: users.isAdmin, createdAt: users.createdAt })
+            .from(users)
+            .orderBy(users.createdAt);
+        return c.json({ users: allUsers }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+// --- Holidays Management ---
+
+adminRoutes.get('/holidays', async (c) => {
+    try {
+        const allHolidays = await db.select().from(holidays).orderBy(holidays.date);
+        return c.json({ holidays: allHolidays }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.post('/holidays', async (c) => {
+    try {
+        const user = c.get('user');
+        const { date, name } = await c.req.json();
+        if (!date) return c.json({ error: 'date is required' }, 400);
+
+        const [holiday] = await db.insert(holidays)
+            .values({ date, name, source: 'manual', createdBy: user.userId })
+            .returning();
+        return c.json({ holiday }, 201);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.delete('/holidays/:id', async (c) => {
+    try {
+        const id = c.req.param('id');
+        await db.delete(holidays).where(eq(holidays.id, id));
+        return c.json({ success: true }, 200);
     } catch (err: any) {
         return c.json({ error: err.message }, 500);
     }

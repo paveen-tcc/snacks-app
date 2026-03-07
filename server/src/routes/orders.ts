@@ -28,6 +28,7 @@ orderRoutes.get('/today', async (c) => {
 
         return c.json({ order }, 200);
     } catch (err: any) {
+        console.log(err);
         return c.json({ error: err.message }, 500);
     }
 });
@@ -59,6 +60,7 @@ orderRoutes.post('/', async (c) => {
 
         return c.json({ order: savedOrder }, 200);
     } catch (err: any) {
+        console.log(err);
         return c.json({ error: err.message }, 500);
     }
 });

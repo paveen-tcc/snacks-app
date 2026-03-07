@@ -40,9 +40,15 @@ class OrderRepository {
       if (response.statusCode == 200 && response.data['order'] != null) {
         final orderJson = response.data['order'];
 
+        // Delete any existing local row for this user+date (including temp rows)
+        await (_localDb.delete(_localDb.localOrders)
+              ..where((t) =>
+                  t.userId.equals(orderJson['userId'] as String) &
+                  t.date.equals(orderJson['date'] as String)))
+            .go();
         await _localDb
             .into(_localDb.localOrders)
-            .insertOnConflictUpdate(
+            .insert(
               LocalOrdersCompanion.insert(
                 id: orderJson['id'],
                 userId: orderJson['userId'],
@@ -55,7 +61,7 @@ class OrderRepository {
             );
       }
     } catch (e) {
-      print('Sync order failed: \$e');
+      print('Sync order failed: $e');
     }
   }
 
@@ -66,13 +72,16 @@ class OrderRepository {
     if (userId == null) throw Exception('User not logged in');
 
     final today = DateTime.now().toIso8601String().split('T')[0];
-    // Generate a temporary ID for local storage if offline
     final tempId = 'temp_\${DateTime.now().millisecondsSinceEpoch}';
 
     // 1. Save locally immediately (Optimistic response)
+    // Delete any existing order for today first to avoid duplicate rows
+    await (_localDb.delete(_localDb.localOrders)
+          ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
+        .go();
     await _localDb
         .into(_localDb.localOrders)
-        .insertOnConflictUpdate(
+        .insert(
           LocalOrdersCompanion.insert(
             id: tempId,
             userId: userId,
@@ -129,7 +138,8 @@ class OrderRepository {
         });
       }
     } catch (e) {
-      // API failed despite having connection, queue it just in case
+      // API failed despite having connection — queue for sync, don't throw
+      // (order is already saved locally, offline-first behavior)
       await _localDb
           .into(_localDb.syncQueue)
           .insert(
@@ -139,7 +149,7 @@ class OrderRepository {
               payloadJson: jsonEncode({'snackId': snackId, 'date': today}),
             ),
           );
-      throw Exception('Failed to place order, saved offline');
+      print('Order queued for sync: $e');
     }
   }
 }

@@ -4,6 +4,8 @@ import '../../data/local/app_database.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/snack_repository.dart';
 import '../../data/repositories/order_repository.dart';
+import '../../data/repositories/drink_repository.dart';
+import '../../data/repositories/admin_repository.dart';
 import '../../data/sync/sync_engine.dart';
 
 final locator = GetIt.instance;
@@ -22,6 +24,12 @@ Future<void> setupLocator() async {
   );
   locator.registerLazySingleton<OrderRepository>(
     () => OrderRepository(locator<ApiClient>(), locator<AppDatabase>()),
+  );
+  locator.registerLazySingleton<DrinkRepository>(
+    () => DrinkRepository(locator<ApiClient>()),
+  );
+  locator.registerLazySingleton<AdminRepository>(
+    () => AdminRepository(locator<ApiClient>()),
   );
 
   // 3. Sync Engine

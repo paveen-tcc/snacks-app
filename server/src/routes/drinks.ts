@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db';
 import { hotDrinks, drinkVotes } from '../db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
 
@@ -23,6 +23,23 @@ drinkRoutes.get('/', async (c) => {
 
 // Protected routes below
 drinkRoutes.use('*', authMiddleware);
+
+// Get today's user vote
+drinkRoutes.get('/vote', async (c) => {
+    try {
+        const user = c.get('user');
+        const today = new Date().toISOString().split('T')[0];
+
+        const [vote] = await db.select()
+            .from(drinkVotes)
+            .where(and(eq(drinkVotes.userId, user.userId), sql`${drinkVotes.date} = ${today}`))
+            .limit(1);
+
+        return c.json({ vote: vote || null }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
 
 // Cast or update a vote
 drinkRoutes.post('/vote', async (c) => {

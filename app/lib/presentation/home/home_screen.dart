@@ -24,15 +24,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadUsername();
   }
 
+  bool _isAdmin = false;
+
   Future<void> _loadUsername() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id');
-    if (userId != null && mounted) {
-      // Username isn't stored in prefs yet — let's store it at login/register time
-      // For now, read from a stored key we'll add
-      final username = prefs.getString('username') ?? '';
-      setState(() => _username = username);
-    }
+    final username = prefs.getString('username') ?? '';
+    final isAdmin = prefs.getBool('is_admin') ?? false;
+    if (mounted) setState(() { _username = username; _isAdmin = isAdmin; });
   }
 
   @override
@@ -79,12 +77,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     context.push('/history');
                   },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    context.push('/admin');
-                  },
-                ),
+                if (_isAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.settings),
+                    onPressed: () => context.push('/admin'),
+                  ),
               ],
             ),
             body: CustomScrollView(
@@ -105,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(fontWeight: FontWeight.bold),
                             ),
-                            _buildFilterChips(state.filter),
+                            Flexible(child: _buildFilterChips(state.filter)),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -127,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: _buildHotDrinkPoll(context),
+                    child: _buildHotDrinkPoll(context, state),
                   ),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -267,10 +264,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          snack.name,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                        Flexible(
+                          child: Text(
+                            snack.name,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Container(
@@ -301,6 +301,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       snack.description ?? '',
                       style: Theme.of(context).textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
                     ),
                   ],
                 ),
@@ -329,66 +331,67 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHotDrinkPoll(BuildContext context) {
+  Widget _buildHotDrinkPoll(BuildContext context, HomeLoaded state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Hot Drink Poll',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
-          'Vote for tomorrow\'s common drink. Resets daily.',
+          'Vote for today\'s hot drink. Resets daily.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            _buildPollOption('☕', 'Tea', true),
-            const SizedBox(width: 16),
-            _buildPollOption('☕', 'Coffee', false),
-            const SizedBox(width: 16),
-            _buildPollOption('🍫', 'Boost', false),
-          ],
-        ),
+        if (state.drinks.isEmpty)
+          const Center(child: CircularProgressIndicator(strokeWidth: 2, color: NotionTheme.primaryText))
+        else
+          Row(
+            children: [
+              for (int i = 0; i < state.drinks.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                _buildPollOption(
+                  state.drinks[i],
+                  state.selectedDrinkId == state.drinks[i]['id'],
+                ),
+              ],
+            ],
+          ),
       ],
     );
   }
 
-  Widget _buildPollOption(String emoji, String name, bool isSelected) {
+  Widget _buildPollOption(Map<String, dynamic> drink, bool isSelected) {
     return Expanded(
       child: InkWell(
-        onTap: () {},
+        onTap: () => _homeBloc.add(SelectDrink(drink['id'] as String)),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: isSelected
-                ? NotionTheme.surfaceSelected
-                : NotionTheme.background,
+            color: isSelected ? NotionTheme.surfaceSelected : NotionTheme.background,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected
-                  ? NotionTheme.blueAccent.withOpacity(0.5)
-                  : NotionTheme.border,
+              color: isSelected ? NotionTheme.blueAccent.withOpacity(0.5) : NotionTheme.border,
             ),
           ),
           child: Column(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
+              Text(drink['emoji'] ?? '☕', style: const TextStyle(fontSize: 24)),
               const SizedBox(height: 8),
               Text(
-                name,
+                drink['name'] as String,
                 style: TextStyle(
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected
-                      ? NotionTheme.blueAccent
-                      : NotionTheme.primaryText,
+                  color: isSelected ? NotionTheme.blueAccent : NotionTheme.primaryText,
                 ),
               ),
+              if (isSelected) ...[
+                const SizedBox(height: 4),
+                const Icon(Icons.check_circle, size: 14, color: NotionTheme.blueAccent),
+              ],
             ],
           ),
         ),

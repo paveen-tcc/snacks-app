@@ -55,7 +55,7 @@ class SnackRepository {
         });
       }
     } catch (e) {
-      print('Sync failed: \$e');
+      print('Sync failed: $e');
     }
   }
 

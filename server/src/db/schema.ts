@@ -6,9 +6,9 @@ import {
     timestamp,
     integer,
     date,
-    jsonb
+    jsonb,
+    uniqueIndex
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 
 // Users (username + email, unique username)
 export const users = pgTable('users', {
@@ -44,7 +44,7 @@ export const orders = pgTable('orders', {
     orderedAt: timestamp('ordered_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
-    unqUserDate: sql`UNIQUE (${t.userId}, ${t.date})`,
+    unqUserDate: uniqueIndex('orders_user_date_unique').on(t.userId, t.date),
 }));
 
 // Hot drinks catalog
@@ -63,7 +63,7 @@ export const drinkVotes = pgTable('drink_votes', {
     drinkId: uuid('drink_id').references(() => hotDrinks.id).notNull(),
     votedAt: timestamp('voted_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
-    unqUserDate: sql`UNIQUE (${t.userId}, ${t.date})`,
+    unqUserDate: uniqueIndex('drink_votes_user_date_unique').on(t.userId, t.date),
 }));
 
 // Holidays (hybrid: auto-fetched + manual)
