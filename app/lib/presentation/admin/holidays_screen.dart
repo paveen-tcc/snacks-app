@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/di/locator.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../core/widgets/illustrations.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminHolidaysScreen extends StatefulWidget {
@@ -105,10 +106,11 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('🗓️', style: TextStyle(fontSize: 40)),
-                      const SizedBox(height: 12),
-                      Text('No holidays added', style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 4),
+                      const EmptyStateIllustration(emoji: '🗓️', size: 130),
+                      const SizedBox(height: 20),
+                      Text('No holidays added',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
                       Text('Tap + to add one', style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),

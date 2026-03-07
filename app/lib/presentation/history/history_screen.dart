@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/di/locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../core/widgets/illustrations.dart';
 import '../../data/local/app_database.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -87,9 +88,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('🍽️', style: TextStyle(fontSize: 40)),
-                          const SizedBox(height: 12),
-                          Text('No order history yet', style: Theme.of(context).textTheme.bodyLarge),
+                          const EmptyStateIllustration(emoji: '🍽️', size: 130),
+                          const SizedBox(height: 20),
+                          Text('No order history yet',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 6),
+                          Text('Your orders will appear here',
+                              style: Theme.of(context).textTheme.bodySmall),
                         ],
                       ),
                     )

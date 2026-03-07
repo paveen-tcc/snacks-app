@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/notion_theme.dart';
+import '../../core/widgets/illustrations.dart';
 import 'bloc/home_bloc.dart';
 import '../../data/local/app_database.dart';
 
@@ -97,12 +98,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Today\'s Menu',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            Flexible(
+                              child: Text(
+                                'Today\'s Menu',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            Flexible(child: _buildFilterChips(state.filter)),
+                            _buildFilterChips(state.filter),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -127,37 +131,49 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildHotDrinkPoll(context, state),
                   ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerFloat,
-            floatingActionButton: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: state.isSubmitting
-                      ? null
-                      : () {
-                          _homeBloc.add(SubmitOrder());
-                        },
-                  child: state.isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: NotionTheme.background,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          state.todaysOrder != null &&
-                                  state.todaysOrder?.snackId ==
-                                      state.selectedSnackId
-                              ? 'Keep Current Order'
-                              : 'Confirm Order',
-                        ),
+            bottomNavigationBar: Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
+              decoration: const BoxDecoration(
+                color: NotionTheme.background,
+                border: Border(
+                  top: BorderSide(color: NotionTheme.divider),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    const SnackCharacterIllustration(height: 52),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: state.isSubmitting
+                            ? null
+                            : () {
+                                _homeBloc.add(SubmitOrder());
+                              },
+                        child: state.isSubmitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: NotionTheme.background,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                state.todaysOrder != null &&
+                                        state.todaysOrder?.snackId ==
+                                            state.selectedSnackId
+                                    ? 'Keep Current Order'
+                                    : 'Confirm Order',
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -173,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: NotionTheme.surfaceSelected,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: NotionTheme.blueAccent.withOpacity(0.3)),
+        border: Border.all(color: NotionTheme.blueAccent.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -202,33 +218,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFilterChips(String currentFilter) {
-    return Row(
+    return Wrap(
+      spacing: 6,
       children: ['All', 'Veg', 'Non-Veg'].map((filter) {
         final isSelected = currentFilter == filter;
-        return Padding(
-          padding: const EdgeInsets.only(left: 8.0),
-          child: ChoiceChip(
-            label: Text(
-              filter,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected
-                    ? NotionTheme.background
-                    : NotionTheme.primaryText,
-              ),
+        return ChoiceChip(
+          label: Text(
+            filter,
+            style: TextStyle(
+              fontSize: 12,
+              color: isSelected
+                  ? NotionTheme.background
+                  : NotionTheme.primaryText,
             ),
-            selected: isSelected,
-            selectedColor: NotionTheme.primaryText,
-            backgroundColor: NotionTheme.surfaceHover,
-            showCheckmark: false,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide.none,
-            ),
-            onSelected: (selected) {
-              if (selected) _homeBloc.add(ChangeFilter(filter));
-            },
           ),
+          selected: isSelected,
+          selectedColor: NotionTheme.primaryText,
+          backgroundColor: NotionTheme.surfaceHover,
+          showCheckmark: false,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide.none,
+          ),
+          onSelected: (selected) {
+            if (selected) _homeBloc.add(ChangeFilter(filter));
+          },
         );
       }).toList(),
     );
@@ -280,8 +296,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: snack.isVeg
-                                ? NotionTheme.greenAccent.withOpacity(0.1)
-                                : NotionTheme.redAccent.withOpacity(0.1),
+                                ? NotionTheme.greenAccent.withValues(alpha: 0.1)
+                                : NotionTheme.redAccent.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -348,15 +364,18 @@ class _HomeScreenState extends State<HomeScreen> {
         if (state.drinks.isEmpty)
           const Center(child: CircularProgressIndicator(strokeWidth: 2, color: NotionTheme.primaryText))
         else
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              for (int i = 0; i < state.drinks.length; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
-                _buildPollOption(
-                  state.drinks[i],
-                  state.selectedDrinkId == state.drinks[i]['id'],
+              for (int i = 0; i < state.drinks.length; i++)
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 32 - (state.drinks.length - 1) * 10) / state.drinks.length,
+                  child: _buildPollOption(
+                    state.drinks[i],
+                    state.selectedDrinkId == state.drinks[i]['id'],
+                  ),
                 ),
-              ],
             ],
           ),
       ],
@@ -364,38 +383,39 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPollOption(Map<String, dynamic> drink, bool isSelected) {
-    return Expanded(
-      child: InkWell(
-        onTap: () => _homeBloc.add(SelectDrink(drink['id'] as String)),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: isSelected ? NotionTheme.surfaceSelected : NotionTheme.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? NotionTheme.blueAccent.withOpacity(0.5) : NotionTheme.border,
-            ),
+    return InkWell(
+      onTap: () => _homeBloc.add(SelectDrink(drink['id'] as String)),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? NotionTheme.surfaceSelected : NotionTheme.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? NotionTheme.blueAccent.withValues(alpha: 0.5) : NotionTheme.border,
           ),
-          child: Column(
-            children: [
-              Text(drink['emoji'] ?? '☕', style: const TextStyle(fontSize: 24)),
-              const SizedBox(height: 8),
-              Text(
-                drink['name'] as String,
-                style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? NotionTheme.blueAccent : NotionTheme.primaryText,
-                ),
+        ),
+        child: Column(
+          children: [
+            Text(drink['emoji'] ?? '☕', style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 8),
+            Text(
+              drink['name'] as String,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? NotionTheme.blueAccent : NotionTheme.primaryText,
               ),
-              if (isSelected) ...[
-                const SizedBox(height: 4),
-                const Icon(Icons.check_circle, size: 14, color: NotionTheme.blueAccent),
-              ],
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (isSelected) ...[
+              const SizedBox(height: 4),
+              const Icon(Icons.check_circle, size: 14, color: NotionTheme.blueAccent),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
+
 }

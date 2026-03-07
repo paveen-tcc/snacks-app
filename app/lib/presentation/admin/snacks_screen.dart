@@ -146,7 +146,11 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: Text(s['emoji'] ?? '🍽️', style: const TextStyle(fontSize: 28)),
                   title: Row(children: [
-                    Text(s['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Flexible(
+                      child: Text(s['name'] as String,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis),
+                    ),
                     if (isDefault) ...[
                       const SizedBox(width: 6),
                       const Icon(Icons.star, size: 14, color: NotionTheme.yellowAccent),
@@ -155,7 +159,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
-                        color: isVeg ? NotionTheme.greenAccent.withOpacity(0.1) : NotionTheme.redAccent.withOpacity(0.1),
+                        color: isVeg ? NotionTheme.greenAccent.withValues(alpha: 0.1) : NotionTheme.redAccent.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(isVeg ? 'VEG' : 'N-VEG',
@@ -168,18 +172,31 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isDefault)
-                        IconButton(
-                          icon: const Icon(Icons.star_border, size: 20),
-                          tooltip: 'Set as default',
-                          onPressed: () => _setDefault(s),
+                        SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(Icons.star_border, size: 18),
+                            tooltip: 'Set as default',
+                            onPressed: () => _setDefault(s),
+                          ),
                         ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 20),
-                        onPressed: () => _showSnackForm(existing: s),
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          onPressed: () => _showSnackForm(existing: s),
+                        ),
                       ),
-                      Switch(
-                        value: isActive,
-                        onChanged: (_) => _toggleActive(s),
+                      Transform.scale(
+                        scale: 0.8,
+                        child: Switch(
+                          value: isActive,
+                          onChanged: (_) => _toggleActive(s),
+                        ),
                       ),
                     ],
                   ),
