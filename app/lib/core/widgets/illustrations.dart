@@ -562,6 +562,368 @@ class _CharacterPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+/// A Notion-style "closed/shutdown" illustration — a sleeping food scene.
+class ShutdownIllustration extends StatelessWidget {
+  final double width;
+  const ShutdownIllustration({super.key, this.width = 240});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: width * 0.75,
+      child: CustomPaint(painter: _ShutdownPainter()),
+    );
+  }
+}
+
+class _ShutdownPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final outline = Paint()
+      ..color = IllustrationColors.outline.withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // --- Decorative background dots ---
+    _dot(canvas, Offset(w * 0.08, h * 0.20), 6, IllustrationColors.softPink);
+    _dot(canvas, Offset(w * 0.92, h * 0.25), 5, IllustrationColors.softBlue);
+    _dot(canvas, Offset(w * 0.15, h * 0.75), 5, IllustrationColors.softGreen);
+    _dot(canvas, Offset(w * 0.88, h * 0.80), 4, IllustrationColors.peach);
+    _sparkle(canvas, Offset(w * 0.06, h * 0.50), 4, IllustrationColors.softPurple);
+    _sparkle(canvas, Offset(w * 0.94, h * 0.55), 5, IllustrationColors.softOrange);
+
+    // --- Table surface ---
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.10, h * 0.78, w * 0.80, h * 0.05),
+        const Radius.circular(20),
+      ),
+      Paint()..color = IllustrationColors.peach,
+    );
+
+    // --- Closed sign (center) ---
+    final signL = w * 0.28;
+    final signR = w * 0.72;
+    final signT = h * 0.22;
+    final signB = h * 0.58;
+    final signRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(signL, signT, signR, signB),
+      const Radius.circular(10),
+    );
+    canvas.drawRRect(signRect, Paint()..color = IllustrationColors.softPink.withValues(alpha: 0.5));
+    canvas.drawRRect(signRect, outline);
+
+    // Sign string/hanger
+    final signCx = w * 0.5;
+    canvas.drawPath(
+      Path()
+        ..moveTo(signCx - w * 0.06, signT)
+        ..quadraticBezierTo(signCx, signT - h * 0.08, signCx + w * 0.06, signT),
+      outline,
+    );
+    // Nail dot
+    _dot(canvas, Offset(signCx, signT - h * 0.07), 3, IllustrationColors.warmBrown);
+
+    // "ZZZ" text (sleeping) on sign
+    final zzPaint = Paint()
+      ..color = IllustrationColors.warmBrown.withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // Z shapes at increasing sizes
+    for (var i = 0; i < 3; i++) {
+      final zx = w * 0.58 + i * w * 0.06;
+      final zy = h * 0.30 - i * h * 0.07;
+      final zs = 4.0 + i * 2.5;
+      canvas.drawPath(
+        Path()
+          ..moveTo(zx - zs, zy - zs)
+          ..lineTo(zx + zs, zy - zs)
+          ..lineTo(zx - zs, zy + zs)
+          ..lineTo(zx + zs, zy + zs),
+        zzPaint,
+      );
+    }
+
+    // --- Sleeping bowl (left of sign, on table) ---
+    final bowlCx = w * 0.22;
+    final bowlCy = h * 0.72;
+    final bowlPath = Path()
+      ..moveTo(bowlCx - w * 0.10, bowlCy - h * 0.02)
+      ..quadraticBezierTo(bowlCx - w * 0.08, bowlCy + h * 0.08, bowlCx, bowlCy + h * 0.08)
+      ..quadraticBezierTo(bowlCx + w * 0.08, bowlCy + h * 0.08, bowlCx + w * 0.10, bowlCy - h * 0.02);
+    canvas.drawPath(bowlPath, Paint()..color = IllustrationColors.softOrange);
+    canvas.drawPath(bowlPath, outline);
+    // Rim
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(bowlCx, bowlCy - h * 0.02), width: w * 0.20, height: h * 0.04),
+      Paint()..color = IllustrationColors.softOrange,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(bowlCx, bowlCy - h * 0.02), width: w * 0.20, height: h * 0.04),
+      outline,
+    );
+
+    // --- Sleeping cup (right of sign, on table) ---
+    final cupL = w * 0.73;
+    final cupT = h * 0.62;
+    final cupW = w * 0.09;
+    final cupH = h * 0.16;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cupL, cupT, cupW, cupH),
+        const Radius.circular(3),
+      ),
+      Paint()..color = IllustrationColors.softPurple,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cupL, cupT, cupW, cupH),
+        const Radius.circular(3),
+      ),
+      outline,
+    );
+    // Handle
+    canvas.drawPath(
+      Path()
+        ..moveTo(cupL + cupW, cupT + cupH * 0.2)
+        ..quadraticBezierTo(cupL + cupW + w * 0.04, cupT + cupH * 0.2, cupL + cupW + w * 0.04, cupT + cupH * 0.5)
+        ..quadraticBezierTo(cupL + cupW + w * 0.04, cupT + cupH * 0.8, cupL + cupW, cupT + cupH * 0.8),
+      outline,
+    );
+
+    // --- Moon accent (top-left) ---
+    final moonCx = w * 0.18;
+    final moonCy = h * 0.15;
+    final moonR = w * 0.05;
+    canvas.drawCircle(Offset(moonCx, moonCy), moonR, Paint()..color = IllustrationColors.peach);
+    // Cut out inner circle to make crescent
+    canvas.drawCircle(
+      Offset(moonCx + moonR * 0.4, moonCy - moonR * 0.3),
+      moonR * 0.75,
+      Paint()..color = IllustrationColors.softPink.withValues(alpha: 0.5), // matches sign bg
+    );
+
+    // --- Stars ---
+    _sparkle(canvas, Offset(w * 0.30, h * 0.10), 4, IllustrationColors.peach);
+    _sparkle(canvas, Offset(w * 0.12, h * 0.35), 3, IllustrationColors.softOrange);
+  }
+
+  void _dot(Canvas canvas, Offset c, double r, Color color) {
+    canvas.drawCircle(c, r, Paint()..color = color);
+  }
+
+  void _sparkle(Canvas canvas, Offset c, double s, Color color) {
+    final path = Path()
+      ..moveTo(c.dx, c.dy - s)
+      ..lineTo(c.dx + s * 0.22, c.dy - s * 0.22)
+      ..lineTo(c.dx + s, c.dy)
+      ..lineTo(c.dx + s * 0.22, c.dy + s * 0.22)
+      ..lineTo(c.dx, c.dy + s)
+      ..lineTo(c.dx - s * 0.22, c.dy + s * 0.22)
+      ..lineTo(c.dx - s, c.dy)
+      ..lineTo(c.dx - s * 0.22, c.dy - s * 0.22)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// A Notion-style clipboard illustration for order history screens.
+class HistoryIllustration extends StatelessWidget {
+  final double width;
+  const HistoryIllustration({super.key, this.width = 200});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: width * 0.85,
+      child: CustomPaint(painter: _HistoryPainter()),
+    );
+  }
+}
+
+class _HistoryPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final outline = Paint()
+      ..color = IllustrationColors.outline.withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // --- Decorative background dots ---
+    _dot(canvas, Offset(w * 0.08, h * 0.15), 6, IllustrationColors.softGreen);
+    _dot(canvas, Offset(w * 0.92, h * 0.20), 5, IllustrationColors.softPink);
+    _dot(canvas, Offset(w * 0.85, h * 0.82), 4, IllustrationColors.softBlue);
+    _dot(canvas, Offset(w * 0.12, h * 0.78), 5, IllustrationColors.peach);
+    _sparkle(canvas, Offset(w * 0.88, h * 0.10), 5, IllustrationColors.softOrange);
+    _sparkle(canvas, Offset(w * 0.10, h * 0.88), 4, IllustrationColors.softPurple);
+
+    // --- Clipboard body (rounded rect) ---
+    final clipL = w * 0.22;
+    final clipR = w * 0.78;
+    final clipT = h * 0.12;
+    final clipB = h * 0.92;
+    final clipRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(clipL, clipT, clipR, clipB),
+      const Radius.circular(8),
+    );
+    canvas.drawRRect(clipRect, Paint()..color = IllustrationColors.softOrange.withValues(alpha: 0.5));
+    canvas.drawRRect(clipRect, outline);
+
+    // --- Clipboard clip at top ---
+    final clipCx = w * 0.5;
+    final clipCW = w * 0.18;
+    final clipCH = h * 0.06;
+    final clipTopRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset(clipCx, clipT), width: clipCW, height: clipCH),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(clipTopRect, Paint()..color = IllustrationColors.warmBrown);
+    canvas.drawRRect(clipTopRect, outline);
+
+    // --- Checklist rows ---
+    final rowStartY = clipT + h * 0.12;
+    final rowSpacing = h * 0.16;
+    final checkL = clipL + w * 0.06;
+    final textL = clipL + w * 0.16;
+    final textR = clipR - w * 0.06;
+    final checkSize = w * 0.06;
+
+    final rowColors = [
+      IllustrationColors.softGreen,
+      IllustrationColors.softBlue,
+      IllustrationColors.softPink,
+      IllustrationColors.softPurple,
+    ];
+
+    final checkPaint = Paint()
+      ..color = IllustrationColors.outline.withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    for (var i = 0; i < 4; i++) {
+      final rowY = rowStartY + i * rowSpacing;
+
+      // Checkbox
+      final checkRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(checkL, rowY - checkSize / 2, checkSize, checkSize),
+        const Radius.circular(2),
+      );
+      canvas.drawRRect(checkRect, Paint()..color = rowColors[i].withValues(alpha: 0.5));
+      canvas.drawRRect(checkRect, checkPaint);
+
+      // Checkmark for first 3 rows (completed orders)
+      if (i < 3) {
+        canvas.drawPath(
+          Path()
+            ..moveTo(checkL + checkSize * 0.2, rowY)
+            ..lineTo(checkL + checkSize * 0.45, rowY + checkSize * 0.25)
+            ..lineTo(checkL + checkSize * 0.8, rowY - checkSize * 0.2),
+          checkPaint,
+        );
+      }
+
+      // Text line placeholder
+      final lineWidth = i == 3 ? (textR - textL) * 0.6 : (textR - textL) * (0.75 + i * 0.05);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(textL, rowY - h * 0.012, lineWidth, h * 0.025),
+          const Radius.circular(3),
+        ),
+        Paint()..color = rowColors[i].withValues(alpha: 0.6),
+      );
+
+      // Small food emoji dot at end of completed rows
+      if (i < 3) {
+        _dot(canvas, Offset(textL + lineWidth + w * 0.04, rowY), 3.5, rowColors[i]);
+      }
+    }
+
+    // --- Small food accent near clipboard ---
+    // Donut
+    final donutC = Offset(w * 0.16, h * 0.35);
+    canvas.drawCircle(donutC, w * 0.045, Paint()..color = IllustrationColors.softPink);
+    canvas.drawCircle(donutC, w * 0.02, Paint()..color = IllustrationColors.softOrange.withValues(alpha: 0.6));
+    canvas.drawCircle(donutC, w * 0.045, outline);
+
+    // Coffee cup
+    final cupL = w * 0.82;
+    final cupT = h * 0.40;
+    final cupW = w * 0.07;
+    final cupH = h * 0.10;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cupL, cupT, cupW, cupH),
+        const Radius.circular(2),
+      ),
+      Paint()..color = IllustrationColors.softPurple,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cupL, cupT, cupW, cupH),
+        const Radius.circular(2),
+      ),
+      outline,
+    );
+    // Cup handle
+    canvas.drawPath(
+      Path()
+        ..moveTo(cupL + cupW, cupT + cupH * 0.2)
+        ..quadraticBezierTo(cupL + cupW + w * 0.03, cupT + cupH * 0.2, cupL + cupW + w * 0.03, cupT + cupH * 0.5)
+        ..quadraticBezierTo(cupL + cupW + w * 0.03, cupT + cupH * 0.8, cupL + cupW, cupT + cupH * 0.8),
+      outline,
+    );
+    // Steam
+    final steamPaint = Paint()
+      ..color = IllustrationColors.warmBrown.withValues(alpha: 0.25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(
+      Path()
+        ..moveTo(cupL + cupW * 0.5, cupT - h * 0.01)
+        ..quadraticBezierTo(cupL + cupW * 0.3, cupT - h * 0.04, cupL + cupW * 0.5, cupT - h * 0.06),
+      steamPaint,
+    );
+  }
+
+  void _dot(Canvas canvas, Offset c, double r, Color color) {
+    canvas.drawCircle(c, r, Paint()..color = color);
+  }
+
+  void _sparkle(Canvas canvas, Offset c, double s, Color color) {
+    final path = Path()
+      ..moveTo(c.dx, c.dy - s)
+      ..lineTo(c.dx + s * 0.22, c.dy - s * 0.22)
+      ..lineTo(c.dx + s, c.dy)
+      ..lineTo(c.dx + s * 0.22, c.dy + s * 0.22)
+      ..lineTo(c.dx, c.dy + s)
+      ..lineTo(c.dx - s * 0.22, c.dy + s * 0.22)
+      ..lineTo(c.dx - s, c.dy)
+      ..lineTo(c.dx - s * 0.22, c.dy - s * 0.22)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 /// A minimal decorative header accent — a small row of colored dots.
 /// Use sparingly at the top of sections for subtle Notion-style warmth.
 class SectionAccent extends StatelessWidget {

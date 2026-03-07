@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db';
-import { orders } from '../db/schema';
+import { orders, holidays, shutdownDays } from '../db/schema';
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
@@ -9,6 +9,36 @@ const orderRoutes = new Hono<AuthContext>();
 
 // All order routes are protected
 orderRoutes.use('*', authMiddleware);
+
+// Check if today is a shutdown/holiday day
+orderRoutes.get('/status', async (c) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+
+        const [holiday] = await db
+            .select()
+            .from(holidays)
+            .where(sql`${holidays.date} = ${today}`)
+            .limit(1);
+
+        const [shutdown] = await db
+            .select()
+            .from(shutdownDays)
+            .where(sql`${shutdownDays.date} = ${today}`)
+            .limit(1);
+
+        if (holiday) {
+            return c.json({ isOpen: false, reason: holiday.name ?? 'Holiday', type: 'holiday' }, 200);
+        }
+        if (shutdown) {
+            return c.json({ isOpen: false, reason: shutdown.reason ?? 'Shutdown day', type: 'shutdown' }, 200);
+        }
+
+        return c.json({ isOpen: true }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
 
 // Get today's order for the user
 orderRoutes.get('/today', async (c) => {

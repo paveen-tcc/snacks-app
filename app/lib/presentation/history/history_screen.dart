@@ -34,7 +34,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ]);
 
       final historyRes = results[0] as dynamic;
-      final history = List<Map<String, dynamic>>.from(historyRes.data['history']);
+      final history = List<Map<String, dynamic>>.from(
+        historyRes.data['history'],
+      );
       final snacks = results[1] as List<LocalSnack>;
       final snackMap = {for (final s in snacks) s.id: s};
 
@@ -49,11 +51,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }).toList();
 
       // Sort newest first
-      items.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
+      items.sort(
+        (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+      );
 
-      setState(() { _items = items; _loading = false; });
+      setState(() {
+        _items = items;
+        _loading = false;
+      });
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -64,7 +74,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final date = DateTime(dt.year, dt.month, dt.day);
     if (date == today) return 'Today';
     if (date == today.subtract(const Duration(days: 1))) return 'Yesterday';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${days[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}';
   }
@@ -82,62 +105,106 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: _loading
           ? const Center(child: FoodLoader())
           : _error != null
-              ? Center(child: Text('Failed to load history', style: Theme.of(context).textTheme.bodyMedium))
-              : _items.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const EmptyStateIllustration(emoji: '🍽️', size: 130),
-                          const SizedBox(height: 20),
-                          Text('No order history yet',
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 6),
-                          Text('Your orders will appear here',
-                              style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _items.length,
-                      separatorBuilder: (_, __) => const Divider(),
-                      itemBuilder: (context, index) {
-                        final item = _items[index];
-                        final dateLabel = _formatDate(item['date'] as String);
-                        final isToday = dateLabel == 'Today';
-                        final isDefault = item['isDefault'] as bool;
-
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Text(
-                            item['snackEmoji'] as String,
-                            style: const TextStyle(fontSize: 28),
-                          ),
-                          title: Text(
-                            item['snackName'] as String,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            dateLabel,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: isToday ? NotionTheme.blueAccent : NotionTheme.secondaryText,
-                              fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
-                          trailing: isDefault
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: NotionTheme.surfaceHover,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text('Default', style: TextStyle(fontSize: 11)),
-                                )
-                              : null,
-                        );
-                      },
+          ? Center(
+              child: Text(
+                'Failed to load history',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            )
+          : _items.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const EmptyStateIllustration(emoji: '🍽️', size: 130),
+                  const SizedBox(height: 20),
+                  Text(
+                    'No order history yet',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Your orders will appear here',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _items.length + 1,
+              separatorBuilder: (_, index) =>
+                  index == 0 ? const SizedBox.shrink() : const Divider(),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      children: [
+                        const HistoryIllustration(width: 160),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your Orders',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_items.length} order${_items.length == 1 ? '' : 's'}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                final item = _items[index - 1];
+                final dateLabel = _formatDate(item['date'] as String);
+                final isToday = dateLabel == 'Today';
+                final isDefault = item['isDefault'] as bool;
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Text(
+                    item['snackEmoji'] as String,
+                    style: const TextStyle(fontSize: 28),
+                  ),
+                  title: Text(
+                    item['snackName'] as String,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    dateLabel,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isToday
+                          ? NotionTheme.blueAccent
+                          : NotionTheme.secondaryText,
+                      fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: isDefault
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: NotionTheme.surfaceHover,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Default',
+                            style: TextStyle(fontSize: 11),
+                          ),
+                        )
+                      : null,
+                );
+              },
+            ),
     );
   }
 }

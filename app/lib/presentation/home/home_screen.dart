@@ -81,7 +81,65 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
               ],
             ),
-            body: CustomScrollView(
+            body: state.isShutdown
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const ShutdownIllustration(width: 220),
+                          const SizedBox(height: 24),
+                          Text(
+                            state.shutdownType == 'holiday'
+                                ? 'Happy Holiday!'
+                                : 'No Orders Today',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            state.shutdownReason ?? 'The kitchen is taking a break today',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: NotionTheme.secondaryText,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: NotionTheme.surfaceSelected,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: NotionTheme.blueAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  state.shutdownType == 'holiday'
+                                      ? Icons.celebration
+                                      : Icons.info_outline,
+                                  color: NotionTheme.blueAccent,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Orders will resume on the next working day',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: NotionTheme.blueAccent,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
@@ -130,7 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
-            bottomNavigationBar: Container(
+            bottomNavigationBar: state.isShutdown
+                ? null
+                : Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
               decoration: const BoxDecoration(
                 color: NotionTheme.background,

@@ -13,6 +13,21 @@ class OrderRepository {
 
   OrderRepository(this._apiClient, this._localDb);
 
+  /// Check if today is open for ordering (not a holiday/shutdown day).
+  /// Returns {isOpen, reason?, type?}.
+  Future<Map<String, dynamic>> fetchTodayStatus() async {
+    try {
+      final response = await _apiClient.dio.get('/orders/status');
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(response.data);
+      }
+    } catch (e) {
+      print('Status check failed: $e');
+    }
+    // Default to open if check fails (offline-first, don't block users)
+    return {'isOpen': true};
+  }
+
   // Get stream of today's order for reactive UI
   Stream<LocalOrder?> watchTodayOrder() async* {
     final prefs = await SharedPreferences.getInstance();
