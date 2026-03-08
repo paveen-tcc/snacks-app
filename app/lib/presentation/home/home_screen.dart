@@ -139,7 +139,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   )
-                : CustomScrollView(
+                : RefreshIndicator(
+                    onRefresh: () async {
+                      _homeBloc.add(RefreshHome());
+                      // Wait a bit for the sync to propagate
+                      await Future.delayed(const Duration(milliseconds: 800));
+                    },
+                    child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
@@ -188,6 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
+                  ),
             bottomNavigationBar: state.isShutdown
                 ? null
                 : Container(
@@ -233,6 +240,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildStatusCard(BuildContext context) {
+    final state = context.read<HomeBloc>().state;
+    String defaultLabel = 'No default set';
+    String cutoffLabel = '12:00 PM';
+    if (state is HomeLoaded) {
+      try {
+        final defaultSnack = state.snacks.firstWhere((s) => s.isDefault);
+        defaultLabel = 'Default: ${defaultSnack.name} (${defaultSnack.servingSize ?? '1 Unit'})';
+      } catch (_) {}
+      // Format cutoff time (e.g. "12:00" -> "12:00 PM", "14:30" -> "2:30 PM")
+      final parts = state.cutoffTime.split(':');
+      if (parts.length == 2) {
+        final hour = int.tryParse(parts[0]) ?? 12;
+        final minute = parts[1];
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+        cutoffLabel = '$displayHour:$minute $period';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -249,13 +275,13 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Order window closes at 12:00 PM',
+                  'Order window closes at $cutoffLabel',
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  'Default: Samosa (2 Pcs)',
+                  defaultLabel,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

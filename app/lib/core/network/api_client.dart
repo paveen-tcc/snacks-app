@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiClient {
   // Use 10.0.2.2 for Android emulator to access localhost, use localhost for iOS
   // Use localhost for iOS Simulator, use your machine IP for physical devices
-  static const String baseUrl = 'http://172.20.10.4:8787/api';
+  static const String baseUrl =
+      'https://snacks-app.paveenkumar-dev.workers.dev/api';
 
   late Dio _dio;
 

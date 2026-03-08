@@ -53,6 +53,30 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  InputDecoration _notionInput(String label, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: TextStyle(color: NotionTheme.secondaryText, fontSize: 13),
+      hintStyle: TextStyle(color: NotionTheme.secondaryText.withValues(alpha: 0.4)),
+      filled: true,
+      fillColor: NotionTheme.surfaceHover,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: NotionTheme.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: NotionTheme.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: NotionTheme.blueAccent, width: 1.5),
+      ),
+    );
+  }
+
   void _showSnackForm({Map<String, dynamic>? existing}) {
     final nameCtrl = TextEditingController(text: existing?['name'] ?? '');
     final emojiCtrl = TextEditingController(text: existing?['emoji'] ?? '');
@@ -63,32 +87,99 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      backgroundColor: NotionTheme.background,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
+          padding: EdgeInsets.only(left: 24, right: 24, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(existing == null ? 'Add Snack' : 'Edit Snack',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              // Drag handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: NotionTheme.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 16),
+              DialogHeader(
+                icon: existing == null ? Icons.add_circle_outline : Icons.edit_outlined,
+                title: existing == null ? 'Add Snack' : 'Edit Snack',
+                subtitle: existing == null ? 'Add a new item to the menu' : 'Update snack details',
+                backgroundColor: existing == null
+                    ? IllustrationColors.softGreen
+                    : IllustrationColors.softBlue,
+                iconColor: existing == null
+                    ? NotionTheme.greenAccent
+                    : NotionTheme.blueAccent,
+              ),
+              const SizedBox(height: 20),
               Row(children: [
-                Expanded(child: TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name *'))),
+                Expanded(child: TextField(controller: nameCtrl, decoration: _notionInput('Name *'))),
                 const SizedBox(width: 12),
-                SizedBox(width: 80, child: TextField(controller: emojiCtrl, decoration: const InputDecoration(labelText: 'Emoji'))),
+                SizedBox(width: 80, child: TextField(
+                  controller: emojiCtrl,
+                  decoration: _notionInput('Emoji'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 22),
+                )),
               ]),
               const SizedBox(height: 12),
-              TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Short description')),
+              TextField(controller: descCtrl, decoration: _notionInput('Short description')),
               const SizedBox(height: 12),
-              TextField(controller: sizeCtrl, decoration: const InputDecoration(labelText: 'Serving size (e.g. 2 Pcs)')),
-              const SizedBox(height: 12),
-              Row(children: [
-                const Text('Veg'),
-                Switch(value: isVeg, onChanged: (v) => setModalState(() => isVeg = v)),
-              ]),
-              const SizedBox(height: 16),
+              TextField(controller: sizeCtrl, decoration: _notionInput('Serving size', hint: 'e.g. 2 Pcs')),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isVeg
+                      ? NotionTheme.greenAccent.withValues(alpha: 0.08)
+                      : NotionTheme.redAccent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isVeg
+                        ? NotionTheme.greenAccent.withValues(alpha: 0.3)
+                        : NotionTheme.redAccent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isVeg ? NotionTheme.greenAccent : NotionTheme.redAccent,
+                      ),
+                      child: Icon(
+                        isVeg ? Icons.eco : Icons.restaurant,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isVeg ? 'Vegetarian' : 'Non-Vegetarian',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: isVeg ? NotionTheme.greenAccent : NotionTheme.redAccent,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: isVeg,
+                      activeColor: NotionTheme.greenAccent,
+                      inactiveThumbColor: NotionTheme.redAccent,
+                      onChanged: (v) => setModalState(() => isVeg = v),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -109,6 +200,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     }
                     await _load();
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: NotionTheme.primaryText,
+                    foregroundColor: NotionTheme.background,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                   child: Text(existing == null ? 'Add Snack' : 'Save Changes'),
                 ),
               ),

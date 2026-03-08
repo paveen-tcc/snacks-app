@@ -1,5 +1,5 @@
 {
-  "name": "tcc-pantry-api",
+  "name": "snacks-app",
   "module": "index.ts",
   "type": "module",
   "private": true,

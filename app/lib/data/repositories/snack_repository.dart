@@ -59,6 +59,19 @@ class SnackRepository {
     }
   }
 
+  /// Fetch cutoff time from public settings endpoint.
+  Future<String> fetchCutoffTime() async {
+    try {
+      final response = await _apiClient.dio.get('/snacks/settings');
+      if (response.statusCode == 200) {
+        return response.data['cutoffTime'] as String? ?? '12:00';
+      }
+    } catch (e) {
+      print('Cutoff fetch failed: $e');
+    }
+    return '12:00';
+  }
+
   // Observes local drift database for reactive UI updates
   Stream<List<LocalSnack>> watchActiveSnacks() {
     return (_localDb.select(_localDb.localSnacks)

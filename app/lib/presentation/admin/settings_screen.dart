@@ -30,25 +30,91 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     }
   }
 
+  IconData _iconForKey(String key) {
+    switch (key) {
+      case 'cutoff_time': return Icons.timer;
+      case 'whatsapp_number': return Icons.phone;
+      case 'holiday_country': return Icons.public;
+      default: return Icons.settings;
+    }
+  }
+
   Future<void> _edit(String key, String label, String currentValue, {TextInputType? keyboardType}) async {
     final ctrl = TextEditingController(text: currentValue);
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(label),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(hintText: 'Enter $label'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Save'),
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DialogHeader(
+                icon: _iconForKey(key),
+                title: label,
+                subtitle: 'Update the value below',
+                backgroundColor: IllustrationColors.softBlue,
+                iconColor: NotionTheme.blueAccent,
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: ctrl,
+                keyboardType: keyboardType,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Enter $label',
+                  hintStyle: TextStyle(color: NotionTheme.secondaryText.withValues(alpha: 0.5)),
+                  filled: true,
+                  fillColor: NotionTheme.surfaceHover,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: NotionTheme.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: NotionTheme.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: NotionTheme.blueAccent, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: NotionTheme.secondaryText,
+                        side: BorderSide(color: NotionTheme.border),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: NotionTheme.primaryText,
+                        foregroundColor: NotionTheme.background,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
 
@@ -93,14 +159,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                     onTap: () => _edit('whatsapp_number', 'Phone Number (with country code)', _settings['whatsapp_number'] ?? '',
                         keyboardType: TextInputType.phone),
                   ),
-                  _buildSettingTile(
+                  _buildToggleTile(
                     context,
                     icon: Icons.group,
                     title: 'Is WhatsApp Group?',
-                    subtitle: _settings['whatsapp_is_group'] == 'true' ? 'Yes' : 'No',
-                    onTap: () {
-                      final current = _settings['whatsapp_is_group'] == 'true';
-                      locator<AdminRepository>().updateSetting('whatsapp_is_group', (!current).toString()).then((_) => _load());
+                    value: _settings['whatsapp_is_group'] == 'true',
+                    onChanged: (val) {
+                      locator<AdminRepository>().updateSetting('whatsapp_is_group', val.toString()).then((_) => _load());
                     },
                   ),
                 ]),
@@ -146,6 +211,21 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, color: NotionTheme.secondaryText),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildToggleTile(BuildContext context, {required IconData icon, required String title, required bool value, required ValueChanged<bool> onChanged}) {
+    return ListTile(
+      leading: Icon(icon, color: NotionTheme.primaryText),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(value ? 'Yes' : 'No', style: const TextStyle(fontSize: 12)),
+      trailing: Transform.scale(
+        scale: 0.85,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }

@@ -951,3 +951,123 @@ class SectionAccent extends StatelessWidget {
     );
   }
 }
+
+/// A Notion-style dialog/modal header with an icon in a colored circle
+/// and decorative accent dots. Use at the top of AlertDialogs and BottomSheets.
+class DialogHeader extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color backgroundColor;
+  final String title;
+  final String? subtitle;
+
+  const DialogHeader({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.iconColor = const Color(0xFF37352F),
+    this.backgroundColor = const Color(0xFFFDECC8),
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Decorative dots row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _dot(IllustrationColors.softPink, 5),
+            const SizedBox(width: 6),
+            _dot(IllustrationColors.softBlue, 4),
+            const SizedBox(width: 6),
+            _dot(IllustrationColors.softGreen, 5),
+            const SizedBox(width: 6),
+            _dot(IllustrationColors.peach, 4),
+            const SizedBox(width: 6),
+            _dot(IllustrationColors.softPurple, 5),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Icon circle
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: backgroundColor.withValues(alpha: 0.6),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Inner ring
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: backgroundColor,
+                ),
+              ),
+              Icon(icon, color: iconColor, size: 24),
+              // Sparkle accents
+              Positioned(
+                top: 2,
+                right: 4,
+                child: Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: IllustrationColors.softOrange,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 6,
+                left: 2,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: IllustrationColors.softGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF37352F),
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle!,
+            style: TextStyle(
+              fontSize: 13,
+              color: const Color(0xFF37352F).withValues(alpha: 0.5),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _dot(Color color, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+}
