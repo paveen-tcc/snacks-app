@@ -35,7 +35,10 @@ app.onError((err, c) => {
     return c.json({ error: 'Internal Server Error', message: err.message }, 500);
 });
 
+// Bun dev uses this default export
 export default {
-    port: process.env.PORT || 3000,
+    port: parseInt(process.env.PORT || '3000', 10),
     fetch: app.fetch,
 };
+
+export { app };
