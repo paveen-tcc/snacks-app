@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { db } from '../db';
 import { hotDrinks, drinkVotes } from '../db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
@@ -10,6 +9,7 @@ const drinkRoutes = new Hono<AuthContext>();
 // Get all active hot drinks
 drinkRoutes.get('/', async (c) => {
     try {
+        const db = c.get('db');
         const drinks = await db
             .select()
             .from(hotDrinks)
@@ -27,6 +27,7 @@ drinkRoutes.use('*', authMiddleware);
 // Get today's user vote
 drinkRoutes.get('/vote', async (c) => {
     try {
+        const db = c.get('db');
         const user = c.get('user');
         const today = new Date().toISOString().split('T')[0];
 
@@ -44,6 +45,7 @@ drinkRoutes.get('/vote', async (c) => {
 // Cast or update a vote
 drinkRoutes.post('/vote', async (c) => {
     try {
+        const db = c.get('db');
         const user = c.get('user');
         const { drinkId, date } = await c.req.json();
         const voteDate = date || new Date().toISOString().split('T')[0];
@@ -73,9 +75,9 @@ drinkRoutes.post('/vote', async (c) => {
 // Get poll results for a specific date
 drinkRoutes.get('/results', async (c) => {
     try {
+        const db = c.get('db');
         const dateStr = c.req.query('date') || new Date().toISOString().split('T')[0];
 
-        // Count votes per drink for the given date
         const results = await db
             .select({
                 drinkId: drinkVotes.drinkId,

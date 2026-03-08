@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { db } from '../db';
 import { snacks, appSettings, holidays, shutdownDays, users, orders, hotDrinks, drinkVotes } from '../db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
@@ -14,6 +13,7 @@ adminRoutes.use('*', authMiddleware, adminMiddleware);
 
 adminRoutes.get('/snacks', async (c) => {
     try {
+        const db = c.get('db');
         const allSnacks = await db.select().from(snacks).orderBy(snacks.sortOrder);
         return c.json({ snacks: allSnacks }, 200);
     } catch (err: any) {
@@ -23,9 +23,9 @@ adminRoutes.get('/snacks', async (c) => {
 
 adminRoutes.post('/snacks', async (c) => {
     try {
+        const db = c.get('db');
         const { name, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder } = await c.req.json();
 
-        // If setting as default, unset other defaults first (only one default allowed)
         if (isDefault) {
             await db.update(snacks).set({ isDefault: false }).where(eq(snacks.isDefault, true));
         }
@@ -42,6 +42,7 @@ adminRoutes.post('/snacks', async (c) => {
 
 adminRoutes.put('/snacks/:id', async (c) => {
     try {
+        const db = c.get('db');
         const id = c.req.param('id');
         const updateData = await c.req.json();
 
@@ -64,8 +65,8 @@ adminRoutes.put('/snacks/:id', async (c) => {
 
 adminRoutes.get('/settings', async (c) => {
     try {
+        const db = c.get('db');
         const settings = await db.select().from(appSettings);
-        // Convert array of {key, value} to a simple object map
         const settingsMap = settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
         return c.json({ settings: settingsMap }, 200);
     } catch (err: any) {
@@ -75,6 +76,7 @@ adminRoutes.get('/settings', async (c) => {
 
 adminRoutes.put('/settings', async (c) => {
     try {
+        const db = c.get('db');
         const { key, value } = await c.req.json();
 
         if (!key || value === undefined) {
@@ -99,6 +101,7 @@ adminRoutes.put('/settings', async (c) => {
 
 adminRoutes.get('/summary', async (c) => {
     try {
+        const db = c.get('db');
         const today = new Date().toISOString().split('T')[0];
 
         const orderCounts = await db
@@ -137,6 +140,7 @@ adminRoutes.get('/summary', async (c) => {
 
 adminRoutes.post('/users/:id/admin', async (c) => {
     try {
+        const db = c.get('db');
         const id = c.req.param('id');
         const { isAdmin } = await c.req.json();
 
@@ -153,6 +157,7 @@ adminRoutes.post('/users/:id/admin', async (c) => {
 
 adminRoutes.get('/users', async (c) => {
     try {
+        const db = c.get('db');
         const allUsers = await db
             .select({ id: users.id, username: users.username, email: users.email, isAdmin: users.isAdmin, createdAt: users.createdAt })
             .from(users)
@@ -167,6 +172,7 @@ adminRoutes.get('/users', async (c) => {
 
 adminRoutes.get('/holidays', async (c) => {
     try {
+        const db = c.get('db');
         const allHolidays = await db.select().from(holidays).orderBy(holidays.date);
         return c.json({ holidays: allHolidays }, 200);
     } catch (err: any) {
@@ -176,6 +182,7 @@ adminRoutes.get('/holidays', async (c) => {
 
 adminRoutes.post('/holidays', async (c) => {
     try {
+        const db = c.get('db');
         const user = c.get('user');
         const { date, name } = await c.req.json();
         if (!date) return c.json({ error: 'date is required' }, 400);
@@ -191,6 +198,7 @@ adminRoutes.post('/holidays', async (c) => {
 
 adminRoutes.delete('/holidays/:id', async (c) => {
     try {
+        const db = c.get('db');
         const id = c.req.param('id');
         await db.delete(holidays).where(eq(holidays.id, id));
         return c.json({ success: true }, 200);

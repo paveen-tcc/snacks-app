@@ -1,25 +1,23 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET || 'super_secret_key_for_development_only'
-);
-
 export interface JWTPayload {
     userId: string;
     isAdmin: boolean;
 }
 
-export async function signToken(payload: JWTPayload): Promise<string> {
+export async function signToken(payload: JWTPayload, secret: string): Promise<string> {
+    const key = new TextEncoder().encode(secret);
     return new SignJWT({ ...payload })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('30d')
-        .sign(JWT_SECRET);
+        .sign(key);
 }
 
-export async function verifyToken(token: string): Promise<JWTPayload | null> {
+export async function verifyToken(token: string, secret: string): Promise<JWTPayload | null> {
     try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
+        const key = new TextEncoder().encode(secret);
+        const { payload } = await jwtVerify(token, key);
         return payload as unknown as JWTPayload;
     } catch (err) {
         return null;

@@ -1,11 +1,10 @@
 import type { Context, Next } from 'hono';
 import { verifyToken } from '../utils/jwt';
-import type { JWTPayload } from '../utils/jwt';
+import type { AppEnv } from '../index';
 
-// Define a custom context type to inject the user payload
-export type AuthContext = { Variables: { user: JWTPayload } };
+export type AuthContext = AppEnv;
 
-export const authMiddleware = async (c: Context, next: Next) => {
+export const authMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const authHeader = c.req.header('Authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -17,18 +16,18 @@ export const authMiddleware = async (c: Context, next: Next) => {
         return c.json({ error: 'Unauthorized: Malformed token' }, 401);
     }
 
-    const payload = await verifyToken(token);
+    const jwtSecret = c.get('jwtSecret');
+    const payload = await verifyToken(token, jwtSecret);
 
     if (!payload) {
         return c.json({ error: 'Unauthorized: Invalid or expired token' }, 401);
     }
 
-    // Inject the decoded user into the context variables
     c.set('user', payload);
     await next();
 };
 
-export const adminMiddleware = async (c: Context<AuthContext>, next: Next) => {
+export const adminMiddleware = async (c: Context<AppEnv>, next: Next) => {
     const user = c.get('user');
 
     if (!user || !user.isAdmin) {

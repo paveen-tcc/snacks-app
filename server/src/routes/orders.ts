@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
-import { db } from '../db';
 import { orders, holidays, shutdownDays } from '../db/schema';
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
 
@@ -13,6 +12,7 @@ orderRoutes.use('*', authMiddleware);
 // Check if today is a shutdown/holiday day
 orderRoutes.get('/status', async (c) => {
     try {
+        const db = c.get('db');
         const today = new Date().toISOString().split('T')[0];
 
         const [holiday] = await db
@@ -43,6 +43,7 @@ orderRoutes.get('/status', async (c) => {
 // Get today's order for the user
 orderRoutes.get('/today', async (c) => {
     try {
+        const db = c.get('db');
         const user = c.get('user');
         const today = new Date().toISOString().split('T')[0];
 
@@ -66,6 +67,7 @@ orderRoutes.get('/today', async (c) => {
 // Place or update today's order
 orderRoutes.post('/', async (c) => {
     try {
+        const db = c.get('db');
         const user = c.get('user');
         const { snackId, date } = await c.req.json();
         const orderDate = date || new Date().toISOString().split('T')[0];
@@ -74,8 +76,6 @@ orderRoutes.post('/', async (c) => {
             return c.json({ error: 'snackId is required' }, 400);
         }
 
-        // Upsert logic (insert or update if date exists for user)
-        // For Drizzle postgres, we can use onConflictDoUpdate
         const [savedOrder] = await db.insert(orders)
             .values({
                 userId: user.userId,
@@ -98,6 +98,7 @@ orderRoutes.post('/', async (c) => {
 // Get order history (past 7 days)
 orderRoutes.get('/history', async (c) => {
     try {
+        const db = c.get('db');
         const user = c.get('user');
         const today = new Date();
         const sevenDaysAgo = new Date();
@@ -106,7 +107,6 @@ orderRoutes.get('/history', async (c) => {
         const todayStr = today.toISOString().split('T')[0];
         const pastStr = sevenDaysAgo.toISOString().split('T')[0];
 
-        // We must pass dateStr otherwise type gets mad
         const history = await db
             .select()
             .from(orders)

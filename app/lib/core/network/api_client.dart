@@ -3,7 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   // Use 10.0.2.2 for Android emulator to access localhost, use localhost for iOS
-  static const String baseUrl = 'http://192.168.68.101:3000/api';
+  // Use localhost for iOS Simulator, use your machine IP for physical devices
+  static const String baseUrl = 'http://172.20.10.4:8787/api';
 
   late Dio _dio;
 

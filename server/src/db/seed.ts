@@ -1,5 +1,8 @@
-import { db } from './index';
+import { createDb } from './index';
 import { snacks, hotDrinks, appSettings } from './schema';
+
+const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/snacks_app';
+const db = createDb(databaseUrl);
 
 async function seed() {
     console.log('Seeding initial data...');
