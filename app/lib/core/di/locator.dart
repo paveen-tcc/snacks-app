@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import '../auth/msal_service.dart';
 import '../network/api_client.dart';
 import '../../data/local/app_database.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -11,6 +12,11 @@ import '../../data/sync/sync_engine.dart';
 final locator = GetIt.instance;
 
 Future<void> setupLocator() async {
+  // 0. MSAL
+  final msalService = MsalService();
+  await msalService.initialize();
+  locator.registerSingleton<MsalService>(msalService);
+
   // 1. Networking & Database
   locator.registerLazySingleton<ApiClient>(() => ApiClient());
   locator.registerLazySingleton<AppDatabase>(() => AppDatabase());

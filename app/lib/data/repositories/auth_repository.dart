@@ -7,32 +7,11 @@ class AuthRepository {
 
   AuthRepository(this._apiClient);
 
-  Future<void> register(String username, String email) async {
+  Future<void> loginWithMicrosoft(String idToken) async {
     try {
       final response = await _apiClient.dio.post(
-        '/auth/register',
-        data: {'username': username, 'email': email},
-      );
-
-      if (response.statusCode == 201) {
-        final token = response.data['token'];
-        final user = response.data['user'];
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', token);
-        await prefs.setString('user_id', user['id']);
-        await prefs.setString('username', user['username'] ?? '');
-        await prefs.setBool('is_admin', user['isAdmin'] ?? false);
-      }
-    } on DioException catch (e) {
-      throw Exception(e.response?.data['error'] ?? 'Registration failed');
-    }
-  }
-
-  Future<void> login(String email) async {
-    try {
-      final response = await _apiClient.dio.post(
-        '/auth/login',
-        data: {'email': email},
+        '/auth/microsoft',
+        data: {'idToken': idToken},
       );
 
       if (response.statusCode == 200) {
@@ -45,7 +24,11 @@ class AuthRepository {
         await prefs.setBool('is_admin', user['isAdmin'] ?? false);
       }
     } on DioException catch (e) {
-      throw Exception(e.response?.data['error'] ?? 'Login failed');
+      final serverError = e.response?.data is Map
+          ? e.response?.data['error']
+          : e.response?.data?.toString();
+      throw Exception(
+          serverError ?? '${e.type}: ${e.message}');
     }
   }
 

@@ -1,65 +1,62 @@
 import { Hono } from 'hono';
 import { users } from '../db/schema';
-import { eq, or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { signToken } from '../utils/jwt';
+import { verifyMicrosoftToken } from '../utils/microsoft';
 import type { AppEnv } from '../index';
 
 const authRoutes = new Hono<AppEnv>();
 
-authRoutes.post('/register', async (c) => {
+authRoutes.post('/microsoft', async (c) => {
     try {
         const db = c.get('db');
         const jwtSecret = c.get('jwtSecret');
-        const { username, email, deviceId } = await c.req.json();
+        const { idToken } = await c.req.json();
 
-        if (!username || !email) {
-            return c.json({ error: 'Username and email are required' }, 400);
+        if (!idToken) {
+            return c.json({ error: 'idToken is required' }, 400);
         }
 
-        const existingUser = await db.select().from(users).where(
-            or(eq(users.username, username), eq(users.email, email))
-        ).limit(1);
+        const claims = await verifyMicrosoftToken(
+            idToken,
+            c.env.AZURE_TENANT_ID,
+            c.env.AZURE_CLIENT_ID,
+        );
 
-        if (existingUser.length > 0) {
-            return c.json({ error: 'Username or email already exists' }, 409);
-        }
-
-        const userCount = await db.select().from(users);
-        const isFirstUser = userCount.length === 0;
-
-        const [newUser] = await db.insert(users).values({
-            username,
-            email,
-            deviceId,
-            isAdmin: isFirstUser
-        }).returning();
-
-        if (!newUser) {
-            return c.json({ error: 'Failed to create user' }, 500);
-        }
-
-        const token = await signToken({ userId: newUser.id, isAdmin: !!newUser.isAdmin }, jwtSecret);
-
-        return c.json({ user: newUser, token }, 201);
-    } catch (err: any) {
-        return c.json({ error: err.message }, 500);
-    }
-});
-
-authRoutes.post('/login', async (c) => {
-    try {
-        const db = c.get('db');
-        const jwtSecret = c.get('jwtSecret');
-        const { email } = await c.req.json();
-
-        if (!email) {
-            return c.json({ error: 'Email is required' }, 400);
-        }
-
-        const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        // 1. Look up by microsoftId
+        let [user] = await db.select().from(users)
+            .where(eq(users.microsoftId, claims.oid))
+            .limit(1);
 
         if (!user) {
-            return c.json({ error: 'User not found' }, 404);
+            // 2. Fall back to email match (migrates existing users)
+            [user] = await db.select().from(users)
+                .where(eq(users.email, claims.email))
+                .limit(1);
+
+            if (user) {
+                // Link existing user to their Microsoft account
+                await db.update(users)
+                    .set({ microsoftId: claims.oid })
+                    .where(eq(users.id, user.id));
+            }
+        }
+
+        if (!user) {
+            // 3. Create new user
+            const userCount = await db.select().from(users);
+            const isFirstUser = userCount.length === 0;
+
+            [user] = await db.insert(users).values({
+                username: claims.name,
+                email: claims.email,
+                microsoftId: claims.oid,
+                isAdmin: isFirstUser,
+            }).returning();
+        }
+
+        if (!user) {
+            return c.json({ error: 'Failed to create or find user' }, 500);
         }
 
         const token = await signToken({ userId: user.id, isAdmin: !!user.isAdmin }, jwtSecret);

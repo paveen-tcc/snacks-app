@@ -1,0 +1,11 @@
+{
+  "client_id": "a9bb1ec3-db6c-4192-96c6-de69296cfe66",
+  "authorization_user_agent": "DEFAULT",
+  "redirect_uri": "msauth://com.company.snacks_app/YOUR_SIGNATURE_HASH",
+  "authorities": [
+    {
+      "type": "AAD",
+      "authority_url": "https://login.microsoftonline.com/78c58f88-8385-43c2-b475-a57dcfbbc09f"
+    }
+  ]
+}

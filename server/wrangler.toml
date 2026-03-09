@@ -7,6 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 ip = "0.0.0.0"
 port = 8787
 
-# Secrets (set via: npx wrangler secret put DATABASE_URL / JWT_SECRET)
+# Secrets (set via: npx wrangler secret put <KEY>)
 # DATABASE_URL = "your-neon-connection-string"
 # JWT_SECRET = "your-secret"
+# AZURE_TENANT_ID = "your-azure-tenant-id"
+# AZURE_CLIENT_ID = "your-azure-client-id"

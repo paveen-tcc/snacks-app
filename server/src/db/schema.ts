@@ -15,6 +15,7 @@ export const users = pgTable('users', {
     id: uuid('id').primaryKey().defaultRandom(),
     username: varchar('username', { length: 100 }).unique().notNull(),
     email: varchar('email', { length: 255 }).unique().notNull(),
+    microsoftId: varchar('microsoft_id', { length: 255 }).unique(),
     deviceId: varchar('device_id', { length: 255 }),
     isAdmin: boolean('is_admin').default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

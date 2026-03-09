@@ -14,6 +14,8 @@ import adminRoutes from './routes/admin';
 export type Bindings = {
     DATABASE_URL: string;
     JWT_SECRET: string;
+    AZURE_TENANT_ID: string;
+    AZURE_CLIENT_ID: string;
 };
 
 // Variables injected into context per-request
@@ -42,6 +44,19 @@ app.use('*', async (c, next) => {
 // Health check
 app.get('/health', (c) => {
     return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Debug: test JWKS fetch
+app.get('/debug/jwks', async (c) => {
+    const tenantId = c.env.AZURE_TENANT_ID;
+    const url = `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`;
+    try {
+        const res = await fetch(url);
+        const body = await res.json();
+        return c.json({ status: res.status, tenantId, url, keys: body });
+    } catch (err: any) {
+        return c.json({ error: err.message, tenantId, url });
+    }
 });
 
 // Mount routes
