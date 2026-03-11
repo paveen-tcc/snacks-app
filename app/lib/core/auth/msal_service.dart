@@ -28,10 +28,24 @@ class MsalService {
     final result = await _pca.acquireToken(scopes: _scopes);
     final idToken = result.idToken;
     if (idToken == null || idToken.isEmpty) {
-      // Fall back to access token if ID token not available
       return result.accessToken;
     }
     return idToken;
+  }
+
+  /// Attempts to silently acquire a token using cached credentials.
+  /// Returns the ID token, or null if silent acquisition fails.
+  Future<String?> acquireTokenSilent() async {
+    try {
+      final result = await _pca.acquireTokenSilent(scopes: _scopes);
+      final idToken = result.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        return result.accessToken;
+      }
+      return idToken;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> signOut() async {
