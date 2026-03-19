@@ -1,4 +1,4 @@
-package com.company.snacks_app
+package company.thecloud.pantry
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,19 +1,26 @@
+import 'package:flutter/foundation.dart';
 import 'package:msal_auth/msal_auth.dart';
 
 class MsalService {
   static const String _clientId = 'a9bb1ec3-db6c-4192-96c6-de69296cfe66';
   static const String _tenantId = '78c58f88-8385-43c2-b475-a57dcfbbc09f';
   static const List<String> _scopes = ['User.Read'];
+  static const String _androidDebugRedirectUri =
+      'msauth://company.thecloud.pantry/515a9IhVXCyy57IZeaswJmLBBUA%3D';
+  static const String _androidReleaseRedirectUri =
+      'msauth://company.thecloud.pantry/s46h%2BmgBrqVfAnFDUVD8ERZKOVw%3D';
 
   late SingleAccountPca _pca;
 
   Future<void> initialize() async {
+    final androidRedirectUri =
+        kReleaseMode ? _androidReleaseRedirectUri : _androidDebugRedirectUri;
+
     _pca = await SingleAccountPca.create(
       clientId: _clientId,
       androidConfig: AndroidConfig(
         configFilePath: 'assets/msal_config.json',
-        redirectUri:
-            'msauth://com.company.snacks_app/YOUR_SIGNATURE_HASH',
+        redirectUri: androidRedirectUri,
       ),
       appleConfig: AppleConfig(
         authorityType: AuthorityType.aad,
