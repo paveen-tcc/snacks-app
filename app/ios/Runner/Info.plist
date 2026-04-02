@@ -60,6 +60,7 @@
 	<array>
 		<string>msauthv2</string>
 		<string>msauthv3</string>
+		<string>whatsapp</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app may access your photo library when selecting files to upload.</string>

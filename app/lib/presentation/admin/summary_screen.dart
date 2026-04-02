@@ -35,17 +35,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
     if (_data == null) return;
     final orders = List<Map<String, dynamic>>.from(_data!['orders']);
     final drinks = List<Map<String, dynamic>>.from(_data!['drinks']);
-    final total = _data!['totalOrders'] as int;
     final date = _data!['date'] as String;
 
     final buf = StringBuffer();
-    buf.writeln('🍿 *Snack Order — $date*');
-    buf.writeln('━━━━━━━━━━━━━━━');
-    for (final o in orders) {
-      buf.writeln('${o['snackEmoji'] ?? '•'} ${o['snackName']}: ${o['count']}');
-    }
-    buf.writeln('━━━━━━━━━━━━━━━');
-    buf.writeln('*Total: $total*');
+    buf.writeln('Date: ${_formatWhatsAppDate(date)}');
+    buf.writeln();
+    buf.writeln('Drinks:');
     if (drinks.isNotEmpty) {
       final maxVotes = drinks
           .map((drink) => (drink['count'] as num?)?.toInt() ?? 0)
@@ -53,20 +48,49 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final topDrinks = drinks
           .where((drink) => ((drink['count'] as num?)?.toInt() ?? 0) == maxVotes)
           .toList();
-      buf.writeln('');
-      buf.writeln(topDrinks.length > 1 ? '☕ *Top Hot Drinks*' : '☕ *Top Hot Drink*');
       for (final d in topDrinks) {
-        buf.writeln('${d['drinkEmoji'] ?? '•'} ${d['drinkName']}');
+        buf.writeln('${d['drinkName']} - ${d['count']}');
       }
+    } else {
+      buf.writeln('No votes yet');
+    }
+    buf.writeln();
+    buf.writeln('Snacks:');
+    if (orders.isNotEmpty) {
+      for (final o in orders) {
+        buf.writeln('${o['snackName']} - ${o['count']}');
+      }
+    } else {
+      buf.writeln('No orders yet');
     }
 
-    final settings = await locator<AdminRepository>().getSettings();
-    final number = settings['whatsapp_number'] ?? '';
-    final encoded = Uri.encodeComponent(buf.toString());
-    final uri = Uri.parse('https://wa.me/$number?text=$encoded');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final message = buf.toString();
+    final whatsappUri = Uri(
+      scheme: 'whatsapp',
+      host: 'send',
+      queryParameters: {'text': message},
+    );
+    final fallbackUri = Uri.https('wa.me', '/', {'text': message});
+
+    if (await canLaunchUrl(whatsappUri)) {
+      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+      return;
     }
+    if (await canLaunchUrl(fallbackUri)) {
+      await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WhatsApp is not available on this device')),
+      );
+    }
+  }
+
+  String _formatWhatsAppDate(String date) {
+    final parts = date.split('-');
+    if (parts.length != 3) return date;
+    return '${parts[2]} - ${parts[1]} - ${parts[0]}';
   }
 
   @override
