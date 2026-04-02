@@ -61,6 +61,8 @@
 		<string>msauthv2</string>
 		<string>msauthv3</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app may access your photo library when selecting files to upload.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
