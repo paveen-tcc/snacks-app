@@ -36,4 +36,17 @@ snackRoutes.get('/settings', async (c) => {
     }
 });
 
+// Public CSV template for admin bulk snack upload
+snackRoutes.get('/template', async (c) => {
+    const templateRows = [
+        'name,emoji,description,veg_or_non_veg,serving_size,is_default,is_active,sort_order',
+        'Samosa,🥟,Crispy potato filling,veg,2 Pcs,false,true,10',
+        'Chicken Puff,🥐,Flaky pastry with chicken,non-veg,1 Pc,false,true,20',
+    ].join('\n');
+
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', 'attachment; filename="snacks-bulk-upload-template.csv"');
+    return c.body(templateRows, 200);
+});
+
 export default snackRoutes;

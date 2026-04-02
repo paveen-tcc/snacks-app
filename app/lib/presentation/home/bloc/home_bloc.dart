@@ -14,9 +14,9 @@ class HomeLoading extends HomeState {}
 
 class HomeLoaded extends HomeState {
   final List<LocalSnack> snacks;
-  final LocalOrder? todaysOrder;
+  final List<LocalOrder> todaysOrders;
   final String filter;
-  final String? selectedSnackId;
+  final List<String> selectedSnackIds;
   final bool isSubmitting;
   final List<Map<String, dynamic>> drinks;
   final String? selectedDrinkId;
@@ -28,9 +28,9 @@ class HomeLoaded extends HomeState {
 
   HomeLoaded({
     required this.snacks,
-    this.todaysOrder,
+    this.todaysOrders = const [],
     this.filter = 'All',
-    this.selectedSnackId,
+    this.selectedSnackIds = const [],
     this.isSubmitting = false,
     this.drinks = const [],
     this.selectedDrinkId,
@@ -46,9 +46,9 @@ class HomeLoaded extends HomeState {
 
   HomeLoaded copyWith({
     List<LocalSnack>? snacks,
-    Object? todaysOrder = _unset,
+    Object? todaysOrders = _unset,
     String? filter,
-    Object? selectedSnackId = _unset,
+    List<String>? selectedSnackIds,
     bool? isSubmitting,
     List<Map<String, dynamic>>? drinks,
     Object? selectedDrinkId = _unset,
@@ -60,9 +60,11 @@ class HomeLoaded extends HomeState {
   }) {
     return HomeLoaded(
       snacks: snacks ?? this.snacks,
-      todaysOrder: todaysOrder == _unset ? this.todaysOrder : todaysOrder as LocalOrder?,
+      todaysOrders: todaysOrders == _unset
+          ? this.todaysOrders
+          : todaysOrders as List<LocalOrder>,
       filter: filter ?? this.filter,
-      selectedSnackId: selectedSnackId == _unset ? this.selectedSnackId : selectedSnackId as String?,
+      selectedSnackIds: selectedSnackIds ?? this.selectedSnackIds,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       drinks: drinks ?? this.drinks,
       selectedDrinkId: selectedDrinkId == _unset ? this.selectedDrinkId : selectedDrinkId as String?,
@@ -92,8 +94,8 @@ class SnacksUpdated extends HomeEvent {
 }
 
 class OrderUpdated extends HomeEvent {
-  final LocalOrder? order;
-  OrderUpdated(this.order);
+  final List<LocalOrder> orders;
+  OrderUpdated(this.orders);
 }
 
 class ChangeFilter extends HomeEvent {
@@ -101,9 +103,9 @@ class ChangeFilter extends HomeEvent {
   ChangeFilter(this.filter);
 }
 
-class SelectSnack extends HomeEvent {
+class ToggleSnack extends HomeEvent {
   final String snackId;
-  SelectSnack(this.snackId);
+  ToggleSnack(this.snackId);
 }
 
 class SubmitOrder extends HomeEvent {}
@@ -154,7 +156,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     on<SnacksUpdated>(_onSnacksUpdated);
     on<OrderUpdated>(_onOrderUpdated);
     on<ChangeFilter>(_onChangeFilter);
-    on<SelectSnack>(_onSelectSnack);
+    on<ToggleSnack>(_onToggleSnack);
     on<SubmitOrder>(_onSubmitOrder);
     on<DrinksLoaded>(_onDrinksLoaded);
     on<SelectDrink>(_onSelectDrink);
@@ -196,26 +198,30 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     });
 
     _orderSub?.cancel();
-    _orderSub = _orderRepo.watchTodayOrder().listen((order) {
-      add(OrderUpdated(order));
+    _orderSub = _orderRepo.watchTodayOrder().listen((orders) {
+      add(OrderUpdated(orders));
     });
   }
 
   void _onSnacksUpdated(SnacksUpdated event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
-      // Re-evaluate selection: use today's order, then default snack, then keep current
-      String? selection;
-      if (curr.todaysOrder != null) {
-        selection = curr.todaysOrder!.snackId;
+      List<String> selection;
+      if (curr.todaysOrders.isNotEmpty) {
+        selection = curr.todaysOrders.map((order) => order.snackId).toList();
       } else {
-        try {
-          selection = event.snacks.firstWhere((s) => s.isDefault).id;
-        } catch (_) {
-          selection = curr.selectedSnackId;
+        selection = curr.selectedSnackIds
+            .where((selectedId) => event.snacks.any((snack) => snack.id == selectedId))
+            .toList();
+        if (selection.isEmpty) {
+          try {
+            selection = [event.snacks.firstWhere((s) => s.isDefault).id];
+          } catch (_) {
+            selection = const [];
+          }
         }
       }
-      emit(curr.copyWith(snacks: event.snacks, selectedSnackId: selection));
+      emit(curr.copyWith(snacks: event.snacks, selectedSnackIds: selection));
     } else {
       // Apply any drinks/status that loaded before state became HomeLoaded
       final drinks = _pendingDrinks ?? [];
@@ -228,9 +234,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       _pendingCutoff = null;
       emit(HomeLoaded(
         snacks: event.snacks,
-        selectedSnackId: event.snacks.isNotEmpty
-            ? event.snacks.firstWhere((s) => s.isDefault, orElse: () => event.snacks.first).id
-            : null,
+        selectedSnackIds: event.snacks.isNotEmpty
+            ? [event.snacks.firstWhere((s) => s.isDefault, orElse: () => event.snacks.first).id]
+            : const [],
         drinks: drinks,
         selectedDrinkId: voteId,
         isShutdown: status?['isShutdown'] as bool? ?? false,
@@ -245,8 +251,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
       emit(curr.copyWith(
-        todaysOrder: event.order,
-        selectedSnackId: event.order?.snackId ?? curr.selectedSnackId,
+        todaysOrders: event.orders,
+        selectedSnackIds: event.orders.isNotEmpty
+            ? event.orders.map((order) => order.snackId).toList()
+            : curr.selectedSnackIds,
       ));
     }
   }
@@ -257,20 +265,27 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 
-  void _onSelectSnack(SelectSnack event, Emitter<HomeState> emit) {
+  void _onToggleSnack(ToggleSnack event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
-      emit((state as HomeLoaded).copyWith(selectedSnackId: event.snackId));
+      final curr = state as HomeLoaded;
+      final selectedSnackIds = List<String>.from(curr.selectedSnackIds);
+      if (selectedSnackIds.contains(event.snackId)) {
+        selectedSnackIds.remove(event.snackId);
+      } else {
+        selectedSnackIds.add(event.snackId);
+      }
+      emit(curr.copyWith(selectedSnackIds: selectedSnackIds));
     }
   }
 
   Future<void> _onSubmitOrder(SubmitOrder event, Emitter<HomeState> emit) async {
     if (state is! HomeLoaded) return;
     final curr = state as HomeLoaded;
-    if (curr.selectedSnackId == null || curr.isSubmitting) return;
+    if (curr.selectedSnackIds.isEmpty || curr.isSubmitting) return;
 
     emit(curr.copyWith(isSubmitting: true));
     try {
-      await _orderRepo.placeOrder(curr.selectedSnackId!);
+      await _orderRepo.placeOrder(curr.selectedSnackIds);
       emit(curr.copyWith(isSubmitting: false));
     } catch (e) {
       emit(curr.copyWith(isSubmitting: false));

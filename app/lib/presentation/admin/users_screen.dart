@@ -71,37 +71,95 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               itemBuilder: (context, i) {
                 final u = _users[i];
                 final isAdmin = u['isAdmin'] as bool? ?? false;
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: NotionTheme.surfaceHover,
-                    child: Text(
-                      (u['username'] as String).substring(0, 1).toUpperCase(),
-                      style: const TextStyle(color: NotionTheme.primaryText, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  title: Row(children: [
-                    Text(u['username'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    if (isAdmin) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: NotionTheme.blueAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
+                final username = u['username'] as String;
+                final email = u['email'] as String;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: NotionTheme.surfaceHover,
+                        child: Text(
+                          username.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            color: NotionTheme.primaryText,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        child: const Text('Admin', style: TextStyle(fontSize: 10, color: NotionTheme.blueAccent, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    username,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (isAdmin) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: NotionTheme.blueAccent.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'Admin',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: NotionTheme.blueAccent,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              email,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 132,
+                        child: TextButton(
+                          onPressed: () => _toggleAdmin(u),
+                          style: TextButton.styleFrom(
+                            alignment: Alignment.centerRight,
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: Text(
+                            isAdmin ? 'Remove Admin' : 'Make Admin',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isAdmin
+                                  ? NotionTheme.redAccent
+                                  : NotionTheme.blueAccent,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
-                  ]),
-                  subtitle: Text(u['email'] as String, style: Theme.of(context).textTheme.bodySmall),
-                  trailing: TextButton(
-                    onPressed: () => _toggleAdmin(u),
-                    child: Text(isAdmin ? 'Remove Admin' : 'Make Admin',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isAdmin ? NotionTheme.redAccent : NotionTheme.blueAccent,
-                        )),
                   ),
                 );
               },

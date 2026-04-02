@@ -47,10 +47,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
     buf.writeln('━━━━━━━━━━━━━━━');
     buf.writeln('*Total: $total*');
     if (drinks.isNotEmpty) {
+      final maxVotes = drinks
+          .map((drink) => (drink['count'] as num?)?.toInt() ?? 0)
+          .fold<int>(0, (maxValue, count) => count > maxValue ? count : maxValue);
+      final topDrinks = drinks
+          .where((drink) => ((drink['count'] as num?)?.toInt() ?? 0) == maxVotes)
+          .toList();
       buf.writeln('');
-      buf.writeln('☕ *Hot Drink Poll*');
-      for (final d in drinks) {
-        buf.writeln('${d['drinkEmoji'] ?? '•'} ${d['drinkName']}: ${d['count']}');
+      buf.writeln(topDrinks.length > 1 ? '☕ *Top Hot Drinks*' : '☕ *Top Hot Drink*');
+      for (final d in topDrinks) {
+        buf.writeln('${d['drinkEmoji'] ?? '•'} ${d['drinkName']}');
       }
     }
 

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/di/locator.dart';
 import '../../core/theme/notion_theme.dart';
 import '../../core/widgets/illustrations.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'bloc/home_bloc.dart';
 import '../../data/local/app_database.dart';
 
@@ -22,7 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _homeBloc = HomeBloc();
-    _loadUsername();
+    _refreshViewerState();
   }
 
   bool _isAdmin = false;
@@ -32,6 +34,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final username = prefs.getString('username') ?? '';
     final isAdmin = prefs.getBool('is_admin') ?? false;
     if (mounted) setState(() { _username = username; _isAdmin = isAdmin; });
+  }
+
+  Future<void> _refreshViewerState() async {
+    try {
+      await locator<AuthRepository>().refreshSession();
+    } catch (_) {
+      // Keep existing cached session state if refresh fails.
+    }
+    await _loadUsername();
   }
 
   @override
@@ -142,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 : RefreshIndicator(
                     onRefresh: () async {
                       _homeBloc.add(RefreshHome());
+                      await _refreshViewerState();
                       // Wait a bit for the sync to propagate
                       await Future.delayed(const Duration(milliseconds: 800));
                     },
@@ -159,11 +171,21 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Flexible(
-                              child: Text(
-                                'Today\'s Menu',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Today\'s Menu',
+                                    style: Theme.of(context).textTheme.titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Select one or more snacks',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
                               ),
                             ),
                             _buildFilterChips(state.filter),
@@ -179,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final snack = displayedSnacks[index];
-                      final isSelected = state.selectedSnackId == snack.id;
+                      final isSelected = state.selectedSnackIds.contains(snack.id);
                       return _buildSnackCard(snack, isSelected);
                     }, childCount: displayedSnacks.length),
                   ),
@@ -214,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: state.isSubmitting
+                                || state.selectedSnackIds.isEmpty
                             ? null
                             : () {
                                 _homeBloc.add(SubmitOrder());
@@ -221,9 +244,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: state.isSubmitting
                             ? const FoodLoaderInline(size: 18)
                             : Text(
-                                state.todaysOrder != null &&
-                                        state.todaysOrder?.snackId ==
-                                            state.selectedSnackId
+                                _hasSameSnackSelection(
+                                          state.todaysOrders,
+                                          state.selectedSnackIds,
+                                        )
                                     ? 'Keep Current Order'
                                     : 'Confirm Order',
                               ),
@@ -237,6 +261,16 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  bool _hasSameSnackSelection(
+    List<LocalOrder> todaysOrders,
+    List<String> selectedSnackIds,
+  ) {
+    if (todaysOrders.length != selectedSnackIds.length) return false;
+    final existingIds = todaysOrders.map((order) => order.snackId).toSet();
+    return existingIds.length == selectedSnackIds.toSet().length &&
+        existingIds.containsAll(selectedSnackIds);
   }
 
   Widget _buildStatusCard(BuildContext context) {
@@ -330,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.only(bottom: 12.0),
       child: InkWell(
         onTap: () {
-          _homeBloc.add(SelectSnack(snack.id));
+          _homeBloc.add(ToggleSnack(snack.id));
         },
         borderRadius: BorderRadius.circular(8),
         child: Container(
@@ -414,6 +448,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
+              const SizedBox(width: 12),
+              Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected
+                    ? NotionTheme.blueAccent
+                    : NotionTheme.secondaryText.withValues(alpha: 0.6),
               ),
             ],
           ),

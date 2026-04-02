@@ -8,8 +8,8 @@ import '../../data/repositories/auth_repository.dart';
 class ApiClient {
   // Use 10.0.2.2 for Android emulator to access localhost, use localhost for iOS
   // Use localhost for iOS Simulator, use your machine IP for physical devices
-  static const String baseUrl =
-      'https://snacks-app.paveenkumar-dev.workers.dev/api';
+  static const String baseUrl = 'http://192.168.0.137:8787/api';
+  // 'https://snacks-app.paveenkumar-dev.workers.dev/api';
 
   late Dio _dio;
   bool _isRefreshing = false;
@@ -75,11 +75,13 @@ class ApiClient {
     if (idToken == null) return false;
 
     try {
-      final response = await Dio(BaseOptions(
-        baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-      )).post('/auth/microsoft', data: {'idToken': idToken});
+      final response = await Dio(
+        BaseOptions(
+          baseUrl: baseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 10),
+        ),
+      ).post('/auth/microsoft', data: {'idToken': idToken});
 
       if (response.statusCode == 200) {
         final token = response.data['token'];

@@ -7,7 +7,8 @@ import {
     integer,
     date,
     jsonb,
-    uniqueIndex
+    uniqueIndex,
+    index
 } from 'drizzle-orm/pg-core';
 
 // Users (username + email, unique username)
@@ -45,7 +46,7 @@ export const orders = pgTable('orders', {
     orderedAt: timestamp('ordered_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
-    unqUserDate: uniqueIndex('orders_user_date_unique').on(t.userId, t.date),
+    userDateIdx: index('orders_user_date_idx').on(t.userId, t.date),
 }));
 
 // Hot drinks catalog

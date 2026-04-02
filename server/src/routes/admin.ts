@@ -40,6 +40,72 @@ adminRoutes.post('/snacks', async (c) => {
     }
 });
 
+adminRoutes.post('/snacks/bulk', async (c) => {
+    try {
+        const db = c.get('db');
+        const body = await c.req.json();
+        const incomingSnacks = Array.isArray(body?.snacks) ? body.snacks : [];
+        type NormalizedSnack = {
+            name: string;
+            emoji: string;
+            description: string;
+            isVeg: boolean;
+            isDefault: boolean;
+            isActive: boolean;
+            servingSize: string;
+            sortOrder: number | null;
+            index: number;
+        };
+
+        const normalizedSnacks: NormalizedSnack[] = incomingSnacks
+            .map((snack: any, index: number) => ({
+                name: typeof snack?.name === 'string' ? snack.name.trim() : '',
+                emoji: typeof snack?.emoji === 'string' ? snack.emoji.trim() : '',
+                description: typeof snack?.description === 'string' ? snack.description.trim() : '',
+                isVeg: typeof snack?.isVeg === 'boolean' ? snack.isVeg : true,
+                isDefault: snack?.isDefault === true,
+                isActive: typeof snack?.isActive === 'boolean' ? snack.isActive : true,
+                servingSize: typeof snack?.servingSize === 'string' ? snack.servingSize.trim() : '',
+                sortOrder: Number.isFinite(Number(snack?.sortOrder)) ? Number(snack.sortOrder) : null,
+                index,
+            }))
+            .filter((snack: NormalizedSnack) => snack.name.length > 0);
+
+        if (normalizedSnacks.length === 0) {
+            return c.json({ error: 'snacks is required' }, 400);
+        }
+
+        const [sortInfo] = await db
+            .select({
+                maxSortOrder: sql<number>`coalesce(max(${snacks.sortOrder}), -1)`.mapWith(Number),
+            })
+            .from(snacks);
+
+        const firstDefaultIndex = normalizedSnacks.findIndex((snack: NormalizedSnack) => snack.isDefault);
+        if (firstDefaultIndex >= 0) {
+            await db.update(snacks).set({ isDefault: false }).where(eq(snacks.isDefault, true));
+        }
+
+        const baseSortOrder = (sortInfo?.maxSortOrder ?? -1) + 1;
+        const createdSnacks = await db.insert(snacks).values(
+            normalizedSnacks.map((snack: NormalizedSnack, index: number) => ({
+                name: snack.name,
+                emoji: snack.emoji || null,
+                description: snack.description || null,
+                isVeg: snack.isVeg,
+                isDefault: firstDefaultIndex >= 0 ? snack.index === firstDefaultIndex : false,
+                isActive: snack.isActive,
+                servingSize: snack.servingSize || null,
+                sortOrder: snack.sortOrder ?? (baseSortOrder + index),
+            }))
+        ).returning();
+
+        return c.json({ snacks: createdSnacks }, 201);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
 adminRoutes.put('/snacks/:id', async (c) => {
     try {
         const db = c.get('db');

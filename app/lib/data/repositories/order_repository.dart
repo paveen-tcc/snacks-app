@@ -28,12 +28,12 @@ class OrderRepository {
     return {'isOpen': true};
   }
 
-  // Get stream of today's order for reactive UI
-  Stream<LocalOrder?> watchTodayOrder() async* {
+  // Get stream of today's orders for reactive UI
+  Stream<List<LocalOrder>> watchTodayOrder() async* {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
     if (userId == null) {
-      yield null;
+      yield const [];
       return;
     }
 
@@ -41,7 +41,7 @@ class OrderRepository {
 
     yield* (_localDb.select(_localDb.localOrders)
           ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
-        .watchSingleOrNull();
+        .watch();
   }
 
   // Sync today's order from remote
@@ -49,31 +49,39 @@ class OrderRepository {
     final List<ConnectivityResult> connectivityResult = await (Connectivity()
         .checkConnectivity());
     if (connectivityResult.contains(ConnectivityResult.none)) return;
+    final today = DateTime.now().toIso8601String().split('T')[0];
 
     try {
       final response = await _apiClient.dio.get('/orders/today');
-      if (response.statusCode == 200 && response.data['order'] != null) {
-        final orderJson = response.data['order'];
+      if (response.statusCode == 200) {
+        final ordersJson = List<Map<String, dynamic>>.from(
+          response.data['orders'] ?? const [],
+        );
+        final serverUserId = ordersJson.isNotEmpty
+            ? ordersJson.first['userId'] as String
+            : (await SharedPreferences.getInstance()).getString('user_id');
+        if (serverUserId == null) return;
 
-        // Delete any existing local row for this user+date (including temp rows)
         await (_localDb.delete(_localDb.localOrders)
               ..where((t) =>
-                  t.userId.equals(orderJson['userId'] as String) &
-                  t.date.equals(orderJson['date'] as String)))
+                  t.userId.equals(serverUserId) & t.date.equals(today)))
             .go();
-        await _localDb
-            .into(_localDb.localOrders)
-            .insert(
-              LocalOrdersCompanion.insert(
-                id: orderJson['id'],
-                userId: orderJson['userId'],
-                date: orderJson['date'],
-                snackId: orderJson['snackId'],
-                isDefaultAssigned: drift.Value(
-                  orderJson['isDefaultAssigned'] ?? false,
+
+        for (final orderJson in ordersJson) {
+          await _localDb
+              .into(_localDb.localOrders)
+              .insert(
+                LocalOrdersCompanion.insert(
+                  id: orderJson['id'],
+                  userId: orderJson['userId'],
+                  date: orderJson['date'],
+                  snackId: orderJson['snackId'],
+                  isDefaultAssigned: drift.Value(
+                    orderJson['isDefaultAssigned'] ?? false,
+                  ),
                 ),
-              ),
-            );
+              );
+        }
       }
     } catch (e) {
       print('Sync order failed: $e');
@@ -81,30 +89,35 @@ class OrderRepository {
   }
 
   // Place or update order (Offline-First)
-  Future<void> placeOrder(String snackId) async {
+  Future<void> placeOrder(List<String> snackIds) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
     if (userId == null) throw Exception('User not logged in');
 
     final today = DateTime.now().toIso8601String().split('T')[0];
-    final tempId = 'temp_\${DateTime.now().millisecondsSinceEpoch}';
+    final normalizedSnackIds = snackIds.toSet().toList();
+    if (normalizedSnackIds.isEmpty) {
+      throw Exception('Select at least one snack');
+    }
 
     // 1. Save locally immediately (Optimistic response)
-    // Delete any existing order for today first to avoid duplicate rows
     await (_localDb.delete(_localDb.localOrders)
           ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
         .go();
-    await _localDb
-        .into(_localDb.localOrders)
-        .insert(
-          LocalOrdersCompanion.insert(
-            id: tempId,
-            userId: userId,
-            date: today,
-            snackId: snackId,
-            isDefaultAssigned: const drift.Value(false),
-          ),
-        );
+    for (final snackId in normalizedSnackIds) {
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_$snackId';
+      await _localDb
+          .into(_localDb.localOrders)
+          .insert(
+            LocalOrdersCompanion.insert(
+              id: tempId,
+              userId: userId,
+              date: today,
+              snackId: snackId,
+              isDefaultAssigned: const drift.Value(false),
+            ),
+          );
+    }
 
     // 2. Try network
     final List<ConnectivityResult> connectivityResult = await (Connectivity()
@@ -117,7 +130,7 @@ class OrderRepository {
             SyncQueueCompanion.insert(
               targetTable: 'orders',
               action: 'POST',
-              payloadJson: jsonEncode({'snackId': snackId, 'date': today}),
+              payloadJson: jsonEncode({'snackIds': normalizedSnackIds, 'date': today}),
             ),
           );
       return;
@@ -127,29 +140,33 @@ class OrderRepository {
     try {
       final response = await _apiClient.dio.post(
         '/orders',
-        data: {'snackId': snackId, 'date': today},
+        data: {'snackIds': normalizedSnackIds, 'date': today},
       );
 
       if (response.statusCode == 200) {
-        final serverOrder = response.data['order'];
+        final serverOrders = List<Map<String, dynamic>>.from(
+          response.data['orders'] ?? const [],
+        );
         // Update local with server ID
         await _localDb.transaction(() async {
-          await (_localDb.delete(
-            _localDb.localOrders,
-          )..where((t) => t.id.equals(tempId))).go();
-          await _localDb
-              .into(_localDb.localOrders)
-              .insertOnConflictUpdate(
-                LocalOrdersCompanion.insert(
-                  id: serverOrder['id'],
-                  userId: serverOrder['userId'],
-                  date: serverOrder['date'],
-                  snackId: serverOrder['snackId'],
-                  isDefaultAssigned: drift.Value(
-                    serverOrder['isDefaultAssigned'] ?? false,
+          await (_localDb.delete(_localDb.localOrders)
+                ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
+              .go();
+          for (final serverOrder in serverOrders) {
+            await _localDb
+                .into(_localDb.localOrders)
+                .insertOnConflictUpdate(
+                  LocalOrdersCompanion.insert(
+                    id: serverOrder['id'],
+                    userId: serverOrder['userId'],
+                    date: serverOrder['date'],
+                    snackId: serverOrder['snackId'],
+                    isDefaultAssigned: drift.Value(
+                      serverOrder['isDefaultAssigned'] ?? false,
+                    ),
                   ),
-                ),
-              );
+                );
+          }
         });
       }
     } catch (e) {
@@ -161,7 +178,7 @@ class OrderRepository {
             SyncQueueCompanion.insert(
               targetTable: 'orders',
               action: 'POST',
-              payloadJson: jsonEncode({'snackId': snackId, 'date': today}),
+              payloadJson: jsonEncode({'snackIds': normalizedSnackIds, 'date': today}),
             ),
           );
       print('Order queued for sync: $e');

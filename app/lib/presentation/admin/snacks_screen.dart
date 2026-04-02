@@ -1,5 +1,10 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/locator.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/notion_theme.dart';
 import '../../core/widgets/illustrations.dart';
 import '../../data/repositories/admin_repository.dart';
@@ -51,6 +56,58 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _downloadTemplate() async {
+    final uri = Uri.parse('${ApiClient.baseUrl}/snacks/template');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    _showError('Failed to open template download');
+  }
+
+  Future<void> _uploadParsedSnacks(List<Map<String, dynamic>> snacks) async {
+    if (snacks.isEmpty) {
+      _showError('No valid snack rows found');
+      return;
+    }
+
+    try {
+      await locator<AdminRepository>().addSnacksBulk(snacks);
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${snacks.length} snacks uploaded')),
+      );
+    } catch (e) {
+      _showError('Failed to bulk upload snacks');
+    }
+  }
+
+  Future<void> _pickAndUploadFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        _showError('Unable to read selected file');
+        return;
+      }
+
+      final content = utf8.decode(bytes, allowMalformed: true)
+          .replaceFirst('\uFEFF', '');
+      final snacks = _parseBulkSnacks(content);
+      await _uploadParsedSnacks(snacks);
+    } catch (e) {
+      _showError('Failed to upload file');
+    }
   }
 
   InputDecoration _notionInput(String label, {String? hint}) {
@@ -216,6 +273,191 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     );
   }
 
+  List<String> _splitBulkRow(String row, String delimiter) {
+    final values = <String>[];
+    var current = '';
+    var inQuotes = false;
+
+    for (var i = 0; i < row.length; i++) {
+      final char = row[i];
+      final nextChar = i + 1 < row.length ? row[i + 1] : '';
+
+      if (char == '"') {
+        if (inQuotes && nextChar == '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (!inQuotes && char == delimiter) {
+        values.add(current.trim());
+        current = '';
+        continue;
+      }
+
+      current += char;
+    }
+
+    values.add(current.trim());
+    return values;
+  }
+
+  bool _parseBoolToken(String raw, {required bool defaultValue}) {
+    final normalized = raw.trim().toLowerCase();
+    if (normalized.isEmpty) return defaultValue;
+    if (['true', 'yes', 'y', '1', 'default', 'active'].contains(normalized)) {
+      return true;
+    }
+    if (['false', 'no', 'n', '0', 'inactive'].contains(normalized)) {
+      return false;
+    }
+    return defaultValue;
+  }
+
+  List<Map<String, dynamic>> _parseBulkSnacks(String raw) {
+    final lines = raw
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return const [];
+
+    final delimiter = lines.any((line) => line.contains('\t')) ? '\t' : ',';
+    final firstRow = _splitBulkRow(lines.first, delimiter);
+    final hasHeader = firstRow.isNotEmpty &&
+        firstRow.first.toLowerCase().contains('name');
+    final dataLines = hasHeader ? lines.skip(1) : lines;
+
+    return dataLines.map((line) {
+      final cols = _splitBulkRow(line, delimiter);
+      final name = cols.isNotEmpty ? cols[0] : '';
+      final emoji = cols.length > 1 ? cols[1] : '';
+      final description = cols.length > 2 ? cols[2] : '';
+      final type = cols.length > 3 ? cols[3] : '';
+      final servingSize = cols.length > 4 ? cols[4] : '';
+      final isDefault = cols.length > 5
+          ? _parseBoolToken(cols[5], defaultValue: false)
+          : false;
+      final isActive = cols.length > 6
+          ? _parseBoolToken(cols[6], defaultValue: true)
+          : true;
+      final sortOrder = cols.length > 7 ? int.tryParse(cols[7].trim()) : null;
+      final normalizedType = type.trim().toLowerCase();
+      final isVeg = !['non-veg', 'non veg', 'nveg', 'nonveg', 'false', 'no', '0']
+          .contains(normalizedType);
+
+      return {
+        'name': name.trim(),
+        'emoji': emoji.trim(),
+        'description': description.trim(),
+        'isVeg': isVeg,
+        'servingSize': servingSize.trim(),
+        'isDefault': isDefault,
+        'isActive': isActive,
+        if (sortOrder != null) 'sortOrder': sortOrder,
+      };
+    }).where((snack) => (snack['name'] as String).isNotEmpty).toList();
+  }
+
+  void _showBulkUploadSheet() {
+    final bulkCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: NotionTheme.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: NotionTheme.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const DialogHeader(
+              icon: Icons.upload_file_outlined,
+              title: 'Bulk Upload Snacks',
+              subtitle: 'Paste CSV or spreadsheet rows to create multiple snacks',
+              backgroundColor: IllustrationColors.softBlue,
+              iconColor: NotionTheme.blueAccent,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _downloadTemplate,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Download Template'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _pickAndUploadFile();
+                },
+                icon: const Icon(Icons.attach_file_outlined),
+                label: const Text('Choose File And Upload'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Format: name, emoji, description, veg/non-veg, serving size, is default, is active, sort order',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Example: Samosa, 🥟, Crispy potato filling, veg, 2 Pcs, false, true, 10',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: NotionTheme.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: bulkCtrl,
+              minLines: 8,
+              maxLines: 12,
+              decoration: _notionInput('Paste rows here'),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final snacks = _parseBulkSnacks(bulkCtrl.text);
+                  Navigator.pop(ctx);
+                  await _uploadParsedSnacks(snacks);
+                },
+                icon: const Icon(Icons.cloud_upload_outlined),
+                label: const Text('Upload Snacks'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -223,10 +465,22 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
         title: const Text('Manage Snacks'),
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showSnackForm(),
-        backgroundColor: NotionTheme.primaryText,
-        child: const Icon(Icons.add, color: NotionTheme.background),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            onPressed: _showBulkUploadSheet,
+            backgroundColor: NotionTheme.blueAccent,
+            icon: const Icon(Icons.upload_file_outlined, color: Colors.white),
+            label: const Text('Bulk Upload', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            onPressed: () => _showSnackForm(),
+            backgroundColor: NotionTheme.primaryText,
+            child: const Icon(Icons.add, color: NotionTheme.background),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: FoodLoader())

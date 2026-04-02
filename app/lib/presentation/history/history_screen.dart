@@ -40,13 +40,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final snacks = results[1] as List<LocalSnack>;
       final snackMap = {for (final s in snacks) s.id: s};
 
-      final items = history.map((order) {
+      final groupedItems = <String, Map<String, dynamic>>{};
+      for (final order in history) {
         final snack = snackMap[order['snackId'] as String];
+        final date = order['date'] as String;
+        final existing = groupedItems.putIfAbsent(
+          date,
+          () => {
+            'date': date,
+            'snackNames': <String>[],
+            'snackEmojis': <String>[],
+            'isDefault': false,
+          },
+        );
+
+        (existing['snackNames'] as List<String>).add(snack?.name ?? 'Unknown');
+        (existing['snackEmojis'] as List<String>).add(snack?.emoji ?? '🍽️');
+        existing['isDefault'] =
+            (existing['isDefault'] as bool) || (order['isDefaultAssigned'] ?? false);
+      }
+
+      final items = groupedItems.values.map((item) {
+        final snackNames = List<String>.from(item['snackNames']);
+        final snackEmojis = List<String>.from(item['snackEmojis']);
+        final emojiLabel = snackEmojis.take(3).join(' ');
         return {
-          'date': order['date'] as String,
-          'snackName': snack?.name ?? 'Unknown',
-          'snackEmoji': snack?.emoji ?? '🍽️',
-          'isDefault': order['isDefaultAssigned'] ?? false,
+          'date': item['date'] as String,
+          'snackName': snackNames.join(', '),
+          'snackEmoji': snackEmojis.length > 3 ? '$emojiLabel +' : emojiLabel,
+          'isDefault': item['isDefault'] as bool,
         };
       }).toList();
 

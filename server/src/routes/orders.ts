@@ -47,17 +47,16 @@ orderRoutes.get('/today', async (c) => {
         const user = c.get('user');
         const today = new Date().toISOString().split('T')[0];
 
-        const [order] = await db
+        const todaysOrders = await db
             .select()
             .from(orders)
             .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${today}`))
-            .limit(1);
+            .orderBy(orders.orderedAt);
 
-        if (!order) {
-            return c.json({ order: null }, 200);
-        }
-
-        return c.json({ order }, 200);
+        return c.json({
+            order: todaysOrders[0] ?? null,
+            orders: todaysOrders,
+        }, 200);
     } catch (err: any) {
         console.log(err);
         return c.json({ error: err.message }, 500);
@@ -69,26 +68,33 @@ orderRoutes.post('/', async (c) => {
     try {
         const db = c.get('db');
         const user = c.get('user');
-        const { snackId, date } = await c.req.json();
+        const { snackId, snackIds, date } = await c.req.json();
         const orderDate = date || new Date().toISOString().split('T')[0];
+        const normalizedSnackIds = Array.from(new Set(
+            (Array.isArray(snackIds) ? snackIds : [snackId])
+                .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        ));
 
-        if (!snackId) {
-            return c.json({ error: 'snackId is required' }, 400);
+        if (normalizedSnackIds.length === 0) {
+            return c.json({ error: 'snackIds is required' }, 400);
         }
 
-        const [savedOrder] = await db.insert(orders)
-            .values({
+        await db.delete(orders)
+            .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${orderDate}`));
+
+        const savedOrders = await db.insert(orders)
+            .values(normalizedSnackIds.map((selectedSnackId) => ({
                 userId: user.userId,
                 date: orderDate,
-                snackId,
-            })
-            .onConflictDoUpdate({
-                target: [orders.userId, orders.date],
-                set: { snackId, updatedAt: new Date() }
-            })
+                snackId: selectedSnackId,
+                updatedAt: new Date(),
+            })))
             .returning();
 
-        return c.json({ order: savedOrder }, 200);
+        return c.json({
+            order: savedOrders[0] ?? null,
+            orders: savedOrders,
+        }, 200);
     } catch (err: any) {
         console.log(err);
         return c.json({ error: err.message }, 500);
@@ -117,7 +123,8 @@ orderRoutes.get('/history', async (c) => {
                         sql`${orders.date} >= ${pastStr}`,
                         sql`${orders.date} <= ${todayStr}`
                     ))
-            );
+            )
+            .orderBy(sql`${orders.date} desc`, orders.orderedAt);
 
         return c.json({ history }, 200);
     } catch (err: any) {

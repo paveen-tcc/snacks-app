@@ -3,6 +3,7 @@ import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { signToken } from '../utils/jwt';
 import { verifyMicrosoftToken } from '../utils/microsoft';
+import { authMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 
 const authRoutes = new Hono<AppEnv>();
@@ -60,6 +61,32 @@ authRoutes.post('/microsoft', async (c) => {
         }
 
         const token = await signToken({ userId: user.id, isAdmin: !!user.isAdmin }, jwtSecret);
+
+        return c.json({ user, token }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+authRoutes.get('/session', authMiddleware, async (c) => {
+    try {
+        const db = c.get('db');
+        const jwtSecret = c.get('jwtSecret');
+        const authUser = c.get('user');
+
+        const [user] = await db.select()
+            .from(users)
+            .where(eq(users.id, authUser.userId))
+            .limit(1);
+
+        if (!user) {
+            return c.json({ error: 'User not found' }, 404);
+        }
+
+        const token = await signToken(
+            { userId: user.id, isAdmin: !!user.isAdmin },
+            jwtSecret,
+        );
 
         return c.json({ user, token }, 200);
     } catch (err: any) {
