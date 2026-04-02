@@ -26,6 +26,7 @@ export const users = pgTable('users', {
 export const snacks = pgTable('snacks', {
     id: uuid('id').primaryKey().defaultRandom(),
     name: varchar('name', { length: 100 }).notNull(),
+    category: varchar('category', { length: 100 }),
     emoji: varchar('emoji', { length: 10 }),
     description: varchar('description', { length: 100 }), // 5-6 word short desc
     isVeg: boolean('is_veg').default(true),
@@ -41,7 +42,9 @@ export const orders = pgTable('orders', {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id').references(() => users.id).notNull(),
     date: date('date').notNull(),
-    snackId: uuid('snack_id').references(() => snacks.id).notNull(),
+    snackId: uuid('snack_id').notNull(),
+    snackNameSnapshot: varchar('snack_name_snapshot', { length: 100 }),
+    snackEmojiSnapshot: varchar('snack_emoji_snapshot', { length: 10 }),
     isDefaultAssigned: boolean('is_default_assigned').default(false),
     orderedAt: timestamp('ordered_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),

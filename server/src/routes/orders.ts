@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { orders, holidays, shutdownDays } from '../db/schema';
+import { orders, holidays, shutdownDays, snacks } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
@@ -82,13 +82,35 @@ orderRoutes.post('/', async (c) => {
         await db.delete(orders)
             .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${orderDate}`));
 
+        const selectedSnacks = await db.select({
+            id: snacks.id,
+            name: snacks.name,
+            emoji: snacks.emoji,
+        })
+            .from(snacks)
+            .where(sql`${snacks.id} = any(${normalizedSnackIds})`);
+
+        if (selectedSnacks.length !== normalizedSnackIds.length) {
+            return c.json({ error: 'One or more selected snacks were not found' }, 400);
+        }
+
+        const snackMap = new Map(selectedSnacks.map((snack) => [snack.id, snack]));
+
         const savedOrders = await db.insert(orders)
-            .values(normalizedSnackIds.map((selectedSnackId) => ({
-                userId: user.userId,
-                date: orderDate,
-                snackId: selectedSnackId,
-                updatedAt: new Date(),
-            })))
+            .values(normalizedSnackIds.map((selectedSnackId) => {
+                const snack = snackMap.get(selectedSnackId);
+                if (!snack) {
+                    throw new Error(`Missing snack for ${selectedSnackId}`);
+                }
+                return {
+                    userId: user.userId,
+                    date: orderDate,
+                    snackId: selectedSnackId,
+                    snackNameSnapshot: snack.name,
+                    snackEmojiSnapshot: snack.emoji,
+                    updatedAt: new Date(),
+                };
+            }))
             .returning();
 
         return c.json({
@@ -114,8 +136,19 @@ orderRoutes.get('/history', async (c) => {
         const pastStr = sevenDaysAgo.toISOString().split('T')[0];
 
         const history = await db
-            .select()
+            .select({
+                id: orders.id,
+                userId: orders.userId,
+                date: orders.date,
+                snackId: orders.snackId,
+                snackName: sql<string>`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
+                snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
+                isDefaultAssigned: orders.isDefaultAssigned,
+                orderedAt: orders.orderedAt,
+                updatedAt: orders.updatedAt,
+            })
             .from(orders)
+            .leftJoin(snacks, eq(orders.snackId, snacks.id))
             .where(
                 and(
                     and(

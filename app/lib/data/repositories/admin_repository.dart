@@ -22,6 +22,10 @@ class AdminRepository {
     await _apiClient.dio.post('/admin/snacks/bulk', data: {'snacks': snacks});
   }
 
+  Future<void> deleteSnack(String id) async {
+    await _apiClient.dio.delete('/admin/snacks/$id');
+  }
+
   Future<Map<String, dynamic>> getSettings() async {
     final r = await _apiClient.dio.get('/admin/settings');
     return Map<String, dynamic>.from(r.data['settings']);

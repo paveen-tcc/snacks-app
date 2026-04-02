@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../local/app_database.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -36,6 +35,9 @@ class SnackRepository {
                   LocalSnacksCompanion.insert(
                     id: json['id'],
                     name: json['name'],
+                    category: json['category'] != null
+                        ? drift.Value(json['category'])
+                        : const drift.Value.absent(),
                     emoji: json['emoji'] != null
                         ? drift.Value(json['emoji'])
                         : const drift.Value.absent(),

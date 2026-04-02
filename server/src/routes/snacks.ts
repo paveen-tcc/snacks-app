@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { snacks, appSettings } from '../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { AppEnv } from '../index';
 
 const snackRoutes = new Hono<AppEnv>();
@@ -13,7 +13,7 @@ snackRoutes.get('/', async (c) => {
             .select()
             .from(snacks)
             .where(eq(snacks.isActive, true))
-            .orderBy(desc(snacks.sortOrder), snacks.name);
+            .orderBy(snacks.sortOrder, snacks.name);
 
         return c.json({ snacks: allSnacks }, 200);
     } catch (err: any) {
@@ -39,9 +39,9 @@ snackRoutes.get('/settings', async (c) => {
 // Public CSV template for admin bulk snack upload
 snackRoutes.get('/template', async (c) => {
     const templateRows = [
-        'name,emoji,description,veg_or_non_veg,serving_size,is_default,is_active,sort_order',
-        'Samosa,🥟,Crispy potato filling,veg,2 Pcs,false,true,10',
-        'Chicken Puff,🥐,Flaky pastry with chicken,non-veg,1 Pc,false,true,20',
+        'name,category,emoji,description,veg_or_non_veg,serving_size,is_default,is_active,sort_order',
+        'Schezwan Samosa,Samosa,🥟,Spicy samosa filling,veg,4 Pcs,false,true,10',
+        'Chicken Roll,Roll,🌯,Stuffed chicken wrap,non-veg,4 Pcs,false,true,20',
     ].join('\n');
 
     c.header('Content-Type', 'text/csv; charset=utf-8');

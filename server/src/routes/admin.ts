@@ -6,6 +6,34 @@ import type { AuthContext } from '../middleware/auth';
 
 const adminRoutes = new Hono<AuthContext>();
 
+const GENERAL_CATEGORY = 'General';
+
+function normalizeWhitespace(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeSnackName(value: string): string {
+    return normalizeWhitespace(value).toLowerCase();
+}
+
+function normalizeCategoryValue(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = normalizeWhitespace(value);
+    return normalized.length > 0 ? normalized : null;
+}
+
+function categoryLabel(value: string | null): string {
+    return value ?? GENERAL_CATEGORY;
+}
+
+function categoryCompareKey(value: string | null): string {
+    return categoryLabel(value).toLowerCase();
+}
+
+function duplicateSnackError(name: string, category: string | null): string {
+    return `Snack "${normalizeWhitespace(name)}" already exists in category "${categoryLabel(category)}"`;
+}
+
 // All admin routes require authentication AND admin privileges
 adminRoutes.use('*', authMiddleware, adminMiddleware);
 
@@ -24,14 +52,37 @@ adminRoutes.get('/snacks', async (c) => {
 adminRoutes.post('/snacks', async (c) => {
     try {
         const db = c.get('db');
-        const { name, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder } = await c.req.json();
+        const { name, category, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder } = await c.req.json();
+        const normalizedName = typeof name === 'string' ? normalizeWhitespace(name) : '';
+        const normalizedCategory = normalizeCategoryValue(category);
+
+        if (!normalizedName) {
+            return c.json({ error: 'name is required' }, 400);
+        }
+
+        const existingSnacks = await db.select().from(snacks);
+        const duplicate = existingSnacks.find((snack) =>
+            normalizeSnackName(snack.name) === normalizeSnackName(normalizedName) &&
+            categoryCompareKey(snack.category ?? null) === categoryCompareKey(normalizedCategory)
+        );
+        if (duplicate) {
+            return c.json({ error: duplicateSnackError(normalizedName, normalizedCategory) }, 409);
+        }
 
         if (isDefault) {
             await db.update(snacks).set({ isDefault: false }).where(eq(snacks.isDefault, true));
         }
 
         const [newSnack] = await db.insert(snacks).values({
-            name, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder
+            name: normalizedName,
+            category: normalizedCategory,
+            emoji,
+            description,
+            isVeg,
+            isDefault,
+            isActive,
+            servingSize,
+            sortOrder
         }).returning();
 
         return c.json({ snack: newSnack }, 201);
@@ -47,6 +98,7 @@ adminRoutes.post('/snacks/bulk', async (c) => {
         const incomingSnacks = Array.isArray(body?.snacks) ? body.snacks : [];
         type NormalizedSnack = {
             name: string;
+            category: string | null;
             emoji: string;
             description: string;
             isVeg: boolean;
@@ -59,7 +111,8 @@ adminRoutes.post('/snacks/bulk', async (c) => {
 
         const normalizedSnacks: NormalizedSnack[] = incomingSnacks
             .map((snack: any, index: number) => ({
-                name: typeof snack?.name === 'string' ? snack.name.trim() : '',
+                name: typeof snack?.name === 'string' ? normalizeWhitespace(snack.name) : '',
+                category: normalizeCategoryValue(snack?.category),
                 emoji: typeof snack?.emoji === 'string' ? snack.emoji.trim() : '',
                 description: typeof snack?.description === 'string' ? snack.description.trim() : '',
                 isVeg: typeof snack?.isVeg === 'boolean' ? snack.isVeg : true,
@@ -73,6 +126,26 @@ adminRoutes.post('/snacks/bulk', async (c) => {
 
         if (normalizedSnacks.length === 0) {
             return c.json({ error: 'snacks is required' }, 400);
+        }
+
+        const seenKeys = new Set<string>();
+        for (const snack of normalizedSnacks) {
+            const key = `${normalizeSnackName(snack.name)}::${categoryCompareKey(snack.category)}`;
+            if (seenKeys.has(key)) {
+                return c.json({ error: duplicateSnackError(snack.name, snack.category) }, 409);
+            }
+            seenKeys.add(key);
+        }
+
+        const existingSnacks = await db.select().from(snacks);
+        for (const snack of normalizedSnacks) {
+            const duplicate = existingSnacks.find((existingSnack) =>
+                normalizeSnackName(existingSnack.name) === normalizeSnackName(snack.name) &&
+                categoryCompareKey(existingSnack.category ?? null) === categoryCompareKey(snack.category)
+            );
+            if (duplicate) {
+                return c.json({ error: duplicateSnackError(snack.name, snack.category) }, 409);
+            }
         }
 
         const [sortInfo] = await db
@@ -90,6 +163,7 @@ adminRoutes.post('/snacks/bulk', async (c) => {
         const createdSnacks = await db.insert(snacks).values(
             normalizedSnacks.map((snack: NormalizedSnack, index: number) => ({
                 name: snack.name,
+                category: snack.category,
                 emoji: snack.emoji || null,
                 description: snack.description || null,
                 isVeg: snack.isVeg,
@@ -111,9 +185,37 @@ adminRoutes.put('/snacks/:id', async (c) => {
         const db = c.get('db');
         const id = c.req.param('id');
         const updateData = await c.req.json();
+        const existingSnacks = await db.select().from(snacks);
+        const currentSnack = existingSnacks.find((snack) => snack.id === id);
+        if (!currentSnack) {
+            return c.json({ error: 'Snack not found' }, 404);
+        }
+
+        const nextName = typeof updateData.name === 'string'
+            ? normalizeWhitespace(updateData.name)
+            : currentSnack.name;
+        const nextCategory = Object.prototype.hasOwnProperty.call(updateData, 'category')
+            ? normalizeCategoryValue(updateData.category)
+            : (currentSnack.category ?? null);
+
+        const duplicate = existingSnacks.find((snack) =>
+            snack.id !== id &&
+            normalizeSnackName(snack.name) === normalizeSnackName(nextName) &&
+            categoryCompareKey(snack.category ?? null) === categoryCompareKey(nextCategory)
+        );
+        if (duplicate) {
+            return c.json({ error: duplicateSnackError(nextName, nextCategory) }, 409);
+        }
 
         if (updateData.isDefault) {
             await db.update(snacks).set({ isDefault: false }).where(eq(snacks.isDefault, true));
+        }
+
+        if (typeof updateData.name === 'string') {
+            updateData.name = normalizeWhitespace(updateData.name);
+        }
+        if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
+            updateData.category = normalizeCategoryValue(updateData.category);
         }
 
         const [updatedSnack] = await db.update(snacks)
@@ -122,6 +224,24 @@ adminRoutes.put('/snacks/:id', async (c) => {
             .returning();
 
         return c.json({ snack: updatedSnack }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.delete('/snacks/:id', async (c) => {
+    try {
+        const db = c.get('db');
+        const id = c.req.param('id');
+        const [deletedSnack] = await db.delete(snacks)
+            .where(eq(snacks.id, id))
+            .returning();
+
+        if (!deletedSnack) {
+            return c.json({ error: 'Snack not found' }, 404);
+        }
+
+        return c.json({ snack: deletedSnack }, 200);
     } catch (err: any) {
         return c.json({ error: err.message }, 500);
     }
@@ -173,14 +293,18 @@ adminRoutes.get('/summary', async (c) => {
         const orderCounts = await db
             .select({
                 snackId: orders.snackId,
-                snackName: snacks.name,
-                snackEmoji: snacks.emoji,
+                snackName: sql<string>`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
+                snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
                 count: sql<number>`count(*)`.mapWith(Number),
             })
             .from(orders)
-            .innerJoin(snacks, eq(orders.snackId, snacks.id))
+            .leftJoin(snacks, eq(orders.snackId, snacks.id))
             .where(sql`${orders.date} = ${today}`)
-            .groupBy(orders.snackId, snacks.name, snacks.emoji);
+            .groupBy(
+                orders.snackId,
+                sql`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
+                sql`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`
+            );
 
         const drinkCounts = await db
             .select({

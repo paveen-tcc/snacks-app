@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 class LocalSnacks extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
+  TextColumn get category => text().nullable()();
   TextColumn get emoji => text().nullable()();
   TextColumn get description => text().nullable()();
   BoolColumn get isVeg => boolean().withDefault(const Constant(true))();

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/di/locator.dart';
+import '../../core/constants/snack_categories.dart';
 import '../../core/theme/notion_theme.dart';
 import '../../core/widgets/illustrations.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -19,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late HomeBloc _homeBloc;
   String _username = '';
+  final Map<String, bool> _expandedCategories = {};
 
   @override
   void initState() {
@@ -33,7 +35,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString('username') ?? '';
     final isAdmin = prefs.getBool('is_admin') ?? false;
-    if (mounted) setState(() { _username = username; _isAdmin = isAdmin; });
+    if (mounted) {
+      setState(() {
+        _username = username;
+        _isAdmin = isAdmin;
+      });
+    }
   }
 
   Future<void> _refreshViewerState() async {
@@ -58,9 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: BlocBuilder<HomeBloc, HomeState>(
         builder: (context, state) {
           if (state is HomeLoading) {
-            return const Scaffold(
-              body: Center(child: FoodLoader()),
-            );
+            return const Scaffold(body: Center(child: FoodLoader()));
           }
 
           if (state is! HomeLoaded) {
@@ -74,10 +79,13 @@ class _HomeScreenState extends State<HomeScreen> {
             if (state.filter == 'Non-Veg') return s.isVeg == false;
             return true;
           }).toList();
+          final groupedSnacks = _groupSnacksByCategory(displayedSnacks);
 
           return Scaffold(
             appBar: AppBar(
-              title: Text('Hello, ${_username.isNotEmpty ? _username : 'there'} 👋'),
+              title: Text(
+                'Hello, ${_username.isNotEmpty ? _username : 'there'} 👋',
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.history),
@@ -105,25 +113,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             state.shutdownType == 'holiday'
                                 ? 'Happy Holiday!'
                                 : 'No Orders Today',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            state.shutdownReason ?? 'The kitchen is taking a break today',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: NotionTheme.secondaryText,
-                            ),
+                            state.shutdownReason ??
+                                'The kitchen is taking a break today',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: NotionTheme.secondaryText),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 24),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: NotionTheme.surfaceSelected,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: NotionTheme.blueAccent.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: NotionTheme.blueAccent.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -138,10 +152,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   'Orders will resume on the next working day',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: NotionTheme.blueAccent,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: NotionTheme.blueAccent,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                 ),
                               ],
                             ),
@@ -158,105 +173,112 @@ class _HomeScreenState extends State<HomeScreen> {
                       await Future.delayed(const Duration(milliseconds: 800));
                     },
                     child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildStatusCard(context),
-                        const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Today\'s Menu',
-                                    style: Theme.of(context).textTheme.titleLarge
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Select one or more snacks',
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildStatusCard(context),
+                                const SizedBox(height: 24),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Flexible(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Today\'s Menu',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleLarge
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Select one or more snacks',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    _buildFilterChips(state.filter),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                             ),
-                            _buildFilterChips(state.filter),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          sliver: SliverToBoxAdapter(
+                            child: _buildSnackSections(groupedSnacks, state),
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            child: _buildHotDrinkPoll(context, state),
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
                       ],
                     ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final snack = displayedSnacks[index];
-                      final isSelected = state.selectedSnackIds.contains(snack.id);
-                      return _buildSnackCard(snack, isSelected);
-                    }, childCount: displayedSnacks.length),
-                  ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 40)),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: _buildHotDrinkPoll(context, state),
-                  ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
-              ],
-            ),
                   ),
             bottomNavigationBar: state.isShutdown
                 ? null
                 : Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
-              decoration: const BoxDecoration(
-                color: NotionTheme.background,
-                border: Border(
-                  top: BorderSide(color: NotionTheme.divider),
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  children: [
-                    const SnackCharacterIllustration(height: 52),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: state.isSubmitting
-                                || state.selectedSnackIds.isEmpty
-                            ? null
-                            : () {
-                                _homeBloc.add(SubmitOrder());
-                              },
-                        child: state.isSubmitting
-                            ? const FoodLoaderInline(size: 18)
-                            : Text(
-                                _hasSameSnackSelection(
-                                          state.todaysOrders,
-                                          state.selectedSnackIds,
-                                        )
-                                    ? 'Keep Current Order'
-                                    : 'Confirm Order',
-                              ),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
+                    decoration: const BoxDecoration(
+                      color: NotionTheme.background,
+                      border: Border(
+                        top: BorderSide(color: NotionTheme.divider),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          const SnackCharacterIllustration(height: 52),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed:
+                                  state.isSubmitting ||
+                                      state.selectedSnackIds.isEmpty
+                                  ? null
+                                  : () {
+                                      _homeBloc.add(SubmitOrder());
+                                    },
+                              child: state.isSubmitting
+                                  ? const FoodLoaderInline(size: 18)
+                                  : Text(
+                                      _hasSameSnackSelection(
+                                            state.todaysOrders,
+                                            state.selectedSnackIds,
+                                          )
+                                          ? 'Keep Current Order'
+                                          : 'Confirm Order',
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
           );
         },
       ),
@@ -273,6 +295,127 @@ class _HomeScreenState extends State<HomeScreen> {
         existingIds.containsAll(selectedSnackIds);
   }
 
+  List<MapEntry<String, List<LocalSnack>>> _groupSnacksByCategory(
+    List<LocalSnack> snacks,
+  ) {
+    final grouped = <String, List<LocalSnack>>{};
+    for (final snack in snacks) {
+      final category = displaySnackCategory(snack.category);
+      grouped.putIfAbsent(category, () => []).add(snack);
+    }
+
+    final entries = grouped.entries.toList()
+      ..sort((a, b) {
+        final rankCompare = snackCategoryRank(
+          a.key,
+        ).compareTo(snackCategoryRank(b.key));
+        if (rankCompare != 0) return rankCompare;
+        return a.key.toLowerCase().compareTo(b.key.toLowerCase());
+      });
+    return entries;
+  }
+
+  bool _isCategoryExpanded(String category, int index) {
+    return _expandedCategories[category] ?? index == 0;
+  }
+
+  Widget _buildSnackSections(
+    List<MapEntry<String, List<LocalSnack>>> groupedSnacks,
+    HomeLoaded state,
+  ) {
+    if (groupedSnacks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final entry in groupedSnacks.asMap().entries) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              children: [
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _expandedCategories[entry.value.key] =
+                          !_isCategoryExpanded(entry.value.key, entry.key);
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: NotionTheme.surfaceHover,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: NotionTheme.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            entry.value.key,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: NotionTheme.surfaceSelected,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${entry.value.value.length}',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          _isCategoryExpanded(entry.value.key, entry.key)
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          color: NotionTheme.secondaryText,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                AnimatedCrossFade(
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Column(
+                      children: [
+                        for (final snack in entry.value.value)
+                          _buildSnackCard(
+                            snack,
+                            state.selectedSnackIds.contains(snack.id),
+                          ),
+                      ],
+                    ),
+                  ),
+                  crossFadeState:
+                      _isCategoryExpanded(entry.value.key, entry.key)
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 200),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildStatusCard(BuildContext context) {
     final state = context.read<HomeBloc>().state;
     String defaultLabel = 'No default set';
@@ -280,7 +423,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (state is HomeLoaded) {
       try {
         final defaultSnack = state.snacks.firstWhere((s) => s.isDefault);
-        defaultLabel = 'Default: ${defaultSnack.name} (${defaultSnack.servingSize ?? '1 Unit'})';
+        defaultLabel =
+            'Default: ${defaultSnack.name} (${defaultSnack.servingSize ?? '1 Unit'})';
       } catch (_) {}
       // Format cutoff time (e.g. "12:00" -> "12:00 PM", "14:30" -> "2:30 PM")
       final parts = state.cutoffTime.split(':');
@@ -298,7 +442,9 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: NotionTheme.surfaceSelected,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: NotionTheme.blueAccent.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: NotionTheme.blueAccent.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
@@ -469,7 +615,9 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Text(
           'Hot Drink Poll',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
@@ -486,7 +634,11 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               for (int i = 0; i < state.drinks.length; i++)
                 SizedBox(
-                  width: (MediaQuery.of(context).size.width - 32 - (state.drinks.length - 1) * 10) / state.drinks.length,
+                  width:
+                      (MediaQuery.of(context).size.width -
+                          32 -
+                          (state.drinks.length - 1) * 10) /
+                      state.drinks.length,
                   child: _buildPollOption(
                     state.drinks[i],
                     state.selectedDrinkId == state.drinks[i]['id'],
@@ -505,10 +657,14 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? NotionTheme.surfaceSelected : NotionTheme.background,
+          color: isSelected
+              ? NotionTheme.surfaceSelected
+              : NotionTheme.background,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? NotionTheme.blueAccent.withValues(alpha: 0.5) : NotionTheme.border,
+            color: isSelected
+                ? NotionTheme.blueAccent.withValues(alpha: 0.5)
+                : NotionTheme.border,
           ),
         ),
         child: Column(
@@ -519,19 +675,24 @@ class _HomeScreenState extends State<HomeScreen> {
               drink['name'] as String,
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? NotionTheme.blueAccent : NotionTheme.primaryText,
+                color: isSelected
+                    ? NotionTheme.blueAccent
+                    : NotionTheme.primaryText,
               ),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
             ),
             if (isSelected) ...[
               const SizedBox(height: 4),
-              const Icon(Icons.check_circle, size: 14, color: NotionTheme.blueAccent),
+              const Icon(
+                Icons.check_circle,
+                size: 14,
+                color: NotionTheme.blueAccent,
+              ),
             ],
           ],
         ),
       ),
     );
   }
-
 }

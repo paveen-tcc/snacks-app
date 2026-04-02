@@ -1,11 +1,21 @@
 import { createDb } from './index';
 import { snacks, hotDrinks, appSettings } from './schema';
+import { eq } from 'drizzle-orm';
+import { menuSnackCatalog } from './menu_catalog';
 
 const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/snacks_app';
 const db = createDb(databaseUrl);
 
 async function seed() {
     console.log('Seeding initial data...');
+
+    const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, ' ');
+    const normalizeName = (value: string) => normalizeWhitespace(value).toLowerCase();
+    const normalizeCategory = (value: string | null | undefined) => {
+        if (value == null) return 'general';
+        const normalized = normalizeWhitespace(value);
+        return normalized.length === 0 ? 'general' : normalized.toLowerCase();
+    };
 
     // 1. App Settings
     await db.insert(appSettings).values([
@@ -22,14 +32,44 @@ async function seed() {
         { name: 'Boost', emoji: '🍫', isActive: true },
     ]).onConflictDoNothing();
 
-    // 3. Initial Snacks (Examples)
-    await db.insert(snacks).values([
-        { name: 'Samosa', emoji: '🥟', description: 'Crispy & spicy potato filling', isVeg: true, isDefault: true, isActive: true, servingSize: '2 Pcs', sortOrder: 1 },
-        { name: 'Bjjai / Pakora', emoji: '🧅', description: 'Deep fried onion fritters', isVeg: true, isDefault: false, isActive: true, servingSize: '1 Plate', sortOrder: 2 },
-        { name: 'Chicken Puff', emoji: '🥐', description: 'Flaky pastry with chicken', isVeg: false, isDefault: false, isActive: true, servingSize: '1 Pc', sortOrder: 3 },
-        { name: 'Egg Puff', emoji: '🥚', description: 'Flaky pastry with egg', isVeg: false, isDefault: false, isActive: true, servingSize: '1 Pc', sortOrder: 4 },
-        { name: 'Vada Pav', emoji: '🍔', description: 'Mumbai style spicy potato slider', isVeg: true, isDefault: false, isActive: true, servingSize: '1 Pc', sortOrder: 5 },
-    ]).onConflictDoNothing();
+    // 3. Menu Snacks Catalog
+    const existingSnacks = await db.select().from(snacks);
+    let insertedCount = 0;
+    let updatedCount = 0;
+
+    for (const item of menuSnackCatalog) {
+        const existingSnack = existingSnacks.find((snack) =>
+            normalizeName(snack.name) === normalizeName(item.name) &&
+            normalizeCategory(snack.category ?? null) === normalizeCategory(item.category)
+        );
+
+        const payload = {
+            name: item.name,
+            category: item.category,
+            emoji: item.emoji,
+            description: item.description,
+            isVeg: item.isVeg,
+            isActive: true,
+            servingSize: item.servingSize,
+            sortOrder: item.sortOrder,
+        };
+
+        if (existingSnack) {
+            await db.update(snacks)
+                .set(payload)
+                .where(eq(snacks.id, existingSnack.id));
+            updatedCount++;
+            continue;
+        }
+
+        await db.insert(snacks).values({
+            ...payload,
+            isDefault: false,
+        });
+        insertedCount++;
+    }
+
+    console.log(`Menu catalog synced: ${insertedCount} inserted, ${updatedCount} updated`);
 
     console.log('Seeding complete!');
     process.exit(0);

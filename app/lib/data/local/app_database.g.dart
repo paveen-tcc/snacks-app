@@ -27,6 +27,17 @@ class $LocalSnacksTable extends LocalSnacks
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _emojiMeta = const VerificationMeta('emoji');
   @override
   late final GeneratedColumn<String> emoji = GeneratedColumn<String>(
@@ -117,6 +128,7 @@ class $LocalSnacksTable extends LocalSnacks
   List<GeneratedColumn> get $columns => [
     id,
     name,
+    category,
     emoji,
     description,
     isVeg,
@@ -149,6 +161,12 @@ class $LocalSnacksTable extends LocalSnacks
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
     }
     if (data.containsKey('emoji')) {
       context.handle(
@@ -215,6 +233,10 @@ class $LocalSnacksTable extends LocalSnacks
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      ),
       emoji: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}emoji'],
@@ -255,6 +277,7 @@ class $LocalSnacksTable extends LocalSnacks
 class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   final String id;
   final String name;
+  final String? category;
   final String? emoji;
   final String? description;
   final bool isVeg;
@@ -265,6 +288,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   const LocalSnack({
     required this.id,
     required this.name,
+    this.category,
     this.emoji,
     this.description,
     required this.isVeg,
@@ -278,6 +302,9 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
+    if (!nullToAbsent || category != null) {
+      map['category'] = Variable<String>(category);
+    }
     if (!nullToAbsent || emoji != null) {
       map['emoji'] = Variable<String>(emoji);
     }
@@ -298,6 +325,9 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     return LocalSnacksCompanion(
       id: Value(id),
       name: Value(name),
+      category: category == null && nullToAbsent
+          ? const Value.absent()
+          : Value(category),
       emoji: emoji == null && nullToAbsent
           ? const Value.absent()
           : Value(emoji),
@@ -322,6 +352,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     return LocalSnack(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      category: serializer.fromJson<String?>(json['category']),
       emoji: serializer.fromJson<String?>(json['emoji']),
       description: serializer.fromJson<String?>(json['description']),
       isVeg: serializer.fromJson<bool>(json['isVeg']),
@@ -337,6 +368,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
+      'category': serializer.toJson<String?>(category),
       'emoji': serializer.toJson<String?>(emoji),
       'description': serializer.toJson<String?>(description),
       'isVeg': serializer.toJson<bool>(isVeg),
@@ -350,6 +382,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   LocalSnack copyWith({
     String? id,
     String? name,
+    Value<String?> category = const Value.absent(),
     Value<String?> emoji = const Value.absent(),
     Value<String?> description = const Value.absent(),
     bool? isVeg,
@@ -360,6 +393,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   }) => LocalSnack(
     id: id ?? this.id,
     name: name ?? this.name,
+    category: category.present ? category.value : this.category,
     emoji: emoji.present ? emoji.value : this.emoji,
     description: description.present ? description.value : this.description,
     isVeg: isVeg ?? this.isVeg,
@@ -372,6 +406,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     return LocalSnack(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      category: data.category.present ? data.category.value : this.category,
       emoji: data.emoji.present ? data.emoji.value : this.emoji,
       description: data.description.present
           ? data.description.value
@@ -391,6 +426,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     return (StringBuffer('LocalSnack(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('category: $category, ')
           ..write('emoji: $emoji, ')
           ..write('description: $description, ')
           ..write('isVeg: $isVeg, ')
@@ -406,6 +442,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   int get hashCode => Object.hash(
     id,
     name,
+    category,
     emoji,
     description,
     isVeg,
@@ -420,6 +457,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       (other is LocalSnack &&
           other.id == this.id &&
           other.name == this.name &&
+          other.category == this.category &&
           other.emoji == this.emoji &&
           other.description == this.description &&
           other.isVeg == this.isVeg &&
@@ -432,6 +470,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
 class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   final Value<String> id;
   final Value<String> name;
+  final Value<String?> category;
   final Value<String?> emoji;
   final Value<String?> description;
   final Value<bool> isVeg;
@@ -443,6 +482,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   const LocalSnacksCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.category = const Value.absent(),
     this.emoji = const Value.absent(),
     this.description = const Value.absent(),
     this.isVeg = const Value.absent(),
@@ -455,6 +495,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   LocalSnacksCompanion.insert({
     required String id,
     required String name,
+    this.category = const Value.absent(),
     this.emoji = const Value.absent(),
     this.description = const Value.absent(),
     this.isVeg = const Value.absent(),
@@ -468,6 +509,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   static Insertable<LocalSnack> custom({
     Expression<String>? id,
     Expression<String>? name,
+    Expression<String>? category,
     Expression<String>? emoji,
     Expression<String>? description,
     Expression<bool>? isVeg,
@@ -480,6 +522,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (category != null) 'category': category,
       if (emoji != null) 'emoji': emoji,
       if (description != null) 'description': description,
       if (isVeg != null) 'is_veg': isVeg,
@@ -494,6 +537,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   LocalSnacksCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
+    Value<String?>? category,
     Value<String?>? emoji,
     Value<String?>? description,
     Value<bool>? isVeg,
@@ -506,6 +550,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     return LocalSnacksCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      category: category ?? this.category,
       emoji: emoji ?? this.emoji,
       description: description ?? this.description,
       isVeg: isVeg ?? this.isVeg,
@@ -525,6 +570,9 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
     }
     if (emoji.present) {
       map['emoji'] = Variable<String>(emoji.value);
@@ -558,6 +606,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     return (StringBuffer('LocalSnacksCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('category: $category, ')
           ..write('emoji: $emoji, ')
           ..write('description: $description, ')
           ..write('isVeg: $isVeg, ')
@@ -1167,7 +1216,7 @@ class $SyncQueueTable extends SyncQueue
   );
   @override
   late final GeneratedColumn<String> targetTable = GeneratedColumn<String>(
-    'table_name',
+    'target_table',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -1228,10 +1277,13 @@ class $SyncQueueTable extends SyncQueue
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('table_name')) {
+    if (data.containsKey('target_table')) {
       context.handle(
         _targetTableMeta,
-        targetTable.isAcceptableOrUnknown(data['table_name']!, _targetTableMeta),
+        targetTable.isAcceptableOrUnknown(
+          data['target_table']!,
+          _targetTableMeta,
+        ),
       );
     } else if (isInserting) {
       context.missing(_targetTableMeta);
@@ -1276,7 +1328,7 @@ class $SyncQueueTable extends SyncQueue
       )!,
       targetTable: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}table_name'],
+        data['${effectivePrefix}target_table'],
       )!,
       action: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -1316,7 +1368,7 @@ class SyncQueueData extends DataClass implements Insertable<SyncQueueData> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['table_name'] = Variable<String>(targetTable);
+    map['target_table'] = Variable<String>(targetTable);
     map['action'] = Variable<String>(action);
     map['payload_json'] = Variable<String>(payloadJson);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -1374,7 +1426,9 @@ class SyncQueueData extends DataClass implements Insertable<SyncQueueData> {
   SyncQueueData copyWithCompanion(SyncQueueCompanion data) {
     return SyncQueueData(
       id: data.id.present ? data.id.value : this.id,
-      targetTable: data.targetTable.present ? data.targetTable.value : this.targetTable,
+      targetTable: data.targetTable.present
+          ? data.targetTable.value
+          : this.targetTable,
       action: data.action.present ? data.action.value : this.action,
       payloadJson: data.payloadJson.present
           ? data.payloadJson.value
@@ -1440,7 +1494,7 @@ class SyncQueueCompanion extends UpdateCompanion<SyncQueueData> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (targetTable != null) 'table_name': targetTable,
+      if (targetTable != null) 'target_table': targetTable,
       if (action != null) 'action': action,
       if (payloadJson != null) 'payload_json': payloadJson,
       if (createdAt != null) 'created_at': createdAt,
@@ -1470,7 +1524,7 @@ class SyncQueueCompanion extends UpdateCompanion<SyncQueueData> {
       map['id'] = Variable<int>(id.value);
     }
     if (targetTable.present) {
-      map['table_name'] = Variable<String>(targetTable.value);
+      map['target_table'] = Variable<String>(targetTable.value);
     }
     if (action.present) {
       map['action'] = Variable<String>(action.value);
@@ -1520,6 +1574,7 @@ typedef $$LocalSnacksTableCreateCompanionBuilder =
     LocalSnacksCompanion Function({
       required String id,
       required String name,
+      Value<String?> category,
       Value<String?> emoji,
       Value<String?> description,
       Value<bool> isVeg,
@@ -1533,6 +1588,7 @@ typedef $$LocalSnacksTableUpdateCompanionBuilder =
     LocalSnacksCompanion Function({
       Value<String> id,
       Value<String> name,
+      Value<String?> category,
       Value<String?> emoji,
       Value<String?> description,
       Value<bool> isVeg,
@@ -1559,6 +1615,11 @@ class $$LocalSnacksTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1617,6 +1678,11 @@ class $$LocalSnacksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get emoji => $composableBuilder(
     column: $table.emoji,
     builder: (column) => ColumnOrderings(column),
@@ -1667,6 +1733,9 @@ class $$LocalSnacksTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
 
   GeneratedColumn<String> get emoji =>
       $composableBuilder(column: $table.emoji, builder: (column) => column);
@@ -1727,6 +1796,7 @@ class $$LocalSnacksTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String?> category = const Value.absent(),
                 Value<String?> emoji = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<bool> isVeg = const Value.absent(),
@@ -1738,6 +1808,7 @@ class $$LocalSnacksTableTableManager
               }) => LocalSnacksCompanion(
                 id: id,
                 name: name,
+                category: category,
                 emoji: emoji,
                 description: description,
                 isVeg: isVeg,
@@ -1751,6 +1822,7 @@ class $$LocalSnacksTableTableManager
               ({
                 required String id,
                 required String name,
+                Value<String?> category = const Value.absent(),
                 Value<String?> emoji = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<bool> isVeg = const Value.absent(),
@@ -1762,6 +1834,7 @@ class $$LocalSnacksTableTableManager
               }) => LocalSnacksCompanion.insert(
                 id: id,
                 name: name,
+                category: category,
                 emoji: emoji,
                 description: description,
                 isVeg: isVeg,
@@ -2237,8 +2310,10 @@ class $$SyncQueueTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get targetTable =>
-      $composableBuilder(column: $table.targetTable, builder: (column) => column);
+  GeneratedColumn<String> get targetTable => $composableBuilder(
+    column: $table.targetTable,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get action =>
       $composableBuilder(column: $table.action, builder: (column) => column);

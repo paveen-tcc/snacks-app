@@ -42,7 +42,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
       final groupedItems = <String, Map<String, dynamic>>{};
       for (final order in history) {
-        final snack = snackMap[order['snackId'] as String];
+        final snackId = order['snackId'] as String?;
+        final snack = snackId != null ? snackMap[snackId] : null;
         final date = order['date'] as String;
         final existing = groupedItems.putIfAbsent(
           date,
@@ -54,8 +55,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           },
         );
 
-        (existing['snackNames'] as List<String>).add(snack?.name ?? 'Unknown');
-        (existing['snackEmojis'] as List<String>).add(snack?.emoji ?? '🍽️');
+        (existing['snackNames'] as List<String>).add(
+          order['snackName'] as String? ?? snack?.name ?? 'Unknown',
+        );
+        (existing['snackEmojis'] as List<String>).add(
+          order['snackEmoji'] as String? ?? snack?.emoji ?? '🍽️',
+        );
         existing['isDefault'] =
             (existing['isDefault'] as bool) || (order['isDefaultAssigned'] ?? false);
       }
