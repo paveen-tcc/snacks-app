@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { orders, holidays, shutdownDays, snacks } from '../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
 
@@ -88,7 +88,7 @@ orderRoutes.post('/', async (c) => {
             emoji: snacks.emoji,
         })
             .from(snacks)
-            .where(sql`${snacks.id} = any(${normalizedSnackIds})`);
+            .where(inArray(snacks.id, normalizedSnackIds));
 
         if (selectedSnacks.length !== normalizedSnackIds.length) {
             return c.json({ error: 'One or more selected snacks were not found' }, 400);

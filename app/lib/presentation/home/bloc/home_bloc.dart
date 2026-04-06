@@ -213,13 +213,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         selection = curr.selectedSnackIds
             .where((selectedId) => event.snacks.any((snack) => snack.id == selectedId))
             .toList();
-        if (selection.isEmpty) {
-          try {
-            selection = [event.snacks.firstWhere((s) => s.isDefault).id];
-          } catch (_) {
-            selection = const [];
-          }
-        }
       }
       emit(curr.copyWith(snacks: event.snacks, selectedSnackIds: selection));
     } else {
@@ -234,9 +227,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       _pendingCutoff = null;
       emit(HomeLoaded(
         snacks: event.snacks,
-        selectedSnackIds: event.snacks.isNotEmpty
-            ? [event.snacks.firstWhere((s) => s.isDefault, orElse: () => event.snacks.first).id]
-            : const [],
+        selectedSnackIds: const [],
         drinks: drinks,
         selectedDrinkId: voteId,
         isShutdown: status?['isShutdown'] as bool? ?? false,

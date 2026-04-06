@@ -10,6 +10,21 @@ const List<String> snackCategoryOrder = [
   'Samosa',
 ];
 
+const Map<String, String> snackCategoryIcons = {
+  'All': '🍽️',
+  'Drinks': '🥤',
+  'Pizza': '🍕',
+  'Sandwich': '🥪',
+  'Burger': '🍔',
+  'Fries': '🍟',
+  'Roll': '🌯',
+  'Momos': '🥟',
+  'Fingers Fried': '🍗',
+  'Chicken Varieties': '🍖',
+  'Samosa': '🥟',
+  'General': '🍴',
+};
+
 String displaySnackCategory(String? category) {
   final trimmed = category?.trim() ?? '';
   return trimmed.isEmpty ? 'General' : trimmed;
@@ -22,4 +37,8 @@ int snackCategoryRank(String category) {
 
 String normalizeSnackCategory(String? category) {
   return displaySnackCategory(category).toLowerCase();
+}
+
+String snackCategoryIcon(String category) {
+  return snackCategoryIcons[category] ?? '🍽️';
 }

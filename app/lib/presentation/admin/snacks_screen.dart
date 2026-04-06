@@ -53,17 +53,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     }
   }
 
-  Future<void> _setDefault(Map<String, dynamic> snack) async {
-    try {
-      await locator<AdminRepository>().updateSnack(snack['id'] as String, {
-        'isDefault': true,
-      });
-      await _load();
-    } catch (e) {
-      _showError('Failed to set default');
-    }
-  }
-
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -397,7 +386,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                         await locator<AdminRepository>().addSnack({
                           ...data,
                           'isActive': true,
-                          'isDefault': false,
                           'sortOrder': _snacks.length,
                         });
                       }
@@ -493,14 +481,11 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
           final description = cols.length > 3 ? cols[3] : '';
           final type = cols.length > 4 ? cols[4] : '';
           final servingSize = cols.length > 5 ? cols[5] : '';
-          final isDefault = cols.length > 6
-              ? _parseBoolToken(cols[6], defaultValue: false)
-              : false;
-          final isActive = cols.length > 7
-              ? _parseBoolToken(cols[7], defaultValue: true)
+          final isActive = cols.length > 6
+              ? _parseBoolToken(cols[6], defaultValue: true)
               : true;
-          final sortOrder = cols.length > 8
-              ? int.tryParse(cols[8].trim())
+          final sortOrder = cols.length > 7
+              ? int.tryParse(cols[7].trim())
               : null;
           final normalizedType = type.trim().toLowerCase();
           final isVeg = ![
@@ -520,7 +505,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             'description': description.trim(),
             'isVeg': isVeg,
             'servingSize': servingSize.trim(),
-            'isDefault': isDefault,
             'isActive': isActive,
             if (sortOrder != null) 'sortOrder': sortOrder,
           };
@@ -590,12 +574,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Format: name, category, emoji, description, veg/non-veg, serving size, is default, is active, sort order',
+              'Format: name, category, emoji, description, veg/non-veg, serving size, is active, sort order',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Example: Schezwan Samosa, Samosa, 🥟, Spicy samosa filling, veg, 4 Pcs, false, true, 10',
+              'Example: Schezwan Samosa, Samosa, 🥟, Spicy samosa filling, veg, 4 Pcs, true, 10',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: NotionTheme.secondaryText),
@@ -758,89 +742,162 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
 
   Widget _buildSnackListTile(Map<String, dynamic> s) {
     final isActive = s['isActive'] as bool? ?? true;
-    final isDefault = s['isDefault'] as bool? ?? false;
     final isVeg = s['isVeg'] as bool? ?? true;
+    final category = displaySnackCategory(s['category'] as String?);
+    final description = (s['description'] as String? ?? '').trim();
+    final servingSize = (s['servingSize'] as String? ?? '').trim();
+    final accent = isVeg ? NotionTheme.greenAccent : NotionTheme.redAccent;
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Text(s['emoji'] ?? '🍽️', style: const TextStyle(fontSize: 28)),
-      title: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Flexible(
-            child: Text(
-              s['name'] as String,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (isDefault) ...[
-            const SizedBox(width: 6),
-            const Icon(Icons.star, size: 14, color: NotionTheme.yellowAccent),
-          ],
-          const SizedBox(width: 6),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: isVeg
-                  ? NotionTheme.greenAccent.withValues(alpha: 0.1)
-                  : NotionTheme.redAccent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(3),
+              color: NotionTheme.surfaceHover,
+              borderRadius: BorderRadius.circular(12),
             ),
+            alignment: Alignment.center,
             child: Text(
-              isVeg ? 'VEG' : 'N-VEG',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: isVeg ? NotionTheme.greenAccent : NotionTheme.redAccent,
-              ),
+              s['emoji'] ?? '🍽️',
+              style: const TextStyle(fontSize: 24),
             ),
           ),
-        ],
-      ),
-      subtitle: Text(
-        s['servingSize'] ?? '',
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!isDefault)
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: const Icon(Icons.star_border, size: 18),
-                tooltip: 'Set as default',
-                onPressed: () => _setDefault(s),
-              ),
-            ),
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              onPressed: () => _showSnackForm(existing: s),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        s['name'] as String,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isVeg ? 'VEG' : 'N-VEG',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: NotionTheme.surfaceHover,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        category,
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                    ),
+                    if (servingSize.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: NotionTheme.surfaceHover,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          servingSize,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
+                ),
+                if (description.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: NotionTheme.secondaryText,
+                      height: 1.35,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
           ),
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: NotionTheme.redAccent,
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: () => _showSnackForm(existing: s),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: NotionTheme.redAccent,
+                      ),
+                      tooltip: 'Delete snack',
+                      onPressed: () => _deleteSnack(s),
+                    ),
+                  ),
+                ],
               ),
-              tooltip: 'Delete snack',
-              onPressed: () => _deleteSnack(s),
-            ),
-          ),
-          Transform.scale(
-            scale: 0.8,
-            child: Switch(value: isActive, onChanged: (_) => _toggleActive(s)),
+              Transform.scale(
+                scale: 0.8,
+                alignment: Alignment.centerRight,
+                child: Switch(
+                  value: isActive,
+                  onChanged: (_) => _toggleActive(s),
+                ),
+              ),
+            ],
           ),
         ],
       ),
