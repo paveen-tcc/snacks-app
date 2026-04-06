@@ -109,7 +109,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_isAdmin)
                   IconButton(
                     icon: const Icon(Icons.settings),
-                    onPressed: () => context.push('/admin'),
+                    onPressed: () async {
+                      await context.push('/admin');
+                      if (!mounted) return;
+                      _homeBloc.add(RefreshHome());
+                      await _refreshViewerState();
+                    },
                   ),
               ],
             ),
@@ -223,50 +228,252 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-            bottomNavigationBar: state.isShutdown || isCutoffClosed
+            bottomNavigationBar:
+                state.isShutdown ||
+                    isCutoffClosed ||
+                    state.selectedSnackIds.isEmpty
                 ? null
-                : Container(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
-                    decoration: const BoxDecoration(
-                      color: NotionTheme.background,
-                      border: Border(
-                        top: BorderSide(color: NotionTheme.divider),
-                      ),
-                    ),
-                    child: SafeArea(
-                      top: false,
-                      child: Row(
-                        children: [
-                          const SnackCharacterIllustration(height: 52),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed:
-                                  state.isSubmitting ||
-                                      state.selectedSnackIds.isEmpty
-                                  ? null
-                                  : () {
-                                      _homeBloc.add(SubmitOrder());
-                                    },
-                              child: state.isSubmitting
-                                  ? const FoodLoaderInline(size: 18)
-                                  : Text(
-                                      _hasSameSnackSelection(
-                                            state.todaysOrders,
-                                            state.selectedSnackIds,
-                                          )
-                                          ? 'Keep Current Order'
-                                          : 'Confirm Order',
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                : _buildViewCartBar(state),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildViewCartBar(HomeLoaded state) {
+    final itemCount = state.selectedSnackIds.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
+      decoration: const BoxDecoration(
+        color: NotionTheme.background,
+        border: Border(top: BorderSide(color: NotionTheme.divider)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: InkWell(
+          onTap: () => _openCartSheet(),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: NotionTheme.primaryText,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: NotionTheme.background.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$itemCount',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: NotionTheme.background,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'View Cart',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: NotionTheme.background,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      Text(
+                        itemCount == 1
+                            ? '1 item selected'
+                            : '$itemCount items selected',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: NotionTheme.background.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.keyboard_arrow_up,
+                  color: NotionTheme.background,
+                  size: 28,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCartSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return BlocProvider.value(
+          value: _homeBloc,
+          child: BlocBuilder<HomeBloc, HomeState>(
+            builder: (context, state) {
+              if (state is! HomeLoaded) {
+                return const SizedBox.shrink();
+              }
+
+              final selectedSnacks = _selectedSnacks(state);
+              final selectedDrink = _selectedDrink(state);
+              final hasSameSelection = _hasSameSnackSelection(
+                state.todaysOrders,
+                state.selectedSnackIds,
+              );
+
+              return SafeArea(
+                top: false,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: NotionTheme.background,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: 20,
+                      right: 20,
+                      top: 14,
+                      bottom: MediaQuery.of(sheetContext).padding.bottom + 20,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: NotionTheme.border,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Your Cart',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    selectedSnacks.length == 1
+                                        ? '1 snack selected'
+                                        : '${selectedSnacks.length} snacks selected',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: NotionTheme.secondaryText,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(sheetContext).pop(),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final snack in selectedSnacks) ...[
+                                  _buildCartSnackRow(snack),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (selectedDrink != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Selected Drink',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildCartDrinkRow(selectedDrink),
+                                ],
+                                if (hasSameSelection) ...[
+                                  const SizedBox(height: 14),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: NotionTheme.surfaceSelected,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: NotionTheme.blueAccent
+                                            .withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'This matches your current saved snack order.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: NotionTheme.secondaryText,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: state.isSubmitting
+                                ? null
+                                : () {
+                                    Navigator.of(sheetContext).pop();
+                                    _homeBloc.add(SubmitOrder());
+                                  },
+                            child: state.isSubmitting
+                                ? const FoodLoaderInline(size: 18)
+                                : Text(
+                                    hasSameSelection
+                                        ? 'Keep Current Order'
+                                        : 'Confirm Order',
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -316,6 +523,181 @@ class _HomeScreenState extends State<HomeScreen> {
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     return '$displayHour:$minute $period';
+  }
+
+  List<LocalSnack> _selectedSnacks(HomeLoaded state) {
+    final snacksById = {for (final snack in state.snacks) snack.id: snack};
+    return state.selectedSnackIds
+        .map((id) => snacksById[id])
+        .whereType<LocalSnack>()
+        .toList();
+  }
+
+  Map<String, dynamic>? _selectedDrink(HomeLoaded state) {
+    if (state.selectedDrinkId == null) return null;
+    for (final drink in state.drinks) {
+      if (drink['id'] == state.selectedDrinkId) {
+        return drink;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildCartSnackRow(LocalSnack snack) {
+    final accent = snack.isVeg
+        ? NotionTheme.greenAccent
+        : NotionTheme.redAccent;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: NotionTheme.surfaceHover,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: NotionTheme.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: NotionTheme.background,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: NotionTheme.border),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              snack.emoji ?? '🍽️',
+              style: const TextStyle(fontSize: 28),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  snack.name,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        snack.isVeg ? 'VEG' : 'N-VEG',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: NotionTheme.background,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        snack.servingSize ?? '1 Unit',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                if ((snack.description ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    snack.description ?? '',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: NotionTheme.secondaryText,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => _homeBloc.add(ToggleSnack(snack.id)),
+            icon: const Icon(
+              Icons.delete_outline,
+              color: NotionTheme.redAccent,
+            ),
+            tooltip: 'Remove item',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCartDrinkRow(Map<String, dynamic> drink) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: NotionTheme.surfaceHover,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: NotionTheme.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: NotionTheme.background,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: NotionTheme.border),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              drink['emoji'] as String? ?? '🥤',
+              style: const TextStyle(fontSize: 28),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  drink['name'] as String? ?? 'Drink',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Added with your snack order',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: NotionTheme.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSnackList(List<LocalSnack> snacks, HomeLoaded state) {
