@@ -112,6 +112,18 @@ class $LocalSnacksTable extends LocalSnacks
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _shareCountMeta = const VerificationMeta(
+    'shareCount',
+  );
+  @override
+  late final GeneratedColumn<int> shareCount = GeneratedColumn<int>(
+    'share_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   static const VerificationMeta _sortOrderMeta = const VerificationMeta(
     'sortOrder',
   );
@@ -135,6 +147,7 @@ class $LocalSnacksTable extends LocalSnacks
     isDefault,
     isActive,
     servingSize,
+    shareCount,
     sortOrder,
   ];
   @override
@@ -210,6 +223,12 @@ class $LocalSnacksTable extends LocalSnacks
         ),
       );
     }
+    if (data.containsKey('share_count')) {
+      context.handle(
+        _shareCountMeta,
+        shareCount.isAcceptableOrUnknown(data['share_count']!, _shareCountMeta),
+      );
+    }
     if (data.containsKey('sort_order')) {
       context.handle(
         _sortOrderMeta,
@@ -261,6 +280,10 @@ class $LocalSnacksTable extends LocalSnacks
         DriftSqlType.string,
         data['${effectivePrefix}serving_size'],
       ),
+      shareCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}share_count'],
+      )!,
       sortOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
@@ -284,6 +307,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   final bool isDefault;
   final bool isActive;
   final String? servingSize;
+  final int shareCount;
   final int sortOrder;
   const LocalSnack({
     required this.id,
@@ -295,6 +319,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     required this.isDefault,
     required this.isActive,
     this.servingSize,
+    required this.shareCount,
     required this.sortOrder,
   });
   @override
@@ -317,6 +342,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     if (!nullToAbsent || servingSize != null) {
       map['serving_size'] = Variable<String>(servingSize);
     }
+    map['share_count'] = Variable<int>(shareCount);
     map['sort_order'] = Variable<int>(sortOrder);
     return map;
   }
@@ -340,6 +366,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       servingSize: servingSize == null && nullToAbsent
           ? const Value.absent()
           : Value(servingSize),
+      shareCount: Value(shareCount),
       sortOrder: Value(sortOrder),
     );
   }
@@ -359,6 +386,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       isDefault: serializer.fromJson<bool>(json['isDefault']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       servingSize: serializer.fromJson<String?>(json['servingSize']),
+      shareCount: serializer.fromJson<int>(json['shareCount']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
     );
   }
@@ -375,6 +403,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       'isDefault': serializer.toJson<bool>(isDefault),
       'isActive': serializer.toJson<bool>(isActive),
       'servingSize': serializer.toJson<String?>(servingSize),
+      'shareCount': serializer.toJson<int>(shareCount),
       'sortOrder': serializer.toJson<int>(sortOrder),
     };
   }
@@ -389,6 +418,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     bool? isDefault,
     bool? isActive,
     Value<String?> servingSize = const Value.absent(),
+    int? shareCount,
     int? sortOrder,
   }) => LocalSnack(
     id: id ?? this.id,
@@ -400,6 +430,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     isDefault: isDefault ?? this.isDefault,
     isActive: isActive ?? this.isActive,
     servingSize: servingSize.present ? servingSize.value : this.servingSize,
+    shareCount: shareCount ?? this.shareCount,
     sortOrder: sortOrder ?? this.sortOrder,
   );
   LocalSnack copyWithCompanion(LocalSnacksCompanion data) {
@@ -417,6 +448,9 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       servingSize: data.servingSize.present
           ? data.servingSize.value
           : this.servingSize,
+      shareCount: data.shareCount.present
+          ? data.shareCount.value
+          : this.shareCount,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
     );
   }
@@ -433,6 +467,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
           ..write('isDefault: $isDefault, ')
           ..write('isActive: $isActive, ')
           ..write('servingSize: $servingSize, ')
+          ..write('shareCount: $shareCount, ')
           ..write('sortOrder: $sortOrder')
           ..write(')'))
         .toString();
@@ -449,6 +484,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     isDefault,
     isActive,
     servingSize,
+    shareCount,
     sortOrder,
   );
   @override
@@ -464,6 +500,7 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
           other.isDefault == this.isDefault &&
           other.isActive == this.isActive &&
           other.servingSize == this.servingSize &&
+          other.shareCount == this.shareCount &&
           other.sortOrder == this.sortOrder);
 }
 
@@ -477,6 +514,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   final Value<bool> isDefault;
   final Value<bool> isActive;
   final Value<String?> servingSize;
+  final Value<int> shareCount;
   final Value<int> sortOrder;
   final Value<int> rowid;
   const LocalSnacksCompanion({
@@ -489,6 +527,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     this.isDefault = const Value.absent(),
     this.isActive = const Value.absent(),
     this.servingSize = const Value.absent(),
+    this.shareCount = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -502,6 +541,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     this.isDefault = const Value.absent(),
     this.isActive = const Value.absent(),
     this.servingSize = const Value.absent(),
+    this.shareCount = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -516,6 +556,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     Expression<bool>? isDefault,
     Expression<bool>? isActive,
     Expression<String>? servingSize,
+    Expression<int>? shareCount,
     Expression<int>? sortOrder,
     Expression<int>? rowid,
   }) {
@@ -529,6 +570,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
       if (isDefault != null) 'is_default': isDefault,
       if (isActive != null) 'is_active': isActive,
       if (servingSize != null) 'serving_size': servingSize,
+      if (shareCount != null) 'share_count': shareCount,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (rowid != null) 'rowid': rowid,
     });
@@ -544,6 +586,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     Value<bool>? isDefault,
     Value<bool>? isActive,
     Value<String?>? servingSize,
+    Value<int>? shareCount,
     Value<int>? sortOrder,
     Value<int>? rowid,
   }) {
@@ -557,6 +600,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
       isDefault: isDefault ?? this.isDefault,
       isActive: isActive ?? this.isActive,
       servingSize: servingSize ?? this.servingSize,
+      shareCount: shareCount ?? this.shareCount,
       sortOrder: sortOrder ?? this.sortOrder,
       rowid: rowid ?? this.rowid,
     );
@@ -592,6 +636,9 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     if (servingSize.present) {
       map['serving_size'] = Variable<String>(servingSize.value);
     }
+    if (shareCount.present) {
+      map['share_count'] = Variable<int>(shareCount.value);
+    }
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
@@ -613,6 +660,7 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
           ..write('isDefault: $isDefault, ')
           ..write('isActive: $isActive, ')
           ..write('servingSize: $servingSize, ')
+          ..write('shareCount: $shareCount, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -990,26 +1038,75 @@ class $LocalSettingsTable extends LocalSettings
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $LocalSettingsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<String> key = GeneratedColumn<String>(
-    'key',
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _cutoffTimeMeta = const VerificationMeta(
+    'cutoffTime',
+  );
+  @override
+  late final GeneratedColumn<String> cutoffTime = GeneratedColumn<String>(
+    'cutoff_time',
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('12:00'),
   );
-  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  static const VerificationMeta _advanceOrderModeMeta = const VerificationMeta(
+    'advanceOrderMode',
+  );
   @override
-  late final GeneratedColumn<String> value = GeneratedColumn<String>(
-    'value',
+  late final GeneratedColumn<bool> advanceOrderMode = GeneratedColumn<bool>(
+    'advance_order_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("advance_order_mode" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _advanceWindowStartMeta =
+      const VerificationMeta('advanceWindowStart');
+  @override
+  late final GeneratedColumn<String> advanceWindowStart =
+      GeneratedColumn<String>(
+        'advance_window_start',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('06:00'),
+      );
+  static const VerificationMeta _advanceWindowEndMeta = const VerificationMeta(
+    'advanceWindowEnd',
+  );
+  @override
+  late final GeneratedColumn<String> advanceWindowEnd = GeneratedColumn<String>(
+    'advance_window_end',
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('22:00'),
   );
   @override
-  List<GeneratedColumn> get $columns => [key, value];
+  List<GeneratedColumn> get $columns => [
+    id,
+    cutoffTime,
+    advanceOrderMode,
+    advanceWindowStart,
+    advanceWindowEnd,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1022,38 +1119,70 @@ class $LocalSettingsTable extends LocalSettings
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
-    if (data.containsKey('key')) {
-      context.handle(
-        _keyMeta,
-        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_keyMeta);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('value')) {
+    if (data.containsKey('cutoff_time')) {
       context.handle(
-        _valueMeta,
-        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+        _cutoffTimeMeta,
+        cutoffTime.isAcceptableOrUnknown(data['cutoff_time']!, _cutoffTimeMeta),
       );
-    } else if (isInserting) {
-      context.missing(_valueMeta);
+    }
+    if (data.containsKey('advance_order_mode')) {
+      context.handle(
+        _advanceOrderModeMeta,
+        advanceOrderMode.isAcceptableOrUnknown(
+          data['advance_order_mode']!,
+          _advanceOrderModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('advance_window_start')) {
+      context.handle(
+        _advanceWindowStartMeta,
+        advanceWindowStart.isAcceptableOrUnknown(
+          data['advance_window_start']!,
+          _advanceWindowStartMeta,
+        ),
+      );
+    }
+    if (data.containsKey('advance_window_end')) {
+      context.handle(
+        _advanceWindowEndMeta,
+        advanceWindowEnd.isAcceptableOrUnknown(
+          data['advance_window_end']!,
+          _advanceWindowEndMeta,
+        ),
+      );
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {key};
+  Set<GeneratedColumn> get $primaryKey => {id};
   @override
   LocalSetting map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return LocalSetting(
-      key: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}key'],
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
       )!,
-      value: attachedDatabase.typeMapping.read(
+      cutoffTime: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}value'],
+        data['${effectivePrefix}cutoff_time'],
+      )!,
+      advanceOrderMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}advance_order_mode'],
+      )!,
+      advanceWindowStart: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}advance_window_start'],
+      )!,
+      advanceWindowEnd: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}advance_window_end'],
       )!,
     );
   }
@@ -1065,19 +1194,37 @@ class $LocalSettingsTable extends LocalSettings
 }
 
 class LocalSetting extends DataClass implements Insertable<LocalSetting> {
-  final String key;
-  final String value;
-  const LocalSetting({required this.key, required this.value});
+  final int id;
+  final String cutoffTime;
+  final bool advanceOrderMode;
+  final String advanceWindowStart;
+  final String advanceWindowEnd;
+  const LocalSetting({
+    required this.id,
+    required this.cutoffTime,
+    required this.advanceOrderMode,
+    required this.advanceWindowStart,
+    required this.advanceWindowEnd,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['key'] = Variable<String>(key);
-    map['value'] = Variable<String>(value);
+    map['id'] = Variable<int>(id);
+    map['cutoff_time'] = Variable<String>(cutoffTime);
+    map['advance_order_mode'] = Variable<bool>(advanceOrderMode);
+    map['advance_window_start'] = Variable<String>(advanceWindowStart);
+    map['advance_window_end'] = Variable<String>(advanceWindowEnd);
     return map;
   }
 
   LocalSettingsCompanion toCompanion(bool nullToAbsent) {
-    return LocalSettingsCompanion(key: Value(key), value: Value(value));
+    return LocalSettingsCompanion(
+      id: Value(id),
+      cutoffTime: Value(cutoffTime),
+      advanceOrderMode: Value(advanceOrderMode),
+      advanceWindowStart: Value(advanceWindowStart),
+      advanceWindowEnd: Value(advanceWindowEnd),
+    );
   }
 
   factory LocalSetting.fromJson(
@@ -1086,97 +1233,159 @@ class LocalSetting extends DataClass implements Insertable<LocalSetting> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return LocalSetting(
-      key: serializer.fromJson<String>(json['key']),
-      value: serializer.fromJson<String>(json['value']),
+      id: serializer.fromJson<int>(json['id']),
+      cutoffTime: serializer.fromJson<String>(json['cutoffTime']),
+      advanceOrderMode: serializer.fromJson<bool>(json['advanceOrderMode']),
+      advanceWindowStart: serializer.fromJson<String>(
+        json['advanceWindowStart'],
+      ),
+      advanceWindowEnd: serializer.fromJson<String>(json['advanceWindowEnd']),
     );
   }
   @override
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'key': serializer.toJson<String>(key),
-      'value': serializer.toJson<String>(value),
+      'id': serializer.toJson<int>(id),
+      'cutoffTime': serializer.toJson<String>(cutoffTime),
+      'advanceOrderMode': serializer.toJson<bool>(advanceOrderMode),
+      'advanceWindowStart': serializer.toJson<String>(advanceWindowStart),
+      'advanceWindowEnd': serializer.toJson<String>(advanceWindowEnd),
     };
   }
 
-  LocalSetting copyWith({String? key, String? value}) =>
-      LocalSetting(key: key ?? this.key, value: value ?? this.value);
+  LocalSetting copyWith({
+    int? id,
+    String? cutoffTime,
+    bool? advanceOrderMode,
+    String? advanceWindowStart,
+    String? advanceWindowEnd,
+  }) => LocalSetting(
+    id: id ?? this.id,
+    cutoffTime: cutoffTime ?? this.cutoffTime,
+    advanceOrderMode: advanceOrderMode ?? this.advanceOrderMode,
+    advanceWindowStart: advanceWindowStart ?? this.advanceWindowStart,
+    advanceWindowEnd: advanceWindowEnd ?? this.advanceWindowEnd,
+  );
   LocalSetting copyWithCompanion(LocalSettingsCompanion data) {
     return LocalSetting(
-      key: data.key.present ? data.key.value : this.key,
-      value: data.value.present ? data.value.value : this.value,
+      id: data.id.present ? data.id.value : this.id,
+      cutoffTime: data.cutoffTime.present
+          ? data.cutoffTime.value
+          : this.cutoffTime,
+      advanceOrderMode: data.advanceOrderMode.present
+          ? data.advanceOrderMode.value
+          : this.advanceOrderMode,
+      advanceWindowStart: data.advanceWindowStart.present
+          ? data.advanceWindowStart.value
+          : this.advanceWindowStart,
+      advanceWindowEnd: data.advanceWindowEnd.present
+          ? data.advanceWindowEnd.value
+          : this.advanceWindowEnd,
     );
   }
 
   @override
   String toString() {
     return (StringBuffer('LocalSetting(')
-          ..write('key: $key, ')
-          ..write('value: $value')
+          ..write('id: $id, ')
+          ..write('cutoffTime: $cutoffTime, ')
+          ..write('advanceOrderMode: $advanceOrderMode, ')
+          ..write('advanceWindowStart: $advanceWindowStart, ')
+          ..write('advanceWindowEnd: $advanceWindowEnd')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(key, value);
+  int get hashCode => Object.hash(
+    id,
+    cutoffTime,
+    advanceOrderMode,
+    advanceWindowStart,
+    advanceWindowEnd,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is LocalSetting &&
-          other.key == this.key &&
-          other.value == this.value);
+          other.id == this.id &&
+          other.cutoffTime == this.cutoffTime &&
+          other.advanceOrderMode == this.advanceOrderMode &&
+          other.advanceWindowStart == this.advanceWindowStart &&
+          other.advanceWindowEnd == this.advanceWindowEnd);
 }
 
 class LocalSettingsCompanion extends UpdateCompanion<LocalSetting> {
-  final Value<String> key;
-  final Value<String> value;
-  final Value<int> rowid;
+  final Value<int> id;
+  final Value<String> cutoffTime;
+  final Value<bool> advanceOrderMode;
+  final Value<String> advanceWindowStart;
+  final Value<String> advanceWindowEnd;
   const LocalSettingsCompanion({
-    this.key = const Value.absent(),
-    this.value = const Value.absent(),
-    this.rowid = const Value.absent(),
+    this.id = const Value.absent(),
+    this.cutoffTime = const Value.absent(),
+    this.advanceOrderMode = const Value.absent(),
+    this.advanceWindowStart = const Value.absent(),
+    this.advanceWindowEnd = const Value.absent(),
   });
   LocalSettingsCompanion.insert({
-    required String key,
-    required String value,
-    this.rowid = const Value.absent(),
-  }) : key = Value(key),
-       value = Value(value);
+    this.id = const Value.absent(),
+    this.cutoffTime = const Value.absent(),
+    this.advanceOrderMode = const Value.absent(),
+    this.advanceWindowStart = const Value.absent(),
+    this.advanceWindowEnd = const Value.absent(),
+  });
   static Insertable<LocalSetting> custom({
-    Expression<String>? key,
-    Expression<String>? value,
-    Expression<int>? rowid,
+    Expression<int>? id,
+    Expression<String>? cutoffTime,
+    Expression<bool>? advanceOrderMode,
+    Expression<String>? advanceWindowStart,
+    Expression<String>? advanceWindowEnd,
   }) {
     return RawValuesInsertable({
-      if (key != null) 'key': key,
-      if (value != null) 'value': value,
-      if (rowid != null) 'rowid': rowid,
+      if (id != null) 'id': id,
+      if (cutoffTime != null) 'cutoff_time': cutoffTime,
+      if (advanceOrderMode != null) 'advance_order_mode': advanceOrderMode,
+      if (advanceWindowStart != null)
+        'advance_window_start': advanceWindowStart,
+      if (advanceWindowEnd != null) 'advance_window_end': advanceWindowEnd,
     });
   }
 
   LocalSettingsCompanion copyWith({
-    Value<String>? key,
-    Value<String>? value,
-    Value<int>? rowid,
+    Value<int>? id,
+    Value<String>? cutoffTime,
+    Value<bool>? advanceOrderMode,
+    Value<String>? advanceWindowStart,
+    Value<String>? advanceWindowEnd,
   }) {
     return LocalSettingsCompanion(
-      key: key ?? this.key,
-      value: value ?? this.value,
-      rowid: rowid ?? this.rowid,
+      id: id ?? this.id,
+      cutoffTime: cutoffTime ?? this.cutoffTime,
+      advanceOrderMode: advanceOrderMode ?? this.advanceOrderMode,
+      advanceWindowStart: advanceWindowStart ?? this.advanceWindowStart,
+      advanceWindowEnd: advanceWindowEnd ?? this.advanceWindowEnd,
     );
   }
 
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    if (key.present) {
-      map['key'] = Variable<String>(key.value);
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
     }
-    if (value.present) {
-      map['value'] = Variable<String>(value.value);
+    if (cutoffTime.present) {
+      map['cutoff_time'] = Variable<String>(cutoffTime.value);
     }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
+    if (advanceOrderMode.present) {
+      map['advance_order_mode'] = Variable<bool>(advanceOrderMode.value);
+    }
+    if (advanceWindowStart.present) {
+      map['advance_window_start'] = Variable<String>(advanceWindowStart.value);
+    }
+    if (advanceWindowEnd.present) {
+      map['advance_window_end'] = Variable<String>(advanceWindowEnd.value);
     }
     return map;
   }
@@ -1184,9 +1393,11 @@ class LocalSettingsCompanion extends UpdateCompanion<LocalSetting> {
   @override
   String toString() {
     return (StringBuffer('LocalSettingsCompanion(')
-          ..write('key: $key, ')
-          ..write('value: $value, ')
-          ..write('rowid: $rowid')
+          ..write('id: $id, ')
+          ..write('cutoffTime: $cutoffTime, ')
+          ..write('advanceOrderMode: $advanceOrderMode, ')
+          ..write('advanceWindowStart: $advanceWindowStart, ')
+          ..write('advanceWindowEnd: $advanceWindowEnd')
           ..write(')'))
         .toString();
   }
@@ -1581,6 +1792,7 @@ typedef $$LocalSnacksTableCreateCompanionBuilder =
       Value<bool> isDefault,
       Value<bool> isActive,
       Value<String?> servingSize,
+      Value<int> shareCount,
       Value<int> sortOrder,
       Value<int> rowid,
     });
@@ -1595,6 +1807,7 @@ typedef $$LocalSnacksTableUpdateCompanionBuilder =
       Value<bool> isDefault,
       Value<bool> isActive,
       Value<String?> servingSize,
+      Value<int> shareCount,
       Value<int> sortOrder,
       Value<int> rowid,
     });
@@ -1650,6 +1863,11 @@ class $$LocalSnacksTableFilterComposer
 
   ColumnFilters<String> get servingSize => $composableBuilder(
     column: $table.servingSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get shareCount => $composableBuilder(
+    column: $table.shareCount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1713,6 +1931,11 @@ class $$LocalSnacksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get shareCount => $composableBuilder(
+    column: $table.shareCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
@@ -1756,6 +1979,11 @@ class $$LocalSnacksTableAnnotationComposer
 
   GeneratedColumn<String> get servingSize => $composableBuilder(
     column: $table.servingSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get shareCount => $composableBuilder(
+    column: $table.shareCount,
     builder: (column) => column,
   );
 
@@ -1803,6 +2031,7 @@ class $$LocalSnacksTableTableManager
                 Value<bool> isDefault = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<String?> servingSize = const Value.absent(),
+                Value<int> shareCount = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalSnacksCompanion(
@@ -1815,6 +2044,7 @@ class $$LocalSnacksTableTableManager
                 isDefault: isDefault,
                 isActive: isActive,
                 servingSize: servingSize,
+                shareCount: shareCount,
                 sortOrder: sortOrder,
                 rowid: rowid,
               ),
@@ -1829,6 +2059,7 @@ class $$LocalSnacksTableTableManager
                 Value<bool> isDefault = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<String?> servingSize = const Value.absent(),
+                Value<int> shareCount = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalSnacksCompanion.insert(
@@ -1841,6 +2072,7 @@ class $$LocalSnacksTableTableManager
                 isDefault: isDefault,
                 isActive: isActive,
                 servingSize: servingSize,
+                shareCount: shareCount,
                 sortOrder: sortOrder,
                 rowid: rowid,
               ),
@@ -2073,15 +2305,19 @@ typedef $$LocalOrdersTableProcessedTableManager =
     >;
 typedef $$LocalSettingsTableCreateCompanionBuilder =
     LocalSettingsCompanion Function({
-      required String key,
-      required String value,
-      Value<int> rowid,
+      Value<int> id,
+      Value<String> cutoffTime,
+      Value<bool> advanceOrderMode,
+      Value<String> advanceWindowStart,
+      Value<String> advanceWindowEnd,
     });
 typedef $$LocalSettingsTableUpdateCompanionBuilder =
     LocalSettingsCompanion Function({
-      Value<String> key,
-      Value<String> value,
-      Value<int> rowid,
+      Value<int> id,
+      Value<String> cutoffTime,
+      Value<bool> advanceOrderMode,
+      Value<String> advanceWindowStart,
+      Value<String> advanceWindowEnd,
     });
 
 class $$LocalSettingsTableFilterComposer
@@ -2093,13 +2329,28 @@ class $$LocalSettingsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get key => $composableBuilder(
-    column: $table.key,
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get value => $composableBuilder(
-    column: $table.value,
+  ColumnFilters<String> get cutoffTime => $composableBuilder(
+    column: $table.cutoffTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get advanceOrderMode => $composableBuilder(
+    column: $table.advanceOrderMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get advanceWindowStart => $composableBuilder(
+    column: $table.advanceWindowStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get advanceWindowEnd => $composableBuilder(
+    column: $table.advanceWindowEnd,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2113,13 +2364,28 @@ class $$LocalSettingsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get key => $composableBuilder(
-    column: $table.key,
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get value => $composableBuilder(
-    column: $table.value,
+  ColumnOrderings<String> get cutoffTime => $composableBuilder(
+    column: $table.cutoffTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get advanceOrderMode => $composableBuilder(
+    column: $table.advanceOrderMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get advanceWindowStart => $composableBuilder(
+    column: $table.advanceWindowStart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get advanceWindowEnd => $composableBuilder(
+    column: $table.advanceWindowEnd,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -2133,11 +2399,28 @@ class $$LocalSettingsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get key =>
-      $composableBuilder(column: $table.key, builder: (column) => column);
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get value =>
-      $composableBuilder(column: $table.value, builder: (column) => column);
+  GeneratedColumn<String> get cutoffTime => $composableBuilder(
+    column: $table.cutoffTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get advanceOrderMode => $composableBuilder(
+    column: $table.advanceOrderMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get advanceWindowStart => $composableBuilder(
+    column: $table.advanceWindowStart,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get advanceWindowEnd => $composableBuilder(
+    column: $table.advanceWindowEnd,
+    builder: (column) => column,
+  );
 }
 
 class $$LocalSettingsTableTableManager
@@ -2171,20 +2454,31 @@ class $$LocalSettingsTableTableManager
               $$LocalSettingsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<String> key = const Value.absent(),
-                Value<String> value = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) =>
-                  LocalSettingsCompanion(key: key, value: value, rowid: rowid),
+                Value<int> id = const Value.absent(),
+                Value<String> cutoffTime = const Value.absent(),
+                Value<bool> advanceOrderMode = const Value.absent(),
+                Value<String> advanceWindowStart = const Value.absent(),
+                Value<String> advanceWindowEnd = const Value.absent(),
+              }) => LocalSettingsCompanion(
+                id: id,
+                cutoffTime: cutoffTime,
+                advanceOrderMode: advanceOrderMode,
+                advanceWindowStart: advanceWindowStart,
+                advanceWindowEnd: advanceWindowEnd,
+              ),
           createCompanionCallback:
               ({
-                required String key,
-                required String value,
-                Value<int> rowid = const Value.absent(),
+                Value<int> id = const Value.absent(),
+                Value<String> cutoffTime = const Value.absent(),
+                Value<bool> advanceOrderMode = const Value.absent(),
+                Value<String> advanceWindowStart = const Value.absent(),
+                Value<String> advanceWindowEnd = const Value.absent(),
               }) => LocalSettingsCompanion.insert(
-                key: key,
-                value: value,
-                rowid: rowid,
+                id: id,
+                cutoffTime: cutoffTime,
+                advanceOrderMode: advanceOrderMode,
+                advanceWindowStart: advanceWindowStart,
+                advanceWindowEnd: advanceWindowEnd,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

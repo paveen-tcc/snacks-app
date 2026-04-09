@@ -11,6 +11,7 @@ class LocalSnacks extends Table {
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   TextColumn get servingSize => text().nullable()();
+  IntColumn get shareCount => integer().withDefault(const Constant(1))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
@@ -32,11 +33,17 @@ class LocalOrders extends Table {
 
 // App Settings cache (cutoff time, holiday country, etc)
 class LocalSettings extends Table {
-  TextColumn get key => text()();
-  TextColumn get value => text()();
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  TextColumn get cutoffTime => text().withDefault(const Constant('12:00'))();
+  BoolColumn get advanceOrderMode =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get advanceWindowStart =>
+      text().withDefault(const Constant('06:00'))();
+  TextColumn get advanceWindowEnd =>
+      text().withDefault(const Constant('22:00'))();
 
   @override
-  Set<Column> get primaryKey => {key};
+  Set<Column> get primaryKey => {id};
 }
 
 // Offline Action Queue

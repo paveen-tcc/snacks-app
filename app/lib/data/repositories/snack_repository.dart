@@ -10,6 +10,20 @@ class SnackRepository {
 
   SnackRepository(this._apiClient, this._localDb);
 
+  Future<void> _savePublicSettings(PublicSettings settings) async {
+    await _localDb
+        .into(_localDb.localSettings)
+        .insertOnConflictUpdate(
+          LocalSettingsCompanion.insert(
+            id: const drift.Value(1),
+            cutoffTime: drift.Value(settings.cutoffTime),
+            advanceOrderMode: drift.Value(settings.advanceOrderMode),
+            advanceWindowStart: drift.Value(settings.advanceWindowStart),
+            advanceWindowEnd: drift.Value(settings.advanceWindowEnd),
+          ),
+        );
+  }
+
   Future<void> syncSnacks() async {
     // Check connectivity first
     final List<ConnectivityResult> connectivityResult = await (Connectivity()
@@ -50,6 +64,7 @@ class SnackRepository {
                     servingSize: json['servingSize'] != null
                         ? drift.Value(json['servingSize'])
                         : const drift.Value.absent(),
+                    shareCount: drift.Value(json['shareCount'] ?? 1),
                     sortOrder: drift.Value(json['sortOrder'] ?? 0),
                   ),
                 );
@@ -61,17 +76,27 @@ class SnackRepository {
     }
   }
 
-  /// Fetch cutoff time from public settings endpoint.
-  Future<String> fetchCutoffTime() async {
+  /// Fetch public settings from startup endpoint and cache them locally.
+  Future<PublicSettings> fetchPublicSettings() async {
     try {
       final response = await _apiClient.dio.get('/snacks/settings');
       if (response.statusCode == 200) {
-        return response.data['cutoffTime'] as String? ?? '12:00';
+        final settings = PublicSettings.fromJson(response.data);
+        await _savePublicSettings(settings);
+        return settings;
       }
     } catch (e) {
-      print('Cutoff fetch failed: $e');
+      print('Settings fetch failed: $e');
     }
-    return '12:00';
+    final cached = await (_localDb.select(
+      _localDb.localSettings,
+    )..where((tbl) => tbl.id.equals(1))).getSingleOrNull();
+    return PublicSettings(
+      cutoffTime: cached?.cutoffTime ?? '12:00',
+      advanceOrderMode: cached?.advanceOrderMode ?? false,
+      advanceWindowStart: cached?.advanceWindowStart ?? '06:00',
+      advanceWindowEnd: cached?.advanceWindowEnd ?? '22:00',
+    );
   }
 
   // Observes local drift database for reactive UI updates
@@ -80,5 +105,28 @@ class SnackRepository {
           ..where((t) => t.isActive.equals(true))
           ..orderBy([(t) => OrderingTerm(expression: t.sortOrder)]))
         .watch();
+  }
+}
+
+class PublicSettings {
+  final String cutoffTime;
+  final bool advanceOrderMode;
+  final String advanceWindowStart;
+  final String advanceWindowEnd;
+
+  const PublicSettings({
+    required this.cutoffTime,
+    required this.advanceOrderMode,
+    required this.advanceWindowStart,
+    required this.advanceWindowEnd,
+  });
+
+  factory PublicSettings.fromJson(Map<String, dynamic> json) {
+    return PublicSettings(
+      cutoffTime: json['cutoffTime'] as String? ?? '12:00',
+      advanceOrderMode: json['advanceOrderMode'] as bool? ?? false,
+      advanceWindowStart: json['advanceWindowStart'] as String? ?? '06:00',
+      advanceWindowEnd: json['advanceWindowEnd'] as String? ?? '22:00',
+    );
   }
 }

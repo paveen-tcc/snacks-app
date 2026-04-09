@@ -14,7 +14,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -22,6 +22,13 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(localSnacks, localSnacks.category);
+      }
+      if (from < 3) {
+        await m.deleteTable('local_settings');
+        await m.createTable(localSettings);
+      }
+      if (from < 4) {
+        await m.addColumn(localSnacks, localSnacks.shareCount);
       }
     },
   );

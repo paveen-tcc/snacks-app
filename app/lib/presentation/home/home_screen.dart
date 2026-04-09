@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final displayedSnacks = state.snacks
               .where((snack) => !isVegMode || snack.isVeg == true)
               .toList();
-          final isCutoffClosed = _hasCutoffPassed(state.cutoffTime);
+          final isCutoffClosed = _isOrderingClosed(state);
           final categoryOptions = _buildCategoryOptions(displayedSnacks);
           final selectedCategory = categoryOptions.contains(_selectedCategory)
               ? _selectedCategory
@@ -515,6 +515,44 @@ class _HomeScreenState extends State<HomeScreen> {
     return now.isAfter(cutoff);
   }
 
+  bool _isWithinTimeRange(String startTime, String endTime) {
+    final startParts = startTime.split(':');
+    final endParts = endTime.split(':');
+    if (startParts.length != 2 || endParts.length != 2) return false;
+
+    final startHour = int.tryParse(startParts[0]);
+    final startMinute = int.tryParse(startParts[1]);
+    final endHour = int.tryParse(endParts[0]);
+    final endMinute = int.tryParse(endParts[1]);
+    if (startHour == null ||
+        startMinute == null ||
+        endHour == null ||
+        endMinute == null) {
+      return false;
+    }
+
+    final now = DateTime.now();
+    final start = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      startHour,
+      startMinute,
+    );
+    final end = DateTime(now.year, now.month, now.day, endHour, endMinute);
+    return !now.isBefore(start) && !now.isAfter(end);
+  }
+
+  bool _isOrderingClosed(HomeLoaded state) {
+    if (state.advanceOrderMode) {
+      return !_isWithinTimeRange(
+        state.advanceWindowStart,
+        state.advanceWindowEnd,
+      );
+    }
+    return _hasCutoffPassed(state.cutoffTime);
+  }
+
   String _formatCutoffTime(String cutoffTime) {
     final parts = cutoffTime.split(':');
     if (parts.length != 2) return '12:00 PM';
@@ -523,6 +561,41 @@ class _HomeScreenState extends State<HomeScreen> {
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
     return '$displayHour:$minute $period';
+  }
+
+  String _formatTimeRange(String startTime, String endTime) {
+    return '${_formatCutoffTime(startTime)} - ${_formatCutoffTime(endTime)}';
+  }
+
+  String _formatAdvanceOrderDate() {
+    const weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    final tomorrowUtc = DateTime.now().toUtc().add(const Duration(days: 1));
+    final weekday = weekdays[tomorrowUtc.weekday - 1];
+    final month = months[tomorrowUtc.month - 1];
+    return '$weekday, $month ${tomorrowUtc.day}, ${tomorrowUtc.year}';
   }
 
   List<LocalSnack> _selectedSnacks(HomeLoaded state) {
@@ -844,42 +917,73 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildStatusCard(BuildContext context) {
     final state = context.read<HomeBloc>().state;
     String cutoffLabel = '12:00 PM';
+    String advanceWindowLabel = '6:00 AM - 10:00 PM';
     var isCutoffClosed = false;
+    var advanceOrderMode = false;
     if (state is HomeLoaded) {
-      isCutoffClosed = _hasCutoffPassed(state.cutoffTime);
+      isCutoffClosed = _isOrderingClosed(state);
       cutoffLabel = _formatCutoffTime(state.cutoffTime);
+      advanceOrderMode = state.advanceOrderMode;
+      advanceWindowLabel = _formatTimeRange(
+        state.advanceWindowStart,
+        state.advanceWindowEnd,
+      );
     }
+
+    final isAdvanceBanner = advanceOrderMode && !isCutoffClosed;
+    final backgroundColor = isAdvanceBanner
+        ? Colors.amber.shade50
+        : NotionTheme.surfaceSelected;
+    final borderColor = isAdvanceBanner
+        ? Colors.amber.shade200
+        : NotionTheme.blueAccent.withValues(alpha: 0.3);
+    final accentColor = isAdvanceBanner
+        ? Colors.amber.shade900
+        : NotionTheme.blueAccent;
+    final title = isAdvanceBanner
+        ? 'Advance Order Mode'
+        : advanceOrderMode && isCutoffClosed
+        ? 'Ordering is closed for today.'
+        : isCutoffClosed
+        ? 'Ordering closed at $cutoffLabel'
+        : 'Order window closes at $cutoffLabel';
+    final subtitle = isAdvanceBanner
+        ? 'You are ordering for tomorrow, ${_formatAdvanceOrderDate()}. Window: $advanceWindowLabel.'
+        : advanceOrderMode && isCutoffClosed
+        ? 'Advance order window: $advanceWindowLabel.'
+        : isCutoffClosed
+        ? 'Come back tomorrow for the next snack window'
+        : 'Choose your snacks before the cutoff time';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: NotionTheme.surfaceSelected,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: NotionTheme.blueAccent.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: NotionTheme.blueAccent),
+          Icon(Icons.info_outline, color: accentColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isCutoffClosed
-                      ? 'Ordering closed at $cutoffLabel'
-                      : 'Order window closes at $cutoffLabel',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isAdvanceBanner ? accentColor : null,
+                  ),
                 ),
                 Text(
-                  isCutoffClosed
-                      ? 'Come back tomorrow for the next snack window'
-                      : 'Choose your snacks before the cutoff time',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isAdvanceBanner
+                        ? accentColor.withValues(alpha: 0.85)
+                        : null,
+                  ),
                 ),
               ],
             ),
@@ -936,7 +1040,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'The cutoff time of ${_formatCutoffTime(state.cutoffTime)} has passed.',
+                      state.advanceOrderMode
+                          ? 'Advance order window: ${_formatTimeRange(state.advanceWindowStart, state.advanceWindowEnd)}.'
+                          : 'The cutoff time of ${_formatCutoffTime(state.cutoffTime)} has passed.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: NotionTheme.secondaryText,
                       ),
@@ -1197,7 +1303,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDrinksSection(HomeLoaded state, {required bool showTitle}) {
-    final isCutoffClosed = _hasCutoffPassed(state.cutoffTime);
+    final isCutoffClosed = _isOrderingClosed(state);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1212,6 +1318,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             isCutoffClosed
                 ? 'Drink selection is closed for today.'
+                : state.advanceOrderMode
+                ? 'Choose your drink for tomorrow.'
                 : 'Choose your drink for today.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -1257,7 +1365,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'The cutoff time of ${_formatCutoffTime(state.cutoffTime)} has passed.',
+            state.advanceOrderMode
+                ? 'Advance order window: ${_formatTimeRange(state.advanceWindowStart, state.advanceWindowEnd)}.'
+                : 'The cutoff time of ${_formatCutoffTime(state.cutoffTime)} has passed.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: NotionTheme.secondaryText),
@@ -1451,7 +1561,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Today\'s Menu',
+                state.advanceOrderMode ? 'Tomorrow\'s Menu' : 'Today\'s Menu',
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -1459,17 +1569,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                _hasCutoffPassed(state.cutoffTime)
+                _isOrderingClosed(state)
                     ? 'Ordering is closed for today'
                     : isVegMode
                     ? 'Showing only vegetarian snacks'
+                    : state.advanceOrderMode
+                    ? 'Select snacks and drinks for tomorrow'
                     : 'Select snacks and drinks for today',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
         ),
-        if (!_hasCutoffPassed(state.cutoffTime)) _buildVegModeToggle(isVegMode),
+        if (!_isOrderingClosed(state)) _buildVegModeToggle(isVegMode),
       ],
     );
   }

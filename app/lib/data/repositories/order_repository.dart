@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../local/app_database.dart';
 import 'package:drift/drift.dart' as drift;
@@ -12,6 +11,15 @@ class OrderRepository {
   final AppDatabase _localDb;
 
   OrderRepository(this._apiClient, this._localDb);
+
+  Future<String> _effectiveOrderDate() async {
+    final settings = await (_localDb.select(
+      _localDb.localSettings,
+    )..where((tbl) => tbl.id.equals(1))).getSingleOrNull();
+    final offsetDays = settings?.advanceOrderMode == true ? 1 : 0;
+    final date = DateTime.now().toUtc().add(Duration(days: offsetDays));
+    return date.toIso8601String().split('T')[0];
+  }
 
   /// Check if today is open for ordering (not a holiday/shutdown day).
   /// Returns {isOpen, reason?, type?}.
@@ -37,11 +45,11 @@ class OrderRepository {
       return;
     }
 
-    final today = DateTime.now().toIso8601String().split('T')[0];
+    final today = await _effectiveOrderDate();
 
-    yield* (_localDb.select(_localDb.localOrders)
-          ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
-        .watch();
+    yield* (_localDb.select(
+      _localDb.localOrders,
+    )..where((t) => t.userId.equals(userId) & t.date.equals(today))).watch();
   }
 
   // Sync today's order from remote
@@ -49,7 +57,7 @@ class OrderRepository {
     final List<ConnectivityResult> connectivityResult = await (Connectivity()
         .checkConnectivity());
     if (connectivityResult.contains(ConnectivityResult.none)) return;
-    final today = DateTime.now().toIso8601String().split('T')[0];
+    final today = await _effectiveOrderDate();
 
     try {
       final response = await _apiClient.dio.get('/orders/today');
@@ -62,9 +70,9 @@ class OrderRepository {
             : (await SharedPreferences.getInstance()).getString('user_id');
         if (serverUserId == null) return;
 
-        await (_localDb.delete(_localDb.localOrders)
-              ..where((t) =>
-                  t.userId.equals(serverUserId) & t.date.equals(today)))
+        await (_localDb.delete(_localDb.localOrders)..where(
+              (t) => t.userId.equals(serverUserId) & t.date.equals(today),
+            ))
             .go();
 
         for (final orderJson in ordersJson) {
@@ -94,16 +102,16 @@ class OrderRepository {
     final userId = prefs.getString('user_id');
     if (userId == null) throw Exception('User not logged in');
 
-    final today = DateTime.now().toIso8601String().split('T')[0];
+    final today = await _effectiveOrderDate();
     final normalizedSnackIds = snackIds.toSet().toList();
     if (normalizedSnackIds.isEmpty) {
       throw Exception('Select at least one snack');
     }
 
     // 1. Save locally immediately (Optimistic response)
-    await (_localDb.delete(_localDb.localOrders)
-          ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
-        .go();
+    await (_localDb.delete(
+      _localDb.localOrders,
+    )..where((t) => t.userId.equals(userId) & t.date.equals(today))).go();
     for (final snackId in normalizedSnackIds) {
       final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_$snackId';
       await _localDb
@@ -130,7 +138,10 @@ class OrderRepository {
             SyncQueueCompanion.insert(
               targetTable: 'orders',
               action: 'POST',
-              payloadJson: jsonEncode({'snackIds': normalizedSnackIds, 'date': today}),
+              payloadJson: jsonEncode({
+                'snackIds': normalizedSnackIds,
+                'date': today,
+              }),
             ),
           );
       return;
@@ -149,9 +160,9 @@ class OrderRepository {
         );
         // Update local with server ID
         await _localDb.transaction(() async {
-          await (_localDb.delete(_localDb.localOrders)
-                ..where((t) => t.userId.equals(userId) & t.date.equals(today)))
-              .go();
+          await (_localDb.delete(
+            _localDb.localOrders,
+          )..where((t) => t.userId.equals(userId) & t.date.equals(today))).go();
           for (final serverOrder in serverOrders) {
             await _localDb
                 .into(_localDb.localOrders)
@@ -178,7 +189,10 @@ class OrderRepository {
             SyncQueueCompanion.insert(
               targetTable: 'orders',
               action: 'POST',
-              payloadJson: jsonEncode({'snackIds': normalizedSnackIds, 'date': today}),
+              payloadJson: jsonEncode({
+                'snackIds': normalizedSnackIds,
+                'date': today,
+              }),
             ),
           );
       print('Order queued for sync: $e');

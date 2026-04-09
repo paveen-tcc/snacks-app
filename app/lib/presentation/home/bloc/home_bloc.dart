@@ -25,6 +25,9 @@ class HomeLoaded extends HomeState {
   final String? shutdownReason;
   final String? shutdownType;
   final String cutoffTime;
+  final bool advanceOrderMode;
+  final String advanceWindowStart;
+  final String advanceWindowEnd;
 
   HomeLoaded({
     required this.snacks,
@@ -39,6 +42,9 @@ class HomeLoaded extends HomeState {
     this.shutdownReason,
     this.shutdownType,
     this.cutoffTime = '12:00',
+    this.advanceOrderMode = false,
+    this.advanceWindowStart = '06:00',
+    this.advanceWindowEnd = '22:00',
   });
 
   // Sentinel to distinguish "pass null explicitly" from "not provided"
@@ -57,6 +63,9 @@ class HomeLoaded extends HomeState {
     Object? shutdownReason = _unset,
     Object? shutdownType = _unset,
     String? cutoffTime,
+    bool? advanceOrderMode,
+    String? advanceWindowStart,
+    String? advanceWindowEnd,
   }) {
     return HomeLoaded(
       snacks: snacks ?? this.snacks,
@@ -67,12 +76,21 @@ class HomeLoaded extends HomeState {
       selectedSnackIds: selectedSnackIds ?? this.selectedSnackIds,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       drinks: drinks ?? this.drinks,
-      selectedDrinkId: selectedDrinkId == _unset ? this.selectedDrinkId : selectedDrinkId as String?,
+      selectedDrinkId: selectedDrinkId == _unset
+          ? this.selectedDrinkId
+          : selectedDrinkId as String?,
       isDrinkSubmitting: isDrinkSubmitting ?? this.isDrinkSubmitting,
       isShutdown: isShutdown ?? this.isShutdown,
-      shutdownReason: shutdownReason == _unset ? this.shutdownReason : shutdownReason as String?,
-      shutdownType: shutdownType == _unset ? this.shutdownType : shutdownType as String?,
+      shutdownReason: shutdownReason == _unset
+          ? this.shutdownReason
+          : shutdownReason as String?,
+      shutdownType: shutdownType == _unset
+          ? this.shutdownType
+          : shutdownType as String?,
       cutoffTime: cutoffTime ?? this.cutoffTime,
+      advanceOrderMode: advanceOrderMode ?? this.advanceOrderMode,
+      advanceWindowStart: advanceWindowStart ?? this.advanceWindowStart,
+      advanceWindowEnd: advanceWindowEnd ?? this.advanceWindowEnd,
     );
   }
 }
@@ -123,9 +141,9 @@ class SelectDrink extends HomeEvent {
 
 class RefreshHome extends HomeEvent {}
 
-class CutoffLoaded extends HomeEvent {
-  final String cutoffTime;
-  CutoffLoaded(this.cutoffTime);
+class SettingsLoaded extends HomeEvent {
+  final PublicSettings settings;
+  SettingsLoaded(this.settings);
 }
 
 class StatusLoaded extends HomeEvent {
@@ -149,7 +167,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   List<Map<String, dynamic>>? _pendingDrinks;
   String? _pendingVoteId;
   Map<String, dynamic>? _pendingStatus;
-  String? _pendingCutoff;
+  PublicSettings? _pendingSettings;
+  List<LocalOrder>? _pendingOrders;
 
   HomeBloc() : super(HomeLoading()) {
     on<LoadHomeData>(_onLoadHomeData);
@@ -162,45 +181,60 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     on<SelectDrink>(_onSelectDrink);
     on<StatusLoaded>(_onStatusLoaded);
     on<RefreshHome>(_onRefreshHome);
-    on<CutoffLoaded>(_onCutoffLoaded);
+    on<SettingsLoaded>(_onSettingsLoaded);
 
     add(LoadHomeData());
   }
 
-  Future<void> _onLoadHomeData(LoadHomeData event, Emitter<HomeState> emit) async {
+  void _watchOrders() {
+    _orderSub?.cancel();
+    _orderSub = _orderRepo.watchTodayOrder().listen((orders) {
+      add(OrderUpdated(orders));
+    });
+  }
+
+  Future<void> _onLoadHomeData(
+    LoadHomeData event,
+    Emitter<HomeState> emit,
+  ) async {
     emit(HomeLoading());
 
     _snackRepo.syncSnacks();
-    _orderRepo.syncTodayOrder();
 
     // Load drinks in background
-    Future.wait([
-      _drinkRepo.fetchDrinks(),
-      _drinkRepo.getTodayVote(),
-    ]).then((results) {
-      final drinks = results[0] as List<Map<String, dynamic>>;
-      final todayVote = results[1] as String?;
-      add(DrinksLoaded(drinks, todayVote));
-    }).catchError((e) => print('Drink load error: $e'));
+    Future.wait([_drinkRepo.fetchDrinks(), _drinkRepo.getTodayVote()])
+        .then((results) {
+          final drinks = results[0] as List<Map<String, dynamic>>;
+          final todayVote = results[1] as String?;
+          add(DrinksLoaded(drinks, todayVote));
+        })
+        .catchError((e) {
+          print('Drink load error: $e');
+          return null;
+        });
 
     // Check if today is a shutdown/holiday day
     _orderRepo.fetchTodayStatus().then((status) {
       final isOpen = status['isOpen'] as bool? ?? true;
-      add(StatusLoaded(!isOpen, status['reason'] as String?, status['type'] as String?));
+      add(
+        StatusLoaded(
+          !isOpen,
+          status['reason'] as String?,
+          status['type'] as String?,
+        ),
+      );
     });
 
-    // Fetch cutoff time
-    _snackRepo.fetchCutoffTime().then((time) => add(CutoffLoaded(time)));
+    final settings = await _snackRepo.fetchPublicSettings();
+    add(SettingsLoaded(settings));
+    await _orderRepo.syncTodayOrder();
 
     _snacksSub?.cancel();
     _snacksSub = _snackRepo.watchActiveSnacks().listen((snacks) {
       add(SnacksUpdated(snacks));
     });
 
-    _orderSub?.cancel();
-    _orderSub = _orderRepo.watchTodayOrder().listen((orders) {
-      add(OrderUpdated(orders));
-    });
+    _watchOrders();
   }
 
   void _onSnacksUpdated(SnacksUpdated event, Emitter<HomeState> emit) {
@@ -211,7 +245,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         selection = curr.todaysOrders.map((order) => order.snackId).toList();
       } else {
         selection = curr.selectedSnackIds
-            .where((selectedId) => event.snacks.any((snack) => snack.id == selectedId))
+            .where(
+              (selectedId) =>
+                  event.snacks.any((snack) => snack.id == selectedId),
+            )
             .toList();
       }
       emit(curr.copyWith(snacks: event.snacks, selectedSnackIds: selection));
@@ -220,33 +257,45 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final drinks = _pendingDrinks ?? [];
       final voteId = _pendingVoteId;
       final status = _pendingStatus;
-      final cutoff = _pendingCutoff;
+      final settings = _pendingSettings;
+      final orders = _pendingOrders ?? const <LocalOrder>[];
       _pendingDrinks = null;
       _pendingVoteId = null;
       _pendingStatus = null;
-      _pendingCutoff = null;
-      emit(HomeLoaded(
-        snacks: event.snacks,
-        selectedSnackIds: const [],
-        drinks: drinks,
-        selectedDrinkId: voteId,
-        isShutdown: status?['isShutdown'] as bool? ?? false,
-        shutdownReason: status?['reason'] as String?,
-        shutdownType: status?['type'] as String?,
-        cutoffTime: cutoff ?? '12:00',
-      ));
+      _pendingSettings = null;
+      _pendingOrders = null;
+      emit(
+        HomeLoaded(
+          snacks: event.snacks,
+          todaysOrders: orders,
+          selectedSnackIds: orders.map((order) => order.snackId).toList(),
+          drinks: drinks,
+          selectedDrinkId: voteId,
+          isShutdown: status?['isShutdown'] as bool? ?? false,
+          shutdownReason: status?['reason'] as String?,
+          shutdownType: status?['type'] as String?,
+          cutoffTime: settings?.cutoffTime ?? '12:00',
+          advanceOrderMode: settings?.advanceOrderMode ?? false,
+          advanceWindowStart: settings?.advanceWindowStart ?? '06:00',
+          advanceWindowEnd: settings?.advanceWindowEnd ?? '22:00',
+        ),
+      );
     }
   }
 
   void _onOrderUpdated(OrderUpdated event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
-      emit(curr.copyWith(
-        todaysOrders: event.orders,
-        selectedSnackIds: event.orders.isNotEmpty
-            ? event.orders.map((order) => order.snackId).toList()
-            : curr.selectedSnackIds,
-      ));
+      emit(
+        curr.copyWith(
+          todaysOrders: event.orders,
+          selectedSnackIds: event.orders.isNotEmpty
+              ? event.orders.map((order) => order.snackId).toList()
+              : curr.selectedSnackIds,
+        ),
+      );
+    } else {
+      _pendingOrders = event.orders;
     }
   }
 
@@ -269,7 +318,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 
-  Future<void> _onSubmitOrder(SubmitOrder event, Emitter<HomeState> emit) async {
+  Future<void> _onSubmitOrder(
+    SubmitOrder event,
+    Emitter<HomeState> emit,
+  ) async {
     if (state is! HomeLoaded) return;
     final curr = state as HomeLoaded;
     if (curr.selectedSnackIds.isEmpty || curr.isSubmitting) return;
@@ -287,7 +339,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   void _onDrinksLoaded(DrinksLoaded event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
-      emit(curr.copyWith(drinks: event.drinks, selectedDrinkId: event.todayVoteId));
+      emit(
+        curr.copyWith(drinks: event.drinks, selectedDrinkId: event.todayVoteId),
+      );
     } else {
       // State not ready yet — buffer for when snacks arrive
       _pendingDrinks = event.drinks;
@@ -295,10 +349,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 
-  Future<void> _onSelectDrink(SelectDrink event, Emitter<HomeState> emit) async {
+  Future<void> _onSelectDrink(
+    SelectDrink event,
+    Emitter<HomeState> emit,
+  ) async {
     if (state is! HomeLoaded) return;
     final curr = state as HomeLoaded;
-    emit(curr.copyWith(selectedDrinkId: event.drinkId, isDrinkSubmitting: true));
+    emit(
+      curr.copyWith(selectedDrinkId: event.drinkId, isDrinkSubmitting: true),
+    );
     try {
       await _drinkRepo.castVote(event.drinkId);
     } catch (e) {
@@ -310,47 +369,68 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 
-  Future<void> _onRefreshHome(RefreshHome event, Emitter<HomeState> emit) async {
+  Future<void> _onRefreshHome(
+    RefreshHome event,
+    Emitter<HomeState> emit,
+  ) async {
     // Re-sync from server without showing loading spinner
     _snackRepo.syncSnacks();
-    _orderRepo.syncTodayOrder();
 
     // Refresh drinks
-    Future.wait([
-      _drinkRepo.fetchDrinks(),
-      _drinkRepo.getTodayVote(),
-    ]).then((results) {
-      final drinks = results[0] as List<Map<String, dynamic>>;
-      final todayVote = results[1] as String?;
-      add(DrinksLoaded(drinks, todayVote));
-    }).catchError((e) => print('Drink refresh error: $e'));
+    Future.wait([_drinkRepo.fetchDrinks(), _drinkRepo.getTodayVote()])
+        .then((results) {
+          final drinks = results[0] as List<Map<String, dynamic>>;
+          final todayVote = results[1] as String?;
+          add(DrinksLoaded(drinks, todayVote));
+        })
+        .catchError((e) {
+          print('Drink refresh error: $e');
+          return null;
+        });
 
     // Refresh shutdown status
     _orderRepo.fetchTodayStatus().then((status) {
       final isOpen = status['isOpen'] as bool? ?? true;
-      add(StatusLoaded(!isOpen, status['reason'] as String?, status['type'] as String?));
+      add(
+        StatusLoaded(
+          !isOpen,
+          status['reason'] as String?,
+          status['type'] as String?,
+        ),
+      );
     });
 
-    // Refresh cutoff time
-    _snackRepo.fetchCutoffTime().then((time) => add(CutoffLoaded(time)));
+    final settings = await _snackRepo.fetchPublicSettings();
+    add(SettingsLoaded(settings));
+    await _orderRepo.syncTodayOrder();
+    _watchOrders();
   }
 
-  void _onCutoffLoaded(CutoffLoaded event, Emitter<HomeState> emit) {
+  void _onSettingsLoaded(SettingsLoaded event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
-      emit((state as HomeLoaded).copyWith(cutoffTime: event.cutoffTime));
+      emit(
+        (state as HomeLoaded).copyWith(
+          cutoffTime: event.settings.cutoffTime,
+          advanceOrderMode: event.settings.advanceOrderMode,
+          advanceWindowStart: event.settings.advanceWindowStart,
+          advanceWindowEnd: event.settings.advanceWindowEnd,
+        ),
+      );
     } else {
-      _pendingCutoff = event.cutoffTime;
+      _pendingSettings = event.settings;
     }
   }
 
   void _onStatusLoaded(StatusLoaded event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
-      emit(curr.copyWith(
-        isShutdown: event.isShutdown,
-        shutdownReason: event.reason,
-        shutdownType: event.type,
-      ));
+      emit(
+        curr.copyWith(
+          isShutdown: event.isShutdown,
+          shutdownReason: event.reason,
+          shutdownType: event.type,
+        ),
+      );
     } else {
       _pendingStatus = {
         'isShutdown': event.isShutdown,

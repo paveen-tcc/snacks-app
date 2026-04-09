@@ -31,8 +31,11 @@ class AdminRepository {
     return Map<String, dynamic>.from(r.data['settings']);
   }
 
-  Future<void> updateSetting(String key, String value) async {
-    await _apiClient.dio.put('/admin/settings', data: {'key': key, 'value': value});
+  Future<void> updateSetting(String key, dynamic value) async {
+    await _apiClient.dio.put(
+      '/admin/settings',
+      data: {'key': key, 'value': value},
+    );
   }
 
   Future<Map<String, dynamic>> getSummary() async {
@@ -46,7 +49,10 @@ class AdminRepository {
   }
 
   Future<void> updateUserAdmin(String id, bool isAdmin) async {
-    await _apiClient.dio.post('/admin/users/$id/admin', data: {'isAdmin': isAdmin});
+    await _apiClient.dio.post(
+      '/admin/users/$id/admin',
+      data: {'isAdmin': isAdmin},
+    );
   }
 
   Future<List<Map<String, dynamic>>> getHolidays() async {
@@ -55,7 +61,10 @@ class AdminRepository {
   }
 
   Future<void> addHoliday(String date, String name) async {
-    await _apiClient.dio.post('/admin/holidays', data: {'date': date, 'name': name});
+    await _apiClient.dio.post(
+      '/admin/holidays',
+      data: {'date': date, 'name': name},
+    );
   }
 
   Future<void> deleteHoliday(String id) async {

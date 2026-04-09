@@ -225,6 +225,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     final sizeCtrl = TextEditingController(
       text: existing?['servingSize'] ?? '',
     );
+    final shareCountCtrl = TextEditingController(
+      text: ((existing?['shareCount'] as num?)?.toInt() ?? 1).toString(),
+    );
     bool isVeg = existing?['isVeg'] ?? true;
 
     showModalBottomSheet(
@@ -306,6 +309,15 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 controller: sizeCtrl,
                 decoration: _notionInput('Serving size', hint: 'e.g. 2 Pcs'),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: shareCountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: _notionInput(
+                  'Share count',
+                  hint: '1 = individual, 2 = serves 2 people',
+                ),
+              ),
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -367,12 +379,20 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 child: ElevatedButton(
                   onPressed: () async {
                     if (nameCtrl.text.trim().isEmpty) return;
+                    final shareCount = int.tryParse(shareCountCtrl.text.trim());
+                    if (shareCount == null || shareCount < 1) {
+                      _showError(
+                        'Share count must be a whole number of 1 or more',
+                      );
+                      return;
+                    }
                     final data = {
                       'name': nameCtrl.text.trim(),
                       'category': categoryCtrl.text.trim(),
                       'emoji': emojiCtrl.text.trim(),
                       'description': descCtrl.text.trim(),
                       'servingSize': sizeCtrl.text.trim(),
+                      'shareCount': shareCount,
                       'isVeg': isVeg,
                     };
                     Navigator.pop(ctx);
@@ -481,11 +501,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
           final description = cols.length > 3 ? cols[3] : '';
           final type = cols.length > 4 ? cols[4] : '';
           final servingSize = cols.length > 5 ? cols[5] : '';
-          final isActive = cols.length > 6
-              ? _parseBoolToken(cols[6], defaultValue: true)
+          final shareCount = cols.length > 6 ? int.tryParse(cols[6].trim()) : 1;
+          final isActive = cols.length > 7
+              ? _parseBoolToken(cols[7], defaultValue: true)
               : true;
-          final sortOrder = cols.length > 7
-              ? int.tryParse(cols[7].trim())
+          final sortOrder = cols.length > 8
+              ? int.tryParse(cols[8].trim())
               : null;
           final normalizedType = type.trim().toLowerCase();
           final isVeg = ![
@@ -505,6 +526,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             'description': description.trim(),
             'isVeg': isVeg,
             'servingSize': servingSize.trim(),
+            'shareCount': (shareCount != null && shareCount > 0)
+                ? shareCount
+                : 1,
             'isActive': isActive,
             if (sortOrder != null) 'sortOrder': sortOrder,
           };
@@ -574,12 +598,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Format: name, category, emoji, description, veg/non-veg, serving size, is active, sort order',
+              'Format: name, category, emoji, description, veg/non-veg, serving size, share count, is active, sort order',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Example: Schezwan Samosa, Samosa, 🥟, Spicy samosa filling, veg, 4 Pcs, true, 10',
+              'Example: Pizza, Italian, 🍕, Cheesy pizza slices, veg, 1 box, 2, true, 10',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: NotionTheme.secondaryText),
@@ -746,6 +770,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     final category = displaySnackCategory(s['category'] as String?);
     final description = (s['description'] as String? ?? '').trim();
     final servingSize = (s['servingSize'] as String? ?? '').trim();
+    final shareCount = (s['shareCount'] as num?)?.toInt() ?? 1;
     final accent = isVeg ? NotionTheme.greenAccent : NotionTheme.redAccent;
 
     return Padding(
@@ -836,6 +861,22 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                         ),
                         child: Text(
                           servingSize,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    if (shareCount > 1)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: NotionTheme.surfaceHover,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Serves $shareCount',
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(fontWeight: FontWeight.w600),
                         ),
