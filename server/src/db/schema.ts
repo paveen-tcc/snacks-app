@@ -33,6 +33,7 @@ export const snacks = pgTable('snacks', {
     isDefault: boolean('is_default').default(false), // admin-designated default
     isActive: boolean('is_active').default(true),    // admin toggle to show/hide
     servingSize: varchar('serving_size', { length: 50 }), // per-person: "2 pieces", "1 bowl"
+    shareCount: integer('share_count').notNull().default(1), // 1 = per-person, 2 = serves two, etc.
     sortOrder: integer('sort_order').default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });

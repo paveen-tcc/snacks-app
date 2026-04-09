@@ -50,9 +50,9 @@ snackRoutes.get('/settings', async (c) => {
 // Public CSV template for admin bulk snack upload
 snackRoutes.get('/template', async (c) => {
     const templateRows = [
-        'name,category,emoji,description,veg_or_non_veg,serving_size,is_active,sort_order',
-        'Schezwan Samosa,Samosa,🥟,Spicy samosa filling,veg,4 Pcs,true,10',
-        'Chicken Roll,Roll,🌯,Stuffed chicken wrap,non-veg,4 Pcs,true,20',
+        'name,category,emoji,description,veg_or_non_veg,serving_size,share_count,is_active,sort_order',
+        'Schezwan Samosa,Samosa,🥟,Spicy samosa filling,veg,4 Pcs,1,true,10',
+        'Pizza,Italian,🍕,Cheesy pizza slices,veg,1 box,2,true,20',
     ].join('\n');
 
     c.header('Content-Type', 'text/csv; charset=utf-8');

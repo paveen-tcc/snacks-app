@@ -34,6 +34,14 @@ function duplicateSnackError(name: string, category: string | null): string {
     return `Snack "${normalizeWhitespace(name)}" already exists in category "${categoryLabel(category)}"`;
 }
 
+function normalizeShareCount(value: unknown): number {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+        throw new Error('shareCount must be an integer greater than or equal to 1');
+    }
+    return parsed;
+}
+
 // All admin routes require authentication AND admin privileges
 adminRoutes.use('*', authMiddleware, adminMiddleware);
 
@@ -52,9 +60,10 @@ adminRoutes.get('/snacks', async (c) => {
 adminRoutes.post('/snacks', async (c) => {
     try {
         const db = c.get('db');
-        const { name, category, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder } = await c.req.json();
+        const { name, category, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder, shareCount } = await c.req.json();
         const normalizedName = typeof name === 'string' ? normalizeWhitespace(name) : '';
         const normalizedCategory = normalizeCategoryValue(category);
+        const normalizedShareCount = shareCount === undefined ? 1 : normalizeShareCount(shareCount);
 
         if (!normalizedName) {
             return c.json({ error: 'name is required' }, 400);
@@ -82,11 +91,15 @@ adminRoutes.post('/snacks', async (c) => {
             isDefault,
             isActive,
             servingSize,
+            shareCount: normalizedShareCount,
             sortOrder
         }).returning();
 
         return c.json({ snack: newSnack }, 201);
     } catch (err: any) {
+        if (err instanceof Error && err.message.includes('shareCount')) {
+            return c.json({ error: err.message }, 400);
+        }
         return c.json({ error: err.message }, 500);
     }
 });
@@ -105,6 +118,7 @@ adminRoutes.post('/snacks/bulk', async (c) => {
             isDefault: boolean;
             isActive: boolean;
             servingSize: string;
+            shareCount: number;
             sortOrder: number | null;
             index: number;
         };
@@ -119,6 +133,7 @@ adminRoutes.post('/snacks/bulk', async (c) => {
                 isDefault: snack?.isDefault === true,
                 isActive: typeof snack?.isActive === 'boolean' ? snack.isActive : true,
                 servingSize: typeof snack?.servingSize === 'string' ? snack.servingSize.trim() : '',
+                shareCount: snack?.shareCount === undefined ? 1 : normalizeShareCount(snack.shareCount),
                 sortOrder: Number.isFinite(Number(snack?.sortOrder)) ? Number(snack.sortOrder) : null,
                 index,
             }))
@@ -170,12 +185,16 @@ adminRoutes.post('/snacks/bulk', async (c) => {
                 isDefault: firstDefaultIndex >= 0 ? snack.index === firstDefaultIndex : false,
                 isActive: snack.isActive,
                 servingSize: snack.servingSize || null,
+                shareCount: snack.shareCount,
                 sortOrder: snack.sortOrder ?? (baseSortOrder + index),
             }))
         ).returning();
 
         return c.json({ snacks: createdSnacks }, 201);
     } catch (err: any) {
+        if (err instanceof Error && err.message.includes('shareCount')) {
+            return c.json({ error: err.message }, 400);
+        }
         return c.json({ error: err.message }, 500);
     }
 });
@@ -217,6 +236,9 @@ adminRoutes.put('/snacks/:id', async (c) => {
         if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
             updateData.category = normalizeCategoryValue(updateData.category);
         }
+        if (Object.prototype.hasOwnProperty.call(updateData, 'shareCount')) {
+            updateData.shareCount = normalizeShareCount(updateData.shareCount);
+        }
 
         const [updatedSnack] = await db.update(snacks)
             .set(updateData)
@@ -225,6 +247,9 @@ adminRoutes.put('/snacks/:id', async (c) => {
 
         return c.json({ snack: updatedSnack }, 200);
     } catch (err: any) {
+        if (err instanceof Error && err.message.includes('shareCount')) {
+            return c.json({ error: err.message }, 400);
+        }
         return c.json({ error: err.message }, 500);
     }
 });
@@ -339,7 +364,8 @@ adminRoutes.get('/summary', async (c) => {
                 snackId: orders.snackId,
                 snackName: sql<string>`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
                 snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
-                count: sql<number>`count(*)`.mapWith(Number),
+                selectedCount: sql<number>`count(*)`.mapWith(Number),
+                shareCount: sql<number>`coalesce(max(${snacks.shareCount}), 1)`.mapWith(Number),
             })
             .from(orders)
             .leftJoin(snacks, eq(orders.snackId, snacks.id))
@@ -349,6 +375,11 @@ adminRoutes.get('/summary', async (c) => {
                 sql`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
                 sql`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`
             );
+
+        const normalizedOrderCounts = orderCounts.map((item) => ({
+            ...item,
+            count: Math.ceil(item.selectedCount / Math.max(item.shareCount, 1)),
+        }));
 
         const drinkCounts = await db
             .select({
@@ -362,10 +393,13 @@ adminRoutes.get('/summary', async (c) => {
             .where(sql`${drinkVotes.date} = ${today}`)
             .groupBy(drinkVotes.drinkId, hotDrinks.name, hotDrinks.emoji);
 
-        const totalOrders = orderCounts.reduce((sum, item) => sum + item.count, 0);
+        const totalOrders = normalizedOrderCounts.reduce((sum, item) => sum + item.count, 0);
 
-        return c.json({ date: today, orders: orderCounts, drinks: drinkCounts, totalOrders }, 200);
+        return c.json({ date: today, orders: normalizedOrderCounts, drinks: drinkCounts, totalOrders }, 200);
     } catch (err: any) {
+        if (err instanceof Error && err.message.includes('shareCount')) {
+            return c.json({ error: err.message }, 400);
+        }
         return c.json({ error: err.message }, 500);
     }
 });
