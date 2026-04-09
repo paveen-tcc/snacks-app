@@ -25,12 +25,23 @@ snackRoutes.get('/', async (c) => {
 snackRoutes.get('/settings', async (c) => {
     try {
         const db = c.get('db');
-        const [cutoff] = await db.select()
+        const settings = await db.select().from(appSettings);
+        const cutoff = settings.find((setting) => setting.key === 'cutoff_time');
+        const [settingsRow] = await db.select({
+            advanceOrderMode: appSettings.advanceOrderMode,
+            advanceWindowStart: appSettings.advanceWindowStart,
+            advanceWindowEnd: appSettings.advanceWindowEnd,
+        })
             .from(appSettings)
             .where(eq(appSettings.key, 'cutoff_time'))
             .limit(1);
 
-        return c.json({ cutoffTime: cutoff?.value ?? '12:00' }, 200);
+        return c.json({
+            cutoffTime: cutoff?.value ?? '12:00',
+            advanceOrderMode: settingsRow?.advanceOrderMode ?? false,
+            advanceWindowStart: settingsRow?.advanceWindowStart ?? '06:00',
+            advanceWindowEnd: settingsRow?.advanceWindowEnd ?? '22:00',
+        }, 200);
     } catch (err: any) {
         return c.json({ error: err.message }, 500);
     }

@@ -253,7 +253,21 @@ adminRoutes.get('/settings', async (c) => {
     try {
         const db = c.get('db');
         const settings = await db.select().from(appSettings);
-        const settingsMap = settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
+        const [settingsRow] = await db.select({
+            advanceOrderMode: appSettings.advanceOrderMode,
+            advanceWindowStart: appSettings.advanceWindowStart,
+            advanceWindowEnd: appSettings.advanceWindowEnd,
+        })
+            .from(appSettings)
+            .where(eq(appSettings.key, 'cutoff_time'))
+            .limit(1);
+        const settingsMap = settings.reduce<Record<string, string | boolean>>(
+            (acc, curr) => ({ ...acc, [curr.key]: curr.value }),
+            {}
+        );
+        settingsMap.advance_order_mode = settingsRow?.advanceOrderMode ?? false;
+        settingsMap.advance_window_start = settingsRow?.advanceWindowStart ?? '06:00';
+        settingsMap.advance_window_end = settingsRow?.advanceWindowEnd ?? '22:00';
         return c.json({ settings: settingsMap }, 200);
     } catch (err: any) {
         return c.json({ error: err.message }, 500);
@@ -267,6 +281,36 @@ adminRoutes.put('/settings', async (c) => {
 
         if (!key || value === undefined) {
             return c.json({ error: 'key and value are required' }, 400);
+        }
+
+        if (key === 'advance_order_mode' || key === 'advance_window_start' || key === 'advance_window_end') {
+            const existingSettings = await db.select()
+                .from(appSettings)
+                .where(eq(appSettings.key, 'cutoff_time'))
+                .limit(1);
+            const columnUpdate = key === 'advance_order_mode'
+                ? { advanceOrderMode: value === true || value === 'true' }
+                : key === 'advance_window_start'
+                    ? { advanceWindowStart: String(value) }
+                    : { advanceWindowEnd: String(value) };
+
+            if (existingSettings.length === 0) {
+                const [setting] = await db.insert(appSettings)
+                    .values({
+                        key: 'cutoff_time',
+                        value: '12:00',
+                        ...columnUpdate,
+                    })
+                    .returning();
+                return c.json({ setting }, 200);
+            }
+
+            const [setting] = await db.update(appSettings)
+                .set(columnUpdate)
+                .where(eq(appSettings.key, 'cutoff_time'))
+                .returning();
+
+            return c.json({ setting }, 200);
         }
 
         const [setting] = await db.insert(appSettings)

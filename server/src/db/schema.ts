@@ -92,6 +92,9 @@ export const shutdownDays = pgTable('shutdown_days', {
 export const appSettings = pgTable('app_settings', {
     key: varchar('key', { length: 50 }).primaryKey(),
     value: varchar('value').notNull(),
+    advanceOrderMode: boolean('advance_order_mode').notNull().default(false),
+    advanceWindowStart: varchar('advance_window_start', { length: 5 }).notNull().default('06:00'),
+    advanceWindowEnd: varchar('advance_window_end', { length: 5 }).notNull().default('22:00'),
     // Keys: cutoff_time, whatsapp_number, whatsapp_is_group,
     //        whatsapp_template, holiday_country
 });

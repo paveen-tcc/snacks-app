@@ -1,10 +1,27 @@
 import { Hono } from 'hono';
-import { orders, holidays, shutdownDays, snacks } from '../db/schema';
+import { orders, holidays, shutdownDays, snacks, appSettings } from '../db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
 
 const orderRoutes = new Hono<AuthContext>();
+
+function getUtcDateString(offsetDays = 0) {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() + offsetDays);
+    return date.toISOString().split('T')[0]!;
+}
+
+async function getEffectiveOrderDate(db: AuthContext['Variables']['db']) {
+    const [settingsRow] = await db.select({
+        advanceOrderMode: appSettings.advanceOrderMode,
+    })
+        .from(appSettings)
+        .where(eq(appSettings.key, 'cutoff_time'))
+        .limit(1);
+
+    return getUtcDateString(settingsRow?.advanceOrderMode ? 1 : 0);
+}
 
 // All order routes are protected
 orderRoutes.use('*', authMiddleware);
@@ -45,7 +62,7 @@ orderRoutes.get('/today', async (c) => {
     try {
         const db = c.get('db');
         const user = c.get('user');
-        const today = new Date().toISOString().split('T')[0];
+        const today = await getEffectiveOrderDate(db);
 
         const todaysOrders = await db
             .select()
@@ -68,8 +85,8 @@ orderRoutes.post('/', async (c) => {
     try {
         const db = c.get('db');
         const user = c.get('user');
-        const { snackId, snackIds, date } = await c.req.json();
-        const orderDate = date || new Date().toISOString().split('T')[0];
+        const { snackId, snackIds } = await c.req.json();
+        const orderDate = await getEffectiveOrderDate(db);
         const normalizedSnackIds = Array.from(new Set(
             (Array.isArray(snackIds) ? snackIds : [snackId])
                 .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)

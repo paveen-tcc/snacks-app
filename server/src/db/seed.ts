@@ -19,10 +19,34 @@ async function seed() {
 
     // 1. App Settings
     await db.insert(appSettings).values([
-        { key: 'cutoff_time', value: '12:00' },
-        { key: 'whatsapp_number', value: '919876543210' },
-        { key: 'whatsapp_is_group', value: 'false' },
-        { key: 'holiday_country', value: 'IN' },
+        {
+            key: 'cutoff_time',
+            value: '12:00',
+            advanceOrderMode: false,
+            advanceWindowStart: '06:00',
+            advanceWindowEnd: '22:00',
+        },
+        {
+            key: 'whatsapp_number',
+            value: '919876543210',
+            advanceOrderMode: false,
+            advanceWindowStart: '06:00',
+            advanceWindowEnd: '22:00',
+        },
+        {
+            key: 'whatsapp_is_group',
+            value: 'false',
+            advanceOrderMode: false,
+            advanceWindowStart: '06:00',
+            advanceWindowEnd: '22:00',
+        },
+        {
+            key: 'holiday_country',
+            value: 'IN',
+            advanceOrderMode: false,
+            advanceWindowStart: '06:00',
+            advanceWindowEnd: '22:00',
+        },
     ]).onConflictDoNothing();
 
     // 2. Hot Drinks Options
