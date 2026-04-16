@@ -56,10 +56,10 @@ class SyncEngine {
         // Drop 4xx errors — invalid/stale data that will never succeed
         final statusCode = e.response?.statusCode ?? 0;
         if (statusCode >= 400 && statusCode < 500) {
-          await (_localDb.delete(_localDb.syncQueue)
-                ..where((t) => t.id.equals(item.id)))
-              .go();
-          print('🗑️ Dropped stale queue item ${item.id} (${statusCode})');
+          await (_localDb.delete(
+            _localDb.syncQueue,
+          )..where((t) => t.id.equals(item.id))).go();
+          print('🗑️ Dropped stale queue item ${item.id} ($statusCode)');
         }
       } catch (e) {
         print('❌ Unknown sync error for item ${item.id}: $e');

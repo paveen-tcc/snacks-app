@@ -530,7 +530,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 ? shareCount
                 : 1,
             'isActive': isActive,
-            if (sortOrder != null) 'sortOrder': sortOrder,
+            'sortOrder': ?sortOrder,
           };
         })
         .where((snack) => (snack['name'] as String).isNotEmpty)
