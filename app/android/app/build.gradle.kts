@@ -70,8 +70,14 @@ android {
 
     buildTypes {
         release {
+            // 1. Updated to the Google Play Console Base64 Hash
             manifestPlaceholders["msalRedirectPath"] =
-                "/s46h+mgBrqVfAnFDUVD8ERZKOVw="
+                "/nrvBMaqisWak4u1Jp+p7aT5dDhE="
+            
+            // 2. Added these two lines to protect MSAL from minification (Kotlin DSL syntax)
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
             // Use the production keystore when available, otherwise keep a
             // debug-signed release build working for local verification.
             signingConfig =
