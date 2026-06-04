@@ -58,6 +58,22 @@ class OrderRepository {
         .checkConnectivity());
     if (connectivityResult.contains(ConnectivityResult.none)) return;
     final today = await _effectiveOrderDate();
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+
+    final pendingOrderActions = await (_localDb.select(
+      _localDb.syncQueue,
+    )..where((item) => item.targetTable.equals('orders'))).get();
+    if (pendingOrderActions.isNotEmpty) {
+      pendingOrderActions.sort((a, b) => a.id.compareTo(b.id));
+      final latest = pendingOrderActions.last;
+      if (latest.action == 'DELETE' && userId != null) {
+        await (_localDb.delete(
+          _localDb.localOrders,
+        )..where((t) => t.userId.equals(userId) & t.date.equals(today))).go();
+      }
+      return;
+    }
 
     try {
       final response = await _apiClient.dio.get('/orders/today');
@@ -196,6 +212,47 @@ class OrderRepository {
             ),
           );
       print('Order queued for sync: $e');
+    }
+  }
+
+  Future<void> clearOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    if (userId == null) throw Exception('User not logged in');
+
+    final today = await _effectiveOrderDate();
+    await (_localDb.delete(
+      _localDb.localOrders,
+    )..where((t) => t.userId.equals(userId) & t.date.equals(today))).go();
+
+    final List<ConnectivityResult> connectivityResult = await (Connectivity()
+        .checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      await _localDb
+          .into(_localDb.syncQueue)
+          .insert(
+            SyncQueueCompanion.insert(
+              targetTable: 'orders',
+              action: 'DELETE',
+              payloadJson: jsonEncode({'date': today}),
+            ),
+          );
+      return;
+    }
+
+    try {
+      await _apiClient.dio.delete('/orders');
+    } catch (e) {
+      await _localDb
+          .into(_localDb.syncQueue)
+          .insert(
+            SyncQueueCompanion.insert(
+              targetTable: 'orders',
+              action: 'DELETE',
+              payloadJson: jsonEncode({'date': today}),
+            ),
+          );
+      print('Order clear queued for sync: $e');
     }
   }
 }

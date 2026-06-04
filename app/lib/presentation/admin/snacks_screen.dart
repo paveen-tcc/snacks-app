@@ -7,8 +7,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/snack_categories.dart';
 import '../../core/di/locator.dart';
 import '../../core/network/api_client.dart';
-import '../../core/theme/notion_theme.dart';
-import '../../core/widgets/illustrations.dart';
+import '../../core/design/app_theme.dart';
+import '../../core/design/app_tokens.dart';
+import '../../core/design/glass.dart';
+import '../../core/widgets/glass_app_bar.dart';
+import '../../core/widgets/app_buttons.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/food_card.dart' show VegBadge;
+import '../../core/widgets/skeleton.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminSnacksScreen extends StatefulWidget {
@@ -124,9 +130,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
   }
 
   Future<void> _deleteSnack(Map<String, dynamic> snack) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Delete Snack'),
         content: Text('Delete "${snack['name']}" permanently?'),
         actions: [
@@ -136,7 +142,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: context.palette.danger),
+            ),
           ),
         ],
       ),
@@ -187,30 +196,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     return _expandedCategories[category] ?? index == 0;
   }
 
+  // Input styling now comes from the global theme (inputDecorationTheme).
   InputDecoration _notionInput(String label, {String? hint}) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      labelStyle: TextStyle(color: NotionTheme.secondaryText, fontSize: 13),
-      hintStyle: TextStyle(
-        color: NotionTheme.secondaryText.withValues(alpha: 0.4),
-      ),
-      filled: true,
-      fillColor: NotionTheme.surfaceHover,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: NotionTheme.border),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: NotionTheme.border),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: NotionTheme.blueAccent, width: 1.5),
-      ),
-    );
+    return InputDecoration(labelText: label, hintText: hint);
   }
 
   void _showSnackForm({Map<String, dynamic>? existing}) {
@@ -230,50 +218,29 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     );
     bool isVeg = existing?['isVeg'] ?? true;
 
-    showModalBottomSheet(
+    showGlassBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: NotionTheme.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Padding(
           padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            left: AppSpacing.xxl,
+            right: AppSpacing.xxl,
+            top: AppSpacing.sm,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xxl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Drag handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: NotionTheme.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              DialogHeader(
+              _SheetHeader(
                 icon: existing == null
-                    ? Icons.add_circle_outline
+                    ? Icons.add_circle_outline_rounded
                     : Icons.edit_outlined,
                 title: existing == null ? 'Add Snack' : 'Edit Snack',
                 subtitle: existing == null
                     ? 'Add a new item to the menu'
                     : 'Update snack details',
-                backgroundColor: existing == null
-                    ? IllustrationColors.softGreen
-                    : IllustrationColors.softBlue,
-                iconColor: existing == null
-                    ? NotionTheme.greenAccent
-                    : NotionTheme.blueAccent,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.xl),
               Row(
                 children: [
                   Expanded(
@@ -318,114 +285,83 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                   hint: '1 = individual, 2 = serves 2 people',
                 ),
               ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isVeg
-                      ? NotionTheme.greenAccent.withValues(alpha: 0.08)
-                      : NotionTheme.redAccent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isVeg
-                        ? NotionTheme.greenAccent.withValues(alpha: 0.3)
-                        : NotionTheme.redAccent.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isVeg
-                            ? NotionTheme.greenAccent
-                            : NotionTheme.redAccent,
-                      ),
-                      child: Icon(
-                        isVeg ? Icons.eco : Icons.restaurant,
-                        size: 11,
-                        color: Colors.white,
-                      ),
+              const SizedBox(height: AppSpacing.md),
+              Builder(
+                builder: (context) {
+                  final palette = context.palette;
+                  final accent = isVeg ? palette.veg : palette.nonVeg;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        isVeg ? 'Vegetarian' : 'Non-Vegetarian',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          color: isVeg
-                              ? NotionTheme.greenAccent
-                              : NotionTheme.redAccent,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.08),
+                      borderRadius: AppRadii.rMd,
+                      border: Border.all(color: accent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        VegBadge(isVeg: isVeg, size: 18),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            isVeg ? 'Vegetarian' : 'Non-Vegetarian',
+                            style: context.text.titleSmall?.copyWith(
+                              color: accent,
+                            ),
+                          ),
                         ),
-                      ),
+                        Switch.adaptive(
+                          value: isVeg,
+                          activeTrackColor: palette.veg,
+                          onChanged: (v) => setModalState(() => isVeg = v),
+                        ),
+                      ],
                     ),
-                    Switch(
-                      value: isVeg,
-                      activeThumbColor: NotionTheme.greenAccent,
-                      inactiveThumbColor: NotionTheme.redAccent,
-                      onChanged: (v) => setModalState(() => isVeg = v),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (nameCtrl.text.trim().isEmpty) return;
-                    final shareCount = int.tryParse(shareCountCtrl.text.trim());
-                    if (shareCount == null || shareCount < 1) {
-                      _showError(
-                        'Share count must be a whole number of 1 or more',
+              const SizedBox(height: AppSpacing.xl),
+              PrimaryButton(
+                label: existing == null ? 'Add Snack' : 'Save Changes',
+                onPressed: () async {
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  final shareCount = int.tryParse(shareCountCtrl.text.trim());
+                  if (shareCount == null || shareCount < 1) {
+                    _showError(
+                      'Share count must be a whole number of 1 or more',
+                    );
+                    return;
+                  }
+                  final data = {
+                    'name': nameCtrl.text.trim(),
+                    'category': categoryCtrl.text.trim(),
+                    'emoji': emojiCtrl.text.trim(),
+                    'description': descCtrl.text.trim(),
+                    'servingSize': sizeCtrl.text.trim(),
+                    'shareCount': shareCount,
+                    'isVeg': isVeg,
+                  };
+                  Navigator.pop(ctx);
+                  try {
+                    if (existing != null) {
+                      await locator<AdminRepository>().updateSnack(
+                        existing['id'] as String,
+                        data,
                       );
-                      return;
+                    } else {
+                      await locator<AdminRepository>().addSnack({
+                        ...data,
+                        'isActive': true,
+                        'sortOrder': _snacks.length,
+                      });
                     }
-                    final data = {
-                      'name': nameCtrl.text.trim(),
-                      'category': categoryCtrl.text.trim(),
-                      'emoji': emojiCtrl.text.trim(),
-                      'description': descCtrl.text.trim(),
-                      'servingSize': sizeCtrl.text.trim(),
-                      'shareCount': shareCount,
-                      'isVeg': isVeg,
-                    };
-                    Navigator.pop(ctx);
-                    try {
-                      if (existing != null) {
-                        await locator<AdminRepository>().updateSnack(
-                          existing['id'] as String,
-                          data,
-                        );
-                      } else {
-                        await locator<AdminRepository>().addSnack({
-                          ...data,
-                          'isActive': true,
-                          'sortOrder': _snacks.length,
-                        });
-                      }
-                      await _load();
-                    } catch (e) {
-                      _showError(
-                        _extractErrorMessage(e, 'Failed to save snack'),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: NotionTheme.primaryText,
-                    foregroundColor: NotionTheme.background,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text(existing == null ? 'Add Snack' : 'Save Changes'),
-                ),
+                    await _load();
+                  } catch (e) {
+                    _showError(_extractErrorMessage(e, 'Failed to save snack'));
+                  }
+                },
               ),
             ],
           ),
@@ -530,7 +466,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 ? shareCount
                 : 1,
             'isActive': isActive,
-            'sortOrder': ?sortOrder,
+            if (sortOrder != null) 'sortOrder': sortOrder,
           };
         })
         .where((snack) => (snack['name'] as String).isNotEmpty)
@@ -540,42 +476,26 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
   void _showBulkUploadSheet() {
     final bulkCtrl = TextEditingController();
 
-    showModalBottomSheet(
+    showGlassBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: NotionTheme.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          left: AppSpacing.xxl,
+          right: AppSpacing.xxl,
+          top: AppSpacing.sm,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xxl,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: NotionTheme.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const DialogHeader(
+            const _SheetHeader(
               icon: Icons.upload_file_outlined,
               title: 'Bulk Upload Snacks',
               subtitle:
                   'Paste CSV or spreadsheet rows to create multiple snacks',
-              backgroundColor: IllustrationColors.softBlue,
-              iconColor: NotionTheme.blueAccent,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -604,11 +524,11 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             const SizedBox(height: 8),
             Text(
               'Example: Pizza, Italian, 🍕, Cheesy pizza slices, veg, 1 box, 2, true, 10',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: NotionTheme.secondaryText),
+              style: context.text.bodySmall?.copyWith(
+                color: context.palette.textSecondary,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: bulkCtrl,
               minLines: 8,
@@ -636,43 +556,42 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Snacks'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.extended(
+      appBar: GlassAppBar(
+        title: 'Manage Snacks',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file_rounded),
+            tooltip: 'Bulk upload',
             onPressed: _showBulkUploadSheet,
-            backgroundColor: NotionTheme.blueAccent,
-            icon: const Icon(Icons.upload_file_outlined, color: Colors.white),
-            label: const Text(
-              'Bulk Upload',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton(
-            onPressed: () => _showSnackForm(),
-            backgroundColor: NotionTheme.primaryText,
-            child: const Icon(Icons.add, color: NotionTheme.background),
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showSnackForm(),
+        backgroundColor: palette.brand,
+        foregroundColor: palette.onBrand,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add snack'),
+      ),
       body: _loading
-          ? const Center(child: FoodLoader())
+          ? ListView(
+              padding: const EdgeInsets.all(AppSpacing.page),
+              children: const [FoodListSkeleton(count: 6)],
+            )
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.lg,
+                AppSpacing.page,
+                AppSpacing.x5 + AppSpacing.x4,
+              ),
               children: [
                 for (final entry
                     in _groupSnacksByCategory().asMap().entries) ...[
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12, top: 6),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: Column(
                       children: [
                         InkWell(
@@ -685,52 +604,51 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                                   );
                             });
                           },
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: AppRadii.rMd,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.md,
                             ),
                             decoration: BoxDecoration(
-                              color: NotionTheme.surfaceHover,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: NotionTheme.border),
+                              color: palette.surface,
+                              borderRadius: AppRadii.rMd,
+                              border: Border.all(color: palette.border),
+                              boxShadow: context.shadows.sm,
                             ),
                             child: Row(
                               children: [
                                 Expanded(
                                   child: Text(
                                     entry.value.key,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                    style: context.text.titleMedium,
                                   ),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
+                                    horizontal: AppSpacing.sm,
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: NotionTheme.surfaceSelected,
-                                    borderRadius: BorderRadius.circular(999),
+                                    color: palette.brand.withValues(alpha: 0.12),
+                                    borderRadius: AppRadii.rPill,
                                   ),
                                   child: Text(
                                     '${entry.value.value.length}',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                    style: context.text.labelMedium?.copyWith(
+                                      color: palette.brand,
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: AppSpacing.sm),
                                 Icon(
                                   _isCategoryExpanded(
                                         entry.value.key,
                                         entry.key,
                                       )
-                                      ? Icons.keyboard_arrow_up
-                                      : Icons.keyboard_arrow_down,
-                                  color: NotionTheme.secondaryText,
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                  color: palette.textSecondary,
                                 ),
                               ],
                             ),
@@ -739,13 +657,16 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                         AnimatedCrossFade(
                           firstChild: const SizedBox.shrink(),
                           secondChild: Padding(
-                            padding: const EdgeInsets.only(top: 12),
+                            padding: const EdgeInsets.only(top: AppSpacing.sm),
                             child: Column(
                               children: [
-                                for (final snack in entry.value.value) ...[
-                                  _buildSnackListTile(snack),
-                                  const Divider(height: 1),
-                                ],
+                                for (final snack in entry.value.value)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppSpacing.sm,
+                                    ),
+                                    child: _buildSnackListTile(snack),
+                                  ),
                               ],
                             ),
                           ),
@@ -753,7 +674,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                               _isCategoryExpanded(entry.value.key, entry.key)
                               ? CrossFadeState.showSecond
                               : CrossFadeState.showFirst,
-                          duration: const Duration(milliseconds: 200),
+                          duration: AppMotion.base,
                         ),
                       ],
                     ),
@@ -765,183 +686,172 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
   }
 
   Widget _buildSnackListTile(Map<String, dynamic> s) {
+    final palette = context.palette;
     final isActive = s['isActive'] as bool? ?? true;
     final isVeg = s['isVeg'] as bool? ?? true;
     final category = displaySnackCategory(s['category'] as String?);
     final description = (s['description'] as String? ?? '').trim();
     final servingSize = (s['servingSize'] as String? ?? '').trim();
     final shareCount = (s['shareCount'] as num?)?.toInt() ?? 1;
-    final accent = isVeg ? NotionTheme.greenAccent : NotionTheme.redAccent;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: NotionTheme.surfaceHover,
-              borderRadius: BorderRadius.circular(12),
+    Widget chip(String label) => Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: palette.surfaceMuted,
+        borderRadius: AppRadii.rPill,
+      ),
+      child: Text(
+        label,
+        style: context.text.labelSmall?.copyWith(color: palette.textSecondary),
+      ),
+    );
+
+    return Opacity(
+      opacity: isActive ? 1 : 0.55,
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: palette.surfaceMuted,
+                borderRadius: AppRadii.rMd,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                s['emoji'] ?? '🍽️',
+                style: const TextStyle(fontSize: 24),
+              ),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              s['emoji'] ?? '🍽️',
-              style: const TextStyle(fontSize: 24),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      VegBadge(isVeg: isVeg),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          s['name'] as String,
+                          style: context.text.titleSmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      chip(category),
+                      if (servingSize.isNotEmpty) chip(servingSize),
+                      if (shareCount > 1) chip('Serves $shareCount'),
+                    ],
+                  ),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      description,
+                      style: context.text.bodySmall?.copyWith(
+                        color: palette.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Text(
-                        s['name'] as String,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        isVeg ? 'VEG' : 'N-VEG',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: accent,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: NotionTheme.surfaceHover,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        category,
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                    ),
-                    if (servingSize.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: NotionTheme.surfaceHover,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          servingSize,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    if (shareCount > 1)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: NotionTheme.surfaceHover,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'Serves $shareCount',
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                  ],
-                ),
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    description,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: NotionTheme.secondaryText,
-                      height: 1.35,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.edit_outlined, size: 18),
                       onPressed: () => _showSnackForm(existing: s),
                     ),
-                  ),
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        Icons.delete_outline,
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.delete_outline_rounded,
                         size: 18,
-                        color: NotionTheme.redAccent,
+                        color: palette.danger,
                       ),
                       tooltip: 'Delete snack',
                       onPressed: () => _deleteSnack(s),
                     ),
-                  ),
-                ],
-              ),
-              Transform.scale(
-                scale: 0.8,
-                alignment: Alignment.centerRight,
-                child: Switch(
+                  ],
+                ),
+                Switch.adaptive(
                   value: isActive,
+                  activeTrackColor: palette.veg,
                   onChanged: (_) => _toggleActive(s),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact header used inside the snack add/edit and bulk-upload glass sheets.
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: palette.brand.withValues(alpha: 0.12),
+            borderRadius: AppRadii.rMd,
+          ),
+          child: Icon(icon, color: palette.brand),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: context.text.titleLarge),
+              Text(
+                subtitle,
+                style: context.text.bodySmall?.copyWith(
+                  color: palette.textSecondary,
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

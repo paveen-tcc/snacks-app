@@ -140,6 +140,23 @@ orderRoutes.post('/', async (c) => {
     }
 });
 
+// Clear today's snack order
+orderRoutes.delete('/', async (c) => {
+    try {
+        const db = c.get('db');
+        const user = c.get('user');
+        const orderDate = await getEffectiveOrderDate(db);
+
+        await db.delete(orders)
+            .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${orderDate}`));
+
+        return c.json({ order: null, orders: [] }, 200);
+    } catch (err: any) {
+        console.log(err);
+        return c.json({ error: err.message }, 500);
+    }
+});
+
 // Get order history (past 7 days)
 orderRoutes.get('/history', async (c) => {
     try {

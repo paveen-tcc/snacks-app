@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/di/locator.dart';
-import '../../core/theme/notion_theme.dart';
-import '../../core/widgets/illustrations.dart';
+import '../../core/design/app_theme.dart';
+import '../../core/design/app_tokens.dart';
+import '../../core/widgets/glass_app_bar.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminUsersScreen extends StatefulWidget {
@@ -14,6 +17,7 @@ class AdminUsersScreen extends StatefulWidget {
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   bool _loading = true;
   List<Map<String, dynamic>> _users = [];
+  final Set<String> _revealedEmails = {};
 
   @override
   void initState() {
@@ -24,10 +28,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Future<void> _load() async {
     try {
       final users = await locator<AdminRepository>().getUsers();
-      setState(() {
-        _users = users;
-        _loading = false;
-      });
+      setState(() { _users = users; _loading = false; });
     } catch (e) {
       setState(() => _loading = false);
     }
@@ -35,152 +36,182 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   Future<void> _toggleAdmin(Map<String, dynamic> user) async {
     final isAdmin = user['isAdmin'] as bool? ?? false;
-    final confirm = await showDialog<bool>(
+    final confirm = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: Text(isAdmin ? 'Remove Admin' : 'Make Admin'),
-        content: Text(
-          isAdmin
-              ? 'Remove admin privileges from ${user['username']}?'
-              : 'Grant admin privileges to ${user['username']}?',
-        ),
+        content: Text(isAdmin
+            ? 'Remove admin privileges from ${user['username']}?'
+            : 'Grant admin privileges to ${user['username']}?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm')),
         ],
       ),
     );
     if (confirm == true) {
       try {
-        await locator<AdminRepository>().updateUserAdmin(
-          user['id'] as String,
-          !isAdmin,
-        );
+        await locator<AdminRepository>().updateUserAdmin(user['id'] as String, !isAdmin);
         await _load();
       } catch (e) {
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update user')),
-          );
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update user')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Users'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: const GlassAppBar(title: 'Manage Users'),
       body: _loading
-          ? const Center(child: FoodLoader())
+          ? ListView(
+              padding: const EdgeInsets.all(AppSpacing.page),
+              children: const [FoodListSkeleton(count: 5)],
+            )
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.page),
               itemCount: _users.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
               itemBuilder: (context, i) {
                 final u = _users[i];
+                final id = u['id'] as String;
                 final isAdmin = u['isAdmin'] as bool? ?? false;
                 final username = u['username'] as String;
                 final email = u['email'] as String;
+                final emailRevealed = _revealedEmails.contains(id);
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                return AppCard(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: NotionTheme.surfaceHover,
+                        backgroundColor: palette.brand.withValues(alpha: 0.14),
                         child: Text(
                           username.substring(0, 1).toUpperCase(),
-                          style: const TextStyle(
-                            color: NotionTheme.primaryText,
+                          style: TextStyle(
+                            color: palette.brand,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    username,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => setState(() {
+                            if (emailRevealed) {
+                              _revealedEmails.remove(id);
+                            } else {
+                              _revealedEmails.add(id);
+                            }
+                          }),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      username,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: context.text.titleSmall,
                                     ),
                                   ),
-                                ),
-                                if (isAdmin) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: NotionTheme.blueAccent.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'Admin',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: NotionTheme.blueAccent,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                  const SizedBox(width: AppSpacing.xs),
+                                  Icon(
+                                    emailRevealed
+                                        ? Icons.expand_less_rounded
+                                        : Icons.expand_more_rounded,
+                                    size: 16,
+                                    color: palette.textTertiary,
                                   ),
+                                  if (isAdmin) ...[
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.sm,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: palette.info.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: AppRadii.rPill,
+                                      ),
+                                      child: Text(
+                                        'Admin',
+                                        style: context.text.labelSmall?.copyWith(
+                                          color: palette.info,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                              ),
+                              AnimatedSize(
+                                duration: AppMotion.fast,
+                                curve: AppMotion.standard,
+                                alignment: Alignment.topLeft,
+                                child: emailRevealed
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(top: 2),
+                                        child: Text(
+                                          email,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: context.text.bodySmall?.copyWith(
+                                            color: palette.textSecondary,
+                                          ),
+                                        ),
+                                      )
+                                    : const SizedBox(width: double.infinity),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 132,
-                        child: TextButton(
+                      const SizedBox(width: AppSpacing.sm),
+                      if (isAdmin)
+                        OutlinedButton(
                           onPressed: () => _toggleAdmin(u),
-                          style: TextButton.styleFrom(
-                            alignment: Alignment.centerRight,
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: Text(
-                            isAdmin ? 'Remove Admin' : 'Make Admin',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isAdmin
-                                  ? NotionTheme.redAccent
-                                  : NotionTheme.blueAccent,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: palette.danger,
+                            side: BorderSide(
+                              color: palette.danger.withValues(alpha: 0.4),
+                            ),
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.sm,
+                            ),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: AppRadii.rPill,
                             ),
                           ),
+                          child: const Text('Remove Admin'),
+                        )
+                      else
+                        FilledButton(
+                          onPressed: () => _toggleAdmin(u),
+                          style: FilledButton.styleFrom(
+                            backgroundColor:
+                                palette.brand.withValues(alpha: 0.14),
+                            foregroundColor: palette.brand,
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.sm,
+                            ),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: AppRadii.rPill,
+                            ),
+                          ),
+                          child: const Text('Make Admin'),
                         ),
-                      ),
                     ],
                   ),
                 );

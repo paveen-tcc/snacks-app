@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/locator.dart';
-import '../../core/theme/notion_theme.dart';
-import '../../core/widgets/illustrations.dart';
+import '../../core/design/app_theme.dart';
+import '../../core/design/app_tokens.dart';
+import '../../core/widgets/glass_app_bar.dart';
+import '../../core/widgets/app_buttons.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class SummaryScreen extends StatefulWidget {
@@ -96,74 +99,137 @@ class _SummaryScreenState extends State<SummaryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Today's Summary"),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-      ),
+      appBar: const GlassAppBar(title: "Today's Summary"),
       body: _loading
-          ? const Center(child: FoodLoader())
+          ? ListView(
+              padding: const EdgeInsets.all(AppSpacing.page),
+              children: const [FoodListSkeleton(count: 3)],
+            )
           : _data == null
-              ? const Center(child: Text('Failed to load summary'))
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text(
-                      'Date: ${_data!['date']}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSection(context, 'Snack Orders', [
-                      ...List<Map<String, dynamic>>.from(_data!['orders']).map((o) =>
-                        _buildCountRow(context, '${o['snackEmoji'] ?? '🍽️'} ${o['snackName']}', o['count'].toString()),
-                      ),
-                      const Divider(),
-                      _buildCountRow(context, 'Total', _data!['totalOrders'].toString(), bold: true),
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildSection(context, 'Hot Drink Poll', [
-                      ...List<Map<String, dynamic>>.from(_data!['drinks']).map((d) =>
-                        _buildCountRow(context, '${d['drinkEmoji'] ?? '☕'} ${d['drinkName']}', d['count'].toString()),
-                      ),
-                      if ((_data!['drinks'] as List).isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text('No votes yet', style: Theme.of(context).textTheme.bodySmall),
-                        ),
-                    ]),
-                    const SizedBox(height: 32),
-                    ElevatedButton.icon(
-                      onPressed: _sendWhatsApp,
-                      icon: const Text('📱'),
-                      label: const Text('Send to WhatsApp'),
-                    ),
-                  ],
+          ? const Center(child: Text('Failed to load summary'))
+          : ListView(
+              padding: const EdgeInsets.all(AppSpacing.page),
+              children: [
+                Text(
+                  'Date: ${_data!['date']}',
+                  style: context.text.bodySmall?.copyWith(
+                    color: context.palette.textSecondary,
+                  ),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                _buildSection(context, 'Snack Orders', [
+                  ...List<Map<String, dynamic>>.from(_data!['orders']).map(
+                    (o) => _buildCountRow(
+                      context,
+                      '${o['snackEmoji'] ?? '🍽️'} ${o['snackName']}',
+                      o['count'].toString(),
+                    ),
+                  ),
+                  Divider(height: 1, color: context.palette.divider),
+                  _buildCountRow(
+                    context,
+                    'Total',
+                    _data!['totalOrders'].toString(),
+                    bold: true,
+                  ),
+                ]),
+                const SizedBox(height: AppSpacing.xxl),
+                _buildSection(context, 'Hot Drink Poll', [
+                  ...List<Map<String, dynamic>>.from(_data!['drinks']).map(
+                    (d) => _buildCountRow(
+                      context,
+                      '${d['drinkEmoji'] ?? '☕'} ${d['drinkName']}',
+                      d['count'].toString(),
+                    ),
+                  ),
+                  if ((_data!['drinks'] as List).isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Text(
+                        'No votes yet',
+                        style: context.text.bodySmall?.copyWith(
+                          color: context.palette.textSecondary,
+                        ),
+                      ),
+                    ),
+                ]),
+                const SizedBox(height: AppSpacing.x3),
+                PrimaryButton(
+                  label: 'Send to WhatsApp',
+                  icon: Icons.chat_rounded,
+                  onPressed: _sendWhatsApp,
+                ),
+              ],
+            ),
     );
   }
 
-  Widget _buildSection(BuildContext context, String title, List<Widget> children) {
+  Widget _buildSection(
+    BuildContext context,
+    String title,
+    List<Widget> children,
+  ) {
+    final palette = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(
+            left: AppSpacing.xs,
+            bottom: AppSpacing.sm,
+          ),
+          child: Text(
+            title.toUpperCase(),
+            style: context.text.labelMedium?.copyWith(
+              color: palette.textTertiary,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
         Container(
-          decoration: BoxDecoration(border: Border.all(color: NotionTheme.border), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            border: Border.all(color: palette.border),
+            borderRadius: AppRadii.rLg,
+            boxShadow: context.shadows.sm,
+          ),
+          clipBehavior: Clip.antiAlias,
           child: Column(children: children),
         ),
       ],
     );
   }
 
-  Widget _buildCountRow(BuildContext context, String label, String count, {bool bold = false}) {
+  Widget _buildCountRow(
+    BuildContext context,
+    String label,
+    String count, {
+    bool bold = false,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Flexible(child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: bold ? FontWeight.bold : FontWeight.normal), overflow: TextOverflow.ellipsis)),
-          const SizedBox(width: 8),
-          Text(count, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+          Flexible(
+            child: Text(
+              label,
+              style: context.text.bodyMedium?.copyWith(
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            count,
+            style: context.text.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

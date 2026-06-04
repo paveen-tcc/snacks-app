@@ -42,8 +42,13 @@ class SyncEngine {
         // Execute the pending action
         if (item.targetTable == 'orders' && item.action == 'POST') {
           await _apiClient.dio.post('/orders', data: payload);
+        } else if (item.targetTable == 'orders' && item.action == 'DELETE') {
+          await _apiClient.dio.delete('/orders', data: payload);
         } else if (item.targetTable == 'drink_votes' && item.action == 'POST') {
           await _apiClient.dio.post('/drinks/vote', data: payload);
+        } else if (item.targetTable == 'drink_votes' &&
+            item.action == 'DELETE') {
+          await _apiClient.dio.delete('/drinks/vote', data: payload);
         }
 
         // On success, remove from queue

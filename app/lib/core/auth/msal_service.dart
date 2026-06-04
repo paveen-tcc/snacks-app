@@ -8,7 +8,7 @@ class MsalService {
   static const String _androidDebugRedirectUri =
       'msauth://company.thecloud.pantry/515a9IhVXCyy57IZeaswJmLBBUA%3D';
   static const String _androidReleaseRedirectUri =
-      'msauth://company.thecloud.pantry/nrvBMaqisWak4u1Jp%2Bp7aT5dDhE%3D';
+      'msauth://company.thecloud.pantry/s46h%2BmgBrqVfAnFDUVD8ERZKOVw%3D';
 
   late SingleAccountPca _pca;
 

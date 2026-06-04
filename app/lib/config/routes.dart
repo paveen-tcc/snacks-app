@@ -2,9 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../presentation/onboarding/onboarding_screen.dart';
-import '../presentation/home/home_screen.dart';
-import '../presentation/history/history_screen.dart';
-import '../presentation/admin/admin_dashboard_screen.dart';
+import '../presentation/shell/main_shell.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -22,15 +20,7 @@ class AppRouter {
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
       ),
-      GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
-      GoRoute(
-        path: '/history',
-        builder: (context, state) => const HistoryScreen(),
-      ),
-      GoRoute(
-        path: '/admin',
-        builder: (context, state) => const AdminDashboardScreen(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const MainShell()),
     ],
   );
 }

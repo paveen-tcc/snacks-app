@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/di/locator.dart';
-import '../../core/theme/notion_theme.dart';
+import '../../core/design/app_theme.dart';
+import '../../core/design/app_tokens.dart';
+import '../../core/widgets/glass_app_bar.dart';
+import '../../core/widgets/app_card.dart';
 import '../../core/widgets/illustrations.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminHolidaysScreen extends StatefulWidget {
@@ -24,33 +28,21 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
   Future<void> _load() async {
     try {
       final holidays = await locator<AdminRepository>().getHolidays();
-      setState(() {
-        _holidays = holidays;
-        _loading = false;
-      });
+      setState(() { _holidays = holidays; _loading = false; });
     } catch (e) {
       setState(() => _loading = false);
     }
   }
 
   Future<void> _delete(String id) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Remove Holiday'),
         content: const Text('Are you sure you want to remove this holiday?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Remove',
-              style: TextStyle(color: NotionTheme.redAccent),
-            ),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Remove', style: TextStyle(color: context.palette.danger))),
         ],
       ),
     );
@@ -70,9 +62,9 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
     if (picked == null || !mounted) return;
 
     final nameCtrl = TextEditingController();
-    final name = await showDialog<String>(
+    final name = await showAdaptiveDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Holiday Name'),
         content: TextField(
           controller: nameCtrl,
@@ -80,21 +72,14 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
-            child: const Text('Add'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()), child: const Text('Add')),
         ],
       ),
     );
 
     if (name != null) {
-      final dateStr =
-          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      final dateStr = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       await locator<AdminRepository>().addHoliday(dateStr, name);
       await _load();
     }
@@ -102,88 +87,102 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
 
   String _formatDate(String dateStr) {
     final dt = DateTime.parse(dateStr);
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Holidays'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: const GlassAppBar(title: 'Manage Holidays'),
       floatingActionButton: FloatingActionButton(
         onPressed: _addHoliday,
-        backgroundColor: NotionTheme.primaryText,
-        child: const Icon(Icons.add, color: NotionTheme.background),
+        backgroundColor: palette.brand,
+        foregroundColor: palette.onBrand,
+        child: const Icon(Icons.add_rounded),
       ),
       body: _loading
-          ? const Center(child: FoodLoader())
+          ? ListView(
+              padding: const EdgeInsets.all(AppSpacing.page),
+              children: const [FoodListSkeleton(count: 4)],
+            )
           : _holidays.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const EmptyStateIllustration(emoji: '🗓️', size: 130),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.xl),
                   Text(
                     'No holidays added',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    style: context.text.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Tap + to add one',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: context.text.bodySmall?.copyWith(
+                      color: palette.textSecondary,
+                    ),
                   ),
                 ],
               ),
             )
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.page),
               itemCount: _holidays.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
               itemBuilder: (context, i) {
                 final h = _holidays[i];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.event_busy,
-                    color: NotionTheme.secondaryText,
+                return AppCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
                   ),
-                  title: Text(
-                    h['name'] ?? 'Holiday',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(
-                    _formatDate(h['date'] as String),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: NotionTheme.redAccent,
-                      size: 20,
-                    ),
-                    onPressed: () => _delete(h['id'] as String),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: palette.warning.withValues(alpha: 0.14),
+                          borderRadius: AppRadii.rMd,
+                        ),
+                        child: Icon(
+                          Icons.event_busy_rounded,
+                          color: palette.warning,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              h['name'] ?? 'Holiday',
+                              style: context.text.titleSmall,
+                            ),
+                            Text(
+                              _formatDate(h['date'] as String),
+                              style: context.text.bodySmall?.copyWith(
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline_rounded,
+                          color: palette.danger,
+                          size: 20,
+                        ),
+                        onPressed: () => _delete(h['id'] as String),
+                      ),
+                    ],
                   ),
                 );
               },

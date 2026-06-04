@@ -72,6 +72,23 @@ drinkRoutes.post('/vote', async (c) => {
     }
 });
 
+// Remove today's user vote
+drinkRoutes.delete('/vote', async (c) => {
+    try {
+        const db = c.get('db');
+        const user = c.get('user');
+        const today = new Date().toISOString().split('T')[0];
+
+        const [deletedVote] = await db.delete(drinkVotes)
+            .where(and(eq(drinkVotes.userId, user.userId), sql`${drinkVotes.date} = ${today}`))
+            .returning();
+
+        return c.json({ vote: deletedVote || null }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
 // Get poll results for a specific date
 drinkRoutes.get('/results', async (c) => {
     try {

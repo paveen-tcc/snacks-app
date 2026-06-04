@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/notion_theme.dart';
+import '../../core/design/app_theme.dart';
+import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
 import '../../core/auth/msal_service.dart';
 import '../../core/widgets/illustrations.dart';
+import '../../core/widgets/app_buttons.dart';
 import '../../data/repositories/auth_repository.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -43,79 +45,93 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 24),
-                      const WelcomeIllustration(width: 280),
-                      const SizedBox(height: 32),
-                      Text(
-                        'Welcome to Snacks',
-                        style: Theme.of(context).textTheme.displayMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Sign in with your organization account to continue.',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: NotionTheme.secondaryText,
+      body: Container(
+        // Warm brand gradient backdrop for an appetizing, vibrant welcome.
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              palette.brand.withValues(alpha: palette.isDark ? 0.18 : 0.10),
+              palette.background,
+              palette.background,
+            ],
+            stops: const [0, 0.45, 1],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.x3,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: AppSpacing.xxl),
+                        const WelcomeIllustration(width: 280),
+                        const SizedBox(height: AppSpacing.x3),
+                        Text(
+                          'Welcome to Snacks',
+                          style: context.text.displayMedium,
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 40),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 400),
-                        child: Column(
-                          children: [
-                            if (_errorMessage != null) ...[
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: NotionTheme.redAccent.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(
-                                    color: NotionTheme.redAccent,
-                                    fontSize: 13,
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          'Sign in with your organization account to continue.',
+                          style: context.text.bodyLarge?.copyWith(
+                            color: palette.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: AppSpacing.x4),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 400),
+                          child: Column(
+                            children: [
+                              if (_errorMessage != null) ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(AppSpacing.md),
+                                  decoration: BoxDecoration(
+                                    color: palette.danger.withValues(alpha: 0.10),
+                                    borderRadius: AppRadii.rMd,
+                                    border: Border.all(
+                                      color: palette.danger.withValues(alpha: 0.25),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: context.text.bodySmall?.copyWith(
+                                      color: palette.danger,
+                                    ),
                                   ),
                                 ),
+                                const SizedBox(height: AppSpacing.lg),
+                              ],
+                              PrimaryButton(
+                                label: 'Sign in with Microsoft',
+                                icon: Icons.business_rounded,
+                                loading: _isLoading,
+                                onPressed: _signInWithMicrosoft,
                               ),
-                              const SizedBox(height: 16),
                             ],
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _isLoading ? null : _signInWithMicrosoft,
-                                icon: _isLoading
-                                    ? const SizedBox.shrink()
-                                    : const Icon(Icons.business, size: 20),
-                                label: _isLoading
-                                    ? const FoodLoaderInline(size: 18)
-                                    : const Text('Sign in with Microsoft'),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                        const SizedBox(height: AppSpacing.xxl),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

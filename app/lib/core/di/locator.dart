@@ -32,7 +32,7 @@ Future<void> setupLocator() async {
     () => OrderRepository(locator<ApiClient>(), locator<AppDatabase>()),
   );
   locator.registerLazySingleton<DrinkRepository>(
-    () => DrinkRepository(locator<ApiClient>()),
+    () => DrinkRepository(locator<ApiClient>(), locator<AppDatabase>()),
   );
   locator.registerLazySingleton<AdminRepository>(
     () => AdminRepository(locator<ApiClient>()),
