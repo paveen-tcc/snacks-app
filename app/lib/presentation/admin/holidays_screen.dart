@@ -24,7 +24,10 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
   Future<void> _load() async {
     try {
       final holidays = await locator<AdminRepository>().getHolidays();
-      setState(() { _holidays = holidays; _loading = false; });
+      setState(() {
+        _holidays = holidays;
+        _loading = false;
+      });
     } catch (e) {
       setState(() => _loading = false);
     }
@@ -37,8 +40,17 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
         title: const Text('Remove Holiday'),
         content: const Text('Are you sure you want to remove this holiday?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove', style: TextStyle(color: NotionTheme.redAccent))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: NotionTheme.redAccent),
+            ),
+          ),
         ],
       ),
     );
@@ -68,14 +80,21 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()), child: const Text('Add')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
 
     if (name != null) {
-      final dateStr = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      final dateStr =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       await locator<AdminRepository>().addHoliday(dateStr, name);
       await _load();
     }
@@ -83,7 +102,20 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
 
   String _formatDate(String dateStr) {
     final dt = DateTime.parse(dateStr);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
@@ -92,7 +124,10 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Holidays'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addHoliday,
@@ -102,37 +137,57 @@ class _AdminHolidaysScreenState extends State<AdminHolidaysScreen> {
       body: _loading
           ? const Center(child: FoodLoader())
           : _holidays.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const EmptyStateIllustration(emoji: '🗓️', size: 130),
-                      const SizedBox(height: 20),
-                      Text('No holidays added',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      Text('Tap + to add one', style: Theme.of(context).textTheme.bodySmall),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const EmptyStateIllustration(emoji: '🗓️', size: 130),
+                  const SizedBox(height: 20),
+                  Text(
+                    'No holidays added',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _holidays.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final h = _holidays[i];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.event_busy, color: NotionTheme.secondaryText),
-                      title: Text(h['name'] ?? 'Holiday', style: const TextStyle(fontWeight: FontWeight.w500)),
-                      subtitle: Text(_formatDate(h['date'] as String), style: Theme.of(context).textTheme.bodySmall),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline, color: NotionTheme.redAccent, size: 20),
-                        onPressed: () => _delete(h['id'] as String),
-                      ),
-                    );
-                  },
-                ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tap + to add one',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _holidays.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final h = _holidays[i];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.event_busy,
+                    color: NotionTheme.secondaryText,
+                  ),
+                  title: Text(
+                    h['name'] ?? 'Holiday',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    _formatDate(h['date'] as String),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: NotionTheme.redAccent,
+                      size: 20,
+                    ),
+                    onPressed: () => _delete(h['id'] as String),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

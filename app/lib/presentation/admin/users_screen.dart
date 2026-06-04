@@ -24,7 +24,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Future<void> _load() async {
     try {
       final users = await locator<AdminRepository>().getUsers();
-      setState(() { _users = users; _loading = false; });
+      setState(() {
+        _users = users;
+        _loading = false;
+      });
     } catch (e) {
       setState(() => _loading = false);
     }
@@ -36,21 +39,35 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(isAdmin ? 'Remove Admin' : 'Make Admin'),
-        content: Text(isAdmin
-            ? 'Remove admin privileges from ${user['username']}?'
-            : 'Grant admin privileges to ${user['username']}?'),
+        content: Text(
+          isAdmin
+              ? 'Remove admin privileges from ${user['username']}?'
+              : 'Grant admin privileges to ${user['username']}?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm'),
+          ),
         ],
       ),
     );
     if (confirm == true) {
       try {
-        await locator<AdminRepository>().updateUserAdmin(user['id'] as String, !isAdmin);
+        await locator<AdminRepository>().updateUserAdmin(
+          user['id'] as String,
+          !isAdmin,
+        );
         await _load();
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update user')));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update user')),
+          );
       }
     }
   }
@@ -60,14 +77,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Users'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _loading
           ? const Center(child: FoodLoader())
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: _users.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final u = _users[i];
                 final isAdmin = u['isAdmin'] as bool? ?? false;
@@ -113,7 +133,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: NotionTheme.blueAccent.withValues(alpha: 0.1),
+                                      color: NotionTheme.blueAccent.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: const Text(
