@@ -3,31 +3,22 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
+import '../../core/widgets/app_logo.dart';
 
-/// Branded loading screen shown while the home data loads — an animated
-/// "TCC Pantry" reveal. Animations are skipped under Reduce Motion.
+/// Branded loading screen shown while the home data loads.
 class BrandLoading extends StatelessWidget {
   const BrandLoading({super.key});
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    Widget mark = Container(
-      width: 96,
-      height: 96,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [palette.brand, palette.brandPressed],
-        ),
-        borderRadius: AppRadii.rXl,
-        boxShadow: context.shadows.lg,
-      ),
-      alignment: Alignment.center,
-      child: const Text('🍿', style: TextStyle(fontSize: 48)),
+    Widget mark = AppLogo(
+      size: 96,
+      borderRadius: AppRadii.rXl,
+      shadows: context.shadows.lg,
     );
 
     Widget title = Text(

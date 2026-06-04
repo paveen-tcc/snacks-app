@@ -78,7 +78,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/illustrations/
+    - assets/brand/
     - assets/msal_config.json
 
   # Brand fonts are bundled (variable fonts) so the offline-first app never

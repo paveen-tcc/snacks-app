@@ -4,7 +4,7 @@ import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
 import '../../core/auth/msal_service.dart';
-import '../../core/widgets/illustrations.dart';
+import '../../core/widgets/app_logo.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../data/repositories/auth_repository.dart';
 
@@ -75,10 +75,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(height: AppSpacing.xxl),
-                        const WelcomeIllustration(width: 280),
+                        AppLogo(
+                          size: 128,
+                          borderRadius: AppRadii.rXl,
+                          shadows: context.shadows.lg,
+                        ),
                         const SizedBox(height: AppSpacing.x3),
                         Text(
-                          'Welcome to Snacks',
+                          'Welcome to TCC Pantry',
                           style: context.text.displayMedium,
                           textAlign: TextAlign.center,
                         ),
@@ -100,10 +104,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(AppSpacing.md),
                                   decoration: BoxDecoration(
-                                    color: palette.danger.withValues(alpha: 0.10),
+                                    color: palette.danger.withValues(
+                                      alpha: 0.10,
+                                    ),
                                     borderRadius: AppRadii.rMd,
                                     border: Border.all(
-                                      color: palette.danger.withValues(alpha: 0.25),
+                                      color: palette.danger.withValues(
+                                        alpha: 0.25,
+                                      ),
                                     ),
                                   ),
                                   child: Text(

@@ -12,7 +12,7 @@ void main() {
       MaterialApp(theme: AppTheme.light, home: const OnboardingScreen()),
     );
 
-    expect(find.text('Welcome to Snacks'), findsOneWidget);
+    expect(find.text('Welcome to TCC Pantry'), findsOneWidget);
     expect(find.text('Sign in with Microsoft'), findsOneWidget);
   });
 }

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
+import '../../core/widgets/app_logo.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/bloc/home_bloc.dart';
 import '../home/cart.dart';
@@ -272,6 +273,8 @@ class _GreetingBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: AppSpacing.md),
+          const AppLogo(size: 36, semanticLabel: null),
         ],
       ),
     );

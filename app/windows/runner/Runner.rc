@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.company" "\0"
-            VALUE "FileDescription", "snacks_app" "\0"
+            VALUE "FileDescription", "TCC Pantry" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "snacks_app" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.company. All rights reserved." "\0"
             VALUE "OriginalFilename", "snacks_app.exe" "\0"
-            VALUE "ProductName", "snacks_app" "\0"
+            VALUE "ProductName", "TCC Pantry" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
