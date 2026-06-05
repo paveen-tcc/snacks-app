@@ -47,17 +47,6 @@ class $LocalSnacksTable extends LocalSnacks
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _descriptionMeta = const VerificationMeta(
-    'description',
-  );
-  @override
-  late final GeneratedColumn<String> description = GeneratedColumn<String>(
-    'description',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _isVegMeta = const VerificationMeta('isVeg');
   @override
   late final GeneratedColumn<bool> isVeg = GeneratedColumn<bool>(
@@ -142,7 +131,6 @@ class $LocalSnacksTable extends LocalSnacks
     name,
     category,
     emoji,
-    description,
     isVeg,
     isDefault,
     isActive,
@@ -185,15 +173,6 @@ class $LocalSnacksTable extends LocalSnacks
       context.handle(
         _emojiMeta,
         emoji.isAcceptableOrUnknown(data['emoji']!, _emojiMeta),
-      );
-    }
-    if (data.containsKey('description')) {
-      context.handle(
-        _descriptionMeta,
-        description.isAcceptableOrUnknown(
-          data['description']!,
-          _descriptionMeta,
-        ),
       );
     }
     if (data.containsKey('is_veg')) {
@@ -260,10 +239,6 @@ class $LocalSnacksTable extends LocalSnacks
         DriftSqlType.string,
         data['${effectivePrefix}emoji'],
       ),
-      description: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}description'],
-      ),
       isVeg: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_veg'],
@@ -302,7 +277,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
   final String name;
   final String? category;
   final String? emoji;
-  final String? description;
   final bool isVeg;
   final bool isDefault;
   final bool isActive;
@@ -314,7 +288,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     required this.name,
     this.category,
     this.emoji,
-    this.description,
     required this.isVeg,
     required this.isDefault,
     required this.isActive,
@@ -332,9 +305,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     }
     if (!nullToAbsent || emoji != null) {
       map['emoji'] = Variable<String>(emoji);
-    }
-    if (!nullToAbsent || description != null) {
-      map['description'] = Variable<String>(description);
     }
     map['is_veg'] = Variable<bool>(isVeg);
     map['is_default'] = Variable<bool>(isDefault);
@@ -357,9 +327,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       emoji: emoji == null && nullToAbsent
           ? const Value.absent()
           : Value(emoji),
-      description: description == null && nullToAbsent
-          ? const Value.absent()
-          : Value(description),
       isVeg: Value(isVeg),
       isDefault: Value(isDefault),
       isActive: Value(isActive),
@@ -381,7 +348,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       name: serializer.fromJson<String>(json['name']),
       category: serializer.fromJson<String?>(json['category']),
       emoji: serializer.fromJson<String?>(json['emoji']),
-      description: serializer.fromJson<String?>(json['description']),
       isVeg: serializer.fromJson<bool>(json['isVeg']),
       isDefault: serializer.fromJson<bool>(json['isDefault']),
       isActive: serializer.fromJson<bool>(json['isActive']),
@@ -398,7 +364,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       'name': serializer.toJson<String>(name),
       'category': serializer.toJson<String?>(category),
       'emoji': serializer.toJson<String?>(emoji),
-      'description': serializer.toJson<String?>(description),
       'isVeg': serializer.toJson<bool>(isVeg),
       'isDefault': serializer.toJson<bool>(isDefault),
       'isActive': serializer.toJson<bool>(isActive),
@@ -413,7 +378,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     String? name,
     Value<String?> category = const Value.absent(),
     Value<String?> emoji = const Value.absent(),
-    Value<String?> description = const Value.absent(),
     bool? isVeg,
     bool? isDefault,
     bool? isActive,
@@ -425,7 +389,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     name: name ?? this.name,
     category: category.present ? category.value : this.category,
     emoji: emoji.present ? emoji.value : this.emoji,
-    description: description.present ? description.value : this.description,
     isVeg: isVeg ?? this.isVeg,
     isDefault: isDefault ?? this.isDefault,
     isActive: isActive ?? this.isActive,
@@ -439,9 +402,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
       name: data.name.present ? data.name.value : this.name,
       category: data.category.present ? data.category.value : this.category,
       emoji: data.emoji.present ? data.emoji.value : this.emoji,
-      description: data.description.present
-          ? data.description.value
-          : this.description,
       isVeg: data.isVeg.present ? data.isVeg.value : this.isVeg,
       isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
@@ -462,7 +422,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
           ..write('name: $name, ')
           ..write('category: $category, ')
           ..write('emoji: $emoji, ')
-          ..write('description: $description, ')
           ..write('isVeg: $isVeg, ')
           ..write('isDefault: $isDefault, ')
           ..write('isActive: $isActive, ')
@@ -479,7 +438,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
     name,
     category,
     emoji,
-    description,
     isVeg,
     isDefault,
     isActive,
@@ -495,7 +453,6 @@ class LocalSnack extends DataClass implements Insertable<LocalSnack> {
           other.name == this.name &&
           other.category == this.category &&
           other.emoji == this.emoji &&
-          other.description == this.description &&
           other.isVeg == this.isVeg &&
           other.isDefault == this.isDefault &&
           other.isActive == this.isActive &&
@@ -509,7 +466,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
   final Value<String> name;
   final Value<String?> category;
   final Value<String?> emoji;
-  final Value<String?> description;
   final Value<bool> isVeg;
   final Value<bool> isDefault;
   final Value<bool> isActive;
@@ -522,7 +478,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     this.name = const Value.absent(),
     this.category = const Value.absent(),
     this.emoji = const Value.absent(),
-    this.description = const Value.absent(),
     this.isVeg = const Value.absent(),
     this.isDefault = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -536,7 +491,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     required String name,
     this.category = const Value.absent(),
     this.emoji = const Value.absent(),
-    this.description = const Value.absent(),
     this.isVeg = const Value.absent(),
     this.isDefault = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -551,7 +505,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     Expression<String>? name,
     Expression<String>? category,
     Expression<String>? emoji,
-    Expression<String>? description,
     Expression<bool>? isVeg,
     Expression<bool>? isDefault,
     Expression<bool>? isActive,
@@ -565,7 +518,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
       if (name != null) 'name': name,
       if (category != null) 'category': category,
       if (emoji != null) 'emoji': emoji,
-      if (description != null) 'description': description,
       if (isVeg != null) 'is_veg': isVeg,
       if (isDefault != null) 'is_default': isDefault,
       if (isActive != null) 'is_active': isActive,
@@ -581,7 +533,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     Value<String>? name,
     Value<String?>? category,
     Value<String?>? emoji,
-    Value<String?>? description,
     Value<bool>? isVeg,
     Value<bool>? isDefault,
     Value<bool>? isActive,
@@ -595,7 +546,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
       name: name ?? this.name,
       category: category ?? this.category,
       emoji: emoji ?? this.emoji,
-      description: description ?? this.description,
       isVeg: isVeg ?? this.isVeg,
       isDefault: isDefault ?? this.isDefault,
       isActive: isActive ?? this.isActive,
@@ -620,9 +570,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
     }
     if (emoji.present) {
       map['emoji'] = Variable<String>(emoji.value);
-    }
-    if (description.present) {
-      map['description'] = Variable<String>(description.value);
     }
     if (isVeg.present) {
       map['is_veg'] = Variable<bool>(isVeg.value);
@@ -655,7 +602,6 @@ class LocalSnacksCompanion extends UpdateCompanion<LocalSnack> {
           ..write('name: $name, ')
           ..write('category: $category, ')
           ..write('emoji: $emoji, ')
-          ..write('description: $description, ')
           ..write('isVeg: $isVeg, ')
           ..write('isDefault: $isDefault, ')
           ..write('isActive: $isActive, ')
@@ -1787,7 +1733,6 @@ typedef $$LocalSnacksTableCreateCompanionBuilder =
       required String name,
       Value<String?> category,
       Value<String?> emoji,
-      Value<String?> description,
       Value<bool> isVeg,
       Value<bool> isDefault,
       Value<bool> isActive,
@@ -1802,7 +1747,6 @@ typedef $$LocalSnacksTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String?> category,
       Value<String?> emoji,
-      Value<String?> description,
       Value<bool> isVeg,
       Value<bool> isDefault,
       Value<bool> isActive,
@@ -1838,11 +1782,6 @@ class $$LocalSnacksTableFilterComposer
 
   ColumnFilters<String> get emoji => $composableBuilder(
     column: $table.emoji,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get description => $composableBuilder(
-    column: $table.description,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1906,11 +1845,6 @@ class $$LocalSnacksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get description => $composableBuilder(
-    column: $table.description,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<bool> get isVeg => $composableBuilder(
     column: $table.isVeg,
     builder: (column) => ColumnOrderings(column),
@@ -1962,11 +1896,6 @@ class $$LocalSnacksTableAnnotationComposer
 
   GeneratedColumn<String> get emoji =>
       $composableBuilder(column: $table.emoji, builder: (column) => column);
-
-  GeneratedColumn<String> get description => $composableBuilder(
-    column: $table.description,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<bool> get isVeg =>
       $composableBuilder(column: $table.isVeg, builder: (column) => column);
@@ -2026,7 +1955,6 @@ class $$LocalSnacksTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String?> category = const Value.absent(),
                 Value<String?> emoji = const Value.absent(),
-                Value<String?> description = const Value.absent(),
                 Value<bool> isVeg = const Value.absent(),
                 Value<bool> isDefault = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
@@ -2039,7 +1967,6 @@ class $$LocalSnacksTableTableManager
                 name: name,
                 category: category,
                 emoji: emoji,
-                description: description,
                 isVeg: isVeg,
                 isDefault: isDefault,
                 isActive: isActive,
@@ -2054,7 +1981,6 @@ class $$LocalSnacksTableTableManager
                 required String name,
                 Value<String?> category = const Value.absent(),
                 Value<String?> emoji = const Value.absent(),
-                Value<String?> description = const Value.absent(),
                 Value<bool> isVeg = const Value.absent(),
                 Value<bool> isDefault = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
@@ -2067,7 +1993,6 @@ class $$LocalSnacksTableTableManager
                 name: name,
                 category: category,
                 emoji: emoji,
-                description: description,
                 isVeg: isVeg,
                 isDefault: isDefault,
                 isActive: isActive,

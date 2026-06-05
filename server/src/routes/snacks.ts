@@ -50,9 +50,15 @@ snackRoutes.get('/settings', async (c) => {
 // Public CSV template for admin bulk snack upload
 snackRoutes.get('/template', async (c) => {
     const templateRows = [
-        'name,category,emoji,description,veg_or_non_veg,serving_size,share_count,is_active,sort_order',
-        'Schezwan Samosa,Samosa,🥟,Spicy samosa filling,veg,4 Pcs,1,true,10',
-        'Pizza,Italian,🍕,Cheesy pizza slices,veg,1 box,2,true,20',
+        'name,category,image_url,veg_or_non_veg,serving_size,share_count,is_active,sort_order',
+        'Schezwan Samosa,Samosa,https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80,veg,4 Pcs,1,true,10',
+        'Chicken Pizza,Pizza,https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=400&q=80,non-veg,1 Pizza,2,true,20',
+        'Tea,Drinks,https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80,veg,1 Cup,1,true,30',
+        'Rosemilk Pudding,Pudding,https://images.unsplash.com/photo-1549007994-cb92ca87df46?auto=format&fit=crop&w=400&q=80,veg,1 Cup,1,true,40',
+        'Pista Pudding,Pudding,https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=400&q=80,veg,1 Cup,1,true,50',
+        'Banana Pudding,Pudding,https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=400&q=80,veg,1 Cup,1,true,60',
+        'Veg Samosa,Samosa,https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80,veg,4 Pcs,1,true,70',
+        'Egg Samosa,Samosa,https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=400&q=80,non-veg,4 Pcs,1,true,80',
     ].join('\n');
 
     c.header('Content-Type', 'text/csv; charset=utf-8');

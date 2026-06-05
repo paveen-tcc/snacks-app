@@ -87,34 +87,33 @@ orderRoutes.post('/', async (c) => {
         const user = c.get('user');
         const { snackId, snackIds } = await c.req.json();
         const orderDate = await getEffectiveOrderDate(db);
-        const normalizedSnackIds = Array.from(new Set(
-            (Array.isArray(snackIds) ? snackIds : [snackId])
-                .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-        ));
+        const rawSnackIds = (Array.isArray(snackIds) ? snackIds : [snackId])
+            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 
-        if (normalizedSnackIds.length === 0) {
+        if (rawSnackIds.length === 0) {
             return c.json({ error: 'snackIds is required' }, 400);
         }
 
         await db.delete(orders)
             .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${orderDate}`));
 
+        const uniqueSnackIds = Array.from(new Set(rawSnackIds));
         const selectedSnacks = await db.select({
             id: snacks.id,
             name: snacks.name,
             emoji: snacks.emoji,
         })
             .from(snacks)
-            .where(inArray(snacks.id, normalizedSnackIds));
+            .where(inArray(snacks.id, uniqueSnackIds));
 
-        if (selectedSnacks.length !== normalizedSnackIds.length) {
+        if (selectedSnacks.length !== uniqueSnackIds.length) {
             return c.json({ error: 'One or more selected snacks were not found' }, 400);
         }
 
         const snackMap = new Map(selectedSnacks.map((snack) => [snack.id, snack]));
 
         const savedOrders = await db.insert(orders)
-            .values(normalizedSnackIds.map((selectedSnackId) => {
+            .values(rawSnackIds.map((selectedSnackId) => {
                 const snack = snackMap.get(selectedSnackId);
                 if (!snack) {
                     throw new Error(`Missing snack for ${selectedSnackId}`);

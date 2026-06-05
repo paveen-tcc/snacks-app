@@ -7,7 +7,6 @@ import type { Database } from './db';
 import authRoutes from './routes/auth';
 import snackRoutes from './routes/snacks';
 import orderRoutes from './routes/orders';
-import drinkRoutes from './routes/drinks';
 import adminRoutes from './routes/admin';
 
 // Cloudflare Worker env bindings
@@ -63,7 +62,6 @@ app.get('/debug/jwks', async (c) => {
 app.route('/api/auth', authRoutes);
 app.route('/api/snacks', snackRoutes);
 app.route('/api/orders', orderRoutes);
-app.route('/api/drinks', drinkRoutes);
 app.route('/api/admin', adminRoutes);
 
 app.notFound((c) => {

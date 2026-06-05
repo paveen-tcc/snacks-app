@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { snacks, appSettings, holidays, shutdownDays, users, orders, hotDrinks, drinkVotes } from '../db/schema';
+import { snacks, appSettings, holidays, shutdownDays, users, orders } from '../db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
@@ -28,6 +28,28 @@ function categoryLabel(value: string | null): string {
 
 function categoryCompareKey(value: string | null): string {
     return categoryLabel(value).toLowerCase();
+}
+
+type CategoryMap = Map<string, string>;
+
+function buildCategoryMap(existingSnacks: { category: string | null }[]): CategoryMap {
+    const map: CategoryMap = new Map();
+    for (const snack of existingSnacks) {
+        const cat = snack.category;
+        if (cat) {
+            const lower = cat.toLowerCase();
+            if (!map.has(lower)) {
+                map.set(lower, cat);
+            }
+        }
+    }
+    return map;
+}
+
+function normalizeCategoryCase(value: string | null, categoryMap: CategoryMap): string | null {
+    if (!value) return null;
+    const lower = value.toLowerCase();
+    return categoryMap.get(lower) ?? value;
 }
 
 function duplicateSnackError(name: string, category: string | null): string {
@@ -60,7 +82,7 @@ adminRoutes.get('/snacks', async (c) => {
 adminRoutes.post('/snacks', async (c) => {
     try {
         const db = c.get('db');
-        const { name, category, emoji, description, isVeg, isDefault, isActive, servingSize, sortOrder, shareCount } = await c.req.json();
+        const { name, category, emoji, isVeg, isDefault, isActive, servingSize, sortOrder, shareCount } = await c.req.json();
         const normalizedName = typeof name === 'string' ? normalizeWhitespace(name) : '';
         const normalizedCategory = normalizeCategoryValue(category);
         const normalizedShareCount = shareCount === undefined ? 1 : normalizeShareCount(shareCount);
@@ -70,12 +92,15 @@ adminRoutes.post('/snacks', async (c) => {
         }
 
         const existingSnacks = await db.select().from(snacks);
+        const categoryMap = buildCategoryMap(existingSnacks);
+        const finalCategory = normalizeCategoryCase(normalizedCategory, categoryMap);
+
         const duplicate = existingSnacks.find((snack) =>
             normalizeSnackName(snack.name) === normalizeSnackName(normalizedName) &&
-            categoryCompareKey(snack.category ?? null) === categoryCompareKey(normalizedCategory)
+            categoryCompareKey(snack.category ?? null) === categoryCompareKey(finalCategory)
         );
         if (duplicate) {
-            return c.json({ error: duplicateSnackError(normalizedName, normalizedCategory) }, 409);
+            return c.json({ error: duplicateSnackError(normalizedName, finalCategory) }, 409);
         }
 
         if (isDefault) {
@@ -84,9 +109,8 @@ adminRoutes.post('/snacks', async (c) => {
 
         const [newSnack] = await db.insert(snacks).values({
             name: normalizedName,
-            category: normalizedCategory,
+            category: finalCategory,
             emoji,
-            description,
             isVeg,
             isDefault,
             isActive,
@@ -113,7 +137,6 @@ adminRoutes.post('/snacks/bulk', async (c) => {
             name: string;
             category: string | null;
             emoji: string;
-            description: string;
             isVeg: boolean;
             isDefault: boolean;
             isActive: boolean;
@@ -128,7 +151,6 @@ adminRoutes.post('/snacks/bulk', async (c) => {
                 name: typeof snack?.name === 'string' ? normalizeWhitespace(snack.name) : '',
                 category: normalizeCategoryValue(snack?.category),
                 emoji: typeof snack?.emoji === 'string' ? snack.emoji.trim() : '',
-                description: typeof snack?.description === 'string' ? snack.description.trim() : '',
                 isVeg: typeof snack?.isVeg === 'boolean' ? snack.isVeg : true,
                 isDefault: snack?.isDefault === true,
                 isActive: typeof snack?.isActive === 'boolean' ? snack.isActive : true,
@@ -153,6 +175,13 @@ adminRoutes.post('/snacks/bulk', async (c) => {
         }
 
         const existingSnacks = await db.select().from(snacks);
+        const categoryMap = buildCategoryMap(existingSnacks);
+
+        // Normalize categories case for all incoming snacks
+        for (const snack of normalizedSnacks) {
+            snack.category = normalizeCategoryCase(snack.category, categoryMap);
+        }
+
         for (const snack of normalizedSnacks) {
             const duplicate = existingSnacks.find((existingSnack) =>
                 normalizeSnackName(existingSnack.name) === normalizeSnackName(snack.name) &&
@@ -180,7 +209,6 @@ adminRoutes.post('/snacks/bulk', async (c) => {
                 name: snack.name,
                 category: snack.category,
                 emoji: snack.emoji || null,
-                description: snack.description || null,
                 isVeg: snack.isVeg,
                 isDefault: firstDefaultIndex >= 0 ? snack.index === firstDefaultIndex : false,
                 isActive: snack.isActive,
@@ -213,9 +241,11 @@ adminRoutes.put('/snacks/:id', async (c) => {
         const nextName = typeof updateData.name === 'string'
             ? normalizeWhitespace(updateData.name)
             : currentSnack.name;
-        const nextCategory = Object.prototype.hasOwnProperty.call(updateData, 'category')
+        const categoryMap = buildCategoryMap(existingSnacks);
+        const rawNextCategory = Object.prototype.hasOwnProperty.call(updateData, 'category')
             ? normalizeCategoryValue(updateData.category)
             : (currentSnack.category ?? null);
+        const nextCategory = normalizeCategoryCase(rawNextCategory, categoryMap);
 
         const duplicate = existingSnacks.find((snack) =>
             snack.id !== id &&
@@ -234,7 +264,7 @@ adminRoutes.put('/snacks/:id', async (c) => {
             updateData.name = normalizeWhitespace(updateData.name);
         }
         if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
-            updateData.category = normalizeCategoryValue(updateData.category);
+            updateData.category = nextCategory;
         }
         if (Object.prototype.hasOwnProperty.call(updateData, 'shareCount')) {
             updateData.shareCount = normalizeShareCount(updateData.shareCount);
@@ -364,6 +394,7 @@ adminRoutes.get('/summary', async (c) => {
                 snackId: orders.snackId,
                 snackName: sql<string>`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
                 snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
+                snackCategory: snacks.category,
                 selectedCount: sql<number>`count(*)`.mapWith(Number),
                 shareCount: sql<number>`coalesce(max(${snacks.shareCount}), 1)`.mapWith(Number),
             })
@@ -373,29 +404,50 @@ adminRoutes.get('/summary', async (c) => {
             .groupBy(
                 orders.snackId,
                 sql`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
-                sql`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`
+                sql`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
+                snacks.category
             );
 
-        const normalizedOrderCounts = orderCounts.map((item) => ({
-            ...item,
-            count: Math.ceil(item.selectedCount / Math.max(item.shareCount, 1)),
-        }));
-
-        const drinkCounts = await db
+        const todayOrders = await db
             .select({
-                drinkId: drinkVotes.drinkId,
-                drinkName: hotDrinks.name,
-                drinkEmoji: hotDrinks.emoji,
-                count: sql<number>`count(*)`.mapWith(Number),
+                snackId: orders.snackId,
+                username: users.username,
             })
-            .from(drinkVotes)
-            .innerJoin(hotDrinks, eq(drinkVotes.drinkId, hotDrinks.id))
-            .where(sql`${drinkVotes.date} = ${today}`)
-            .groupBy(drinkVotes.drinkId, hotDrinks.name, hotDrinks.emoji);
+            .from(orders)
+            .innerJoin(users, eq(orders.userId, users.id))
+            .where(sql`${orders.date} = ${today}`);
 
-        const totalOrders = normalizedOrderCounts.reduce((sum, item) => sum + item.count, 0);
+        const foodItems: any[] = [];
+        const drinkItems: any[] = [];
+        let totalOrders = 0;
 
-        return c.json({ date: today, orders: normalizedOrderCounts, drinks: drinkCounts, totalOrders }, 200);
+        for (const item of orderCounts) {
+            const count = Math.ceil(item.selectedCount / Math.max(item.shareCount, 1));
+            const usersList = todayOrders
+                .filter((o) => o.snackId === item.snackId)
+                .map((o) => o.username);
+
+            if (item.snackCategory && item.snackCategory.toLowerCase() === 'drinks') {
+                drinkItems.push({
+                    drinkId: item.snackId,
+                    drinkName: item.snackName,
+                    drinkEmoji: item.snackEmoji,
+                    count,
+                    votedBy: usersList,
+                });
+            } else {
+                foodItems.push({
+                    snackId: item.snackId,
+                    snackName: item.snackName,
+                    snackEmoji: item.snackEmoji,
+                    count,
+                    orderedBy: usersList,
+                });
+                totalOrders += count;
+            }
+        }
+
+        return c.json({ date: today, orders: foodItems, drinks: drinkItems, totalOrders }, 200);
     } catch (err: any) {
         if (err instanceof Error && err.message.includes('shareCount')) {
             return c.json({ error: err.message }, 400);

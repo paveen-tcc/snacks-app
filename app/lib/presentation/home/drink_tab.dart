@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/constants/snack_categories.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/food_card.dart';
 import '../../core/widgets/illustrations.dart';
+import '../../core/widgets/optimized_image.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
 import 'widgets/search_veg_row.dart';
@@ -30,9 +32,10 @@ class _DrinkTabState extends State<DrinkTab> {
         final closed = isOrderingClosed(state);
         final query = _query.trim().toLowerCase();
 
-        final drinks = state.drinks.where((d) {
+        final drinks = state.snacks.where((d) {
+          if (displaySnackCategory(d.category).toLowerCase() != 'drinks') return false;
           if (query.isEmpty) return true;
-          final name = (d['name'] as String? ?? '').toLowerCase();
+          final name = d.name.toLowerCase();
           return name.contains(query);
         }).toList();
 
@@ -74,7 +77,7 @@ class _DrinkTabState extends State<DrinkTab> {
                           const SizedBox(height: AppSpacing.lg),
                           if (closed)
                             _DrinksClosedCard(state: state)
-                          else if (state.drinks.isEmpty)
+                          else if (state.snacks.isEmpty)
                             const Center(child: FoodLoader(size: 28))
                           else if (drinks.isEmpty)
                             _EmptyDrinks(query: query),
@@ -103,21 +106,13 @@ class _DrinkTabState extends State<DrinkTab> {
                           ) {
                             final d = drinks[index];
                             return DrinkCard(
-                              name: d['name'] as String,
-                              emoji: d['emoji'] as String?,
-                              description: 'Served with your order.',
-                              servingSize: 'Drink',
-                              selected: state.selectedDrinkId == d['id'],
-                              onTap: state.isDrinkSubmitting
-                                  ? null
-                                  : () {
-                                      final drinkId = d['id'] as String;
-                                      bloc.add(
-                                        state.selectedDrinkId == drinkId
-                                            ? ClearDrinkSelection()
-                                            : SelectDrink(drinkId),
-                                      );
-                                    },
+                              name: d.name,
+                              emoji: d.emoji,
+                              servingSize: d.servingSize ?? 'Drink',
+                              selected: state.selectedSnackIds.contains(d.id),
+                              onTap: () {
+                                bloc.add(ToggleSnack(d.id));
+                              },
                             );
                           }, childCount: drinks.length),
                         ),
@@ -140,10 +135,11 @@ class _DrinksClosedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    Map<String, dynamic>? selected;
-    for (final d in state.drinks) {
-      if (d['id'] == state.selectedDrinkId) selected = d;
-    }
+    final selectedDrinks = state.snacks
+        .where((s) =>
+            displaySnackCategory(s.category).toLowerCase() == 'drinks' &&
+            state.selectedSnackIds.contains(s.id))
+        .toList();
 
     return AppCard(
       child: Column(
@@ -164,35 +160,54 @@ class _DrinksClosedCard extends StatelessWidget {
               color: palette.textSecondary,
             ),
           ),
-          if (selected != null) ...[
+          if (selectedDrinks.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: palette.surfaceMuted,
-                borderRadius: AppRadii.rMd,
-                border: Border.all(color: palette.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    selected['emoji'] as String? ?? '🥤',
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    'Selected drink: ${selected['name'] as String? ?? 'Saved'}',
-                    style: context.text.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+            for (final d in selectedDrinks) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: palette.surfaceMuted,
+                  borderRadius: AppRadii.rMd,
+                  border: Border.all(color: palette.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    d.emoji != null &&
+                            (d.emoji!.startsWith('http://') ||
+                                d.emoji!.startsWith('https://'))
+                        ? OptimizedImage(
+                            imageUrl: d.emoji!,
+                            width: 18,
+                            height: 18,
+                            memCacheWidth: 40,
+                            memCacheHeight: 40,
+                            borderRadius: BorderRadius.circular(4),
+                            fallbackIcon: Icon(
+                              Icons.local_cafe_rounded,
+                              size: 18,
+                              color: palette.textSecondary,
+                            ),
+                          )
+                        : Text(
+                            d.emoji ?? '🥤',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Selected drink: ${d.name}',
+                      style: context.text.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ],
       ),

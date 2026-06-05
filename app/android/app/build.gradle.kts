@@ -56,6 +56,12 @@ android {
         }
     }
 
+    packaging {
+        resources {
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
+
     buildTypes {
         release {
             manifestPlaceholders["msalRedirectPath"] =

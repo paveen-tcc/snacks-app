@@ -99,13 +99,16 @@ bool hasSameSnackSelection(
   List<String> selectedSnackIds,
 ) {
   if (todaysOrders.length != selectedSnackIds.length) return false;
-  final existingIds = todaysOrders.map((order) => order.snackId).toSet();
-  return existingIds.length == selectedSnackIds.toSet().length &&
-      existingIds.containsAll(selectedSnackIds);
+  final a = todaysOrders.map((order) => order.snackId).toList()..sort();
+  final b = List<String>.from(selectedSnackIds)..sort();
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
 
 bool hasSavedOrder(HomeLoaded state) {
-  return state.confirmedSnackIds.isNotEmpty || state.confirmedDrinkId != null;
+  return state.confirmedSnackIds.isNotEmpty;
 }
 
 bool hasSnackSelectionChanges(HomeLoaded state) {
@@ -115,17 +118,16 @@ bool hasSnackSelectionChanges(HomeLoaded state) {
   if (state.confirmedSnackIds.length != state.selectedSnackIds.length) {
     return true;
   }
-  final confirmedIds = state.confirmedSnackIds.toSet();
-  return confirmedIds.length != state.selectedSnackIds.toSet().length ||
-      !confirmedIds.containsAll(state.selectedSnackIds);
-}
-
-bool hasDrinkSelectionChanges(HomeLoaded state) {
-  return state.selectedDrinkId != state.confirmedDrinkId;
+  final a = List<String>.from(state.confirmedSnackIds)..sort();
+  final b = List<String>.from(state.selectedSnackIds)..sort();
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return true;
+  }
+  return false;
 }
 
 bool hasOrderChanges(HomeLoaded state) {
-  return hasSnackSelectionChanges(state) || hasDrinkSelectionChanges(state);
+  return hasSnackSelectionChanges(state);
 }
 
 bool isOrderPlaced(HomeLoaded state) {
@@ -138,14 +140,6 @@ List<LocalSnack> selectedSnacks(HomeLoaded state) {
       .map((id) => snacksById[id])
       .whereType<LocalSnack>()
       .toList();
-}
-
-Map<String, dynamic>? selectedDrink(HomeLoaded state) {
-  if (state.selectedDrinkId == null) return null;
-  for (final drink in state.drinks) {
-    if (drink['id'] == state.selectedDrinkId) return drink;
-  }
-  return null;
 }
 
 List<String> buildCategoryOptions(List<LocalSnack> snacks) {
@@ -161,5 +155,5 @@ List<String> buildCategoryOptions(List<LocalSnack> snacks) {
           if (rankCompare != 0) return rankCompare;
           return a.toLowerCase().compareTo(b.toLowerCase());
         });
-  return ['All', 'Drinks', ...categories];
+  return ['All', ...categories];
 }

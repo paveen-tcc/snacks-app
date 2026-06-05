@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'optimized_image.dart';
 
 import '../design/app_theme.dart';
+import '../design/app_colors.dart';
 import '../design/app_tokens.dart';
 
 /// The Swiggy/Zomato-style veg/non-veg indicator: a bordered square with a
@@ -43,7 +45,6 @@ class FoodCard extends StatelessWidget {
     required this.name,
     required this.isVeg,
     required this.selected,
-    this.description,
     this.emoji,
     this.servingSize,
     this.onTap,
@@ -54,7 +55,6 @@ class FoodCard extends StatelessWidget {
   final String name;
   final bool isVeg;
   final bool selected;
-  final String? description;
   final String? emoji;
   final String? servingSize;
   final VoidCallback? onTap;
@@ -64,6 +64,29 @@ class FoodCard extends StatelessWidget {
   void _handleTap() {
     HapticFeedback.selectionClick();
     onTap?.call();
+  }
+
+  Widget _buildContent(String val, AppPalette palette) {
+    if (val.startsWith('http://') || val.startsWith('https://')) {
+      return OptimizedImage(
+        imageUrl: val,
+        width: 120,
+        height: 120,
+        memCacheWidth: 300,
+        memCacheHeight: 300,
+        borderRadius: AppRadii.rMd - const BorderRadius.all(Radius.circular(1)),
+        fallbackIcon: Icon(
+          Icons.fastfood_rounded,
+          size: 38,
+          color: palette.textSecondary,
+        ),
+      );
+    }
+    return Text(
+      val,
+      style: const TextStyle(fontSize: 38),
+      maxLines: 1,
+    );
   }
 
   @override
@@ -111,11 +134,7 @@ class FoodCard extends StatelessWidget {
                           ),
                         ),
                         alignment: Alignment.center,
-                        child: Text(
-                          emoji ?? fallbackEmoji,
-                          style: const TextStyle(fontSize: 38),
-                          maxLines: 1,
-                        ),
+                        child: _buildContent(emoji ?? fallbackEmoji, palette),
                       ),
                     ),
                     Positioned(
@@ -199,19 +218,6 @@ class FoodCard extends StatelessWidget {
                   ),
                 ),
               ],
-              if ((description ?? '').isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  description!,
-                  style: context.text.labelSmall?.copyWith(
-                    color: palette.textSecondary,
-                    height: 1.15,
-                    fontSize: 11,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
             ],
           ),
         ),
@@ -262,7 +268,6 @@ class SnackCard extends FoodCard {
     required super.name,
     required super.isVeg,
     required super.selected,
-    super.description,
     super.emoji,
     super.servingSize,
     super.onTap,
@@ -276,7 +281,6 @@ class DrinkCard extends FoodCard {
     required super.name,
     required super.selected,
     super.isVeg = true,
-    super.description,
     super.emoji,
     super.servingSize,
     super.onTap,
