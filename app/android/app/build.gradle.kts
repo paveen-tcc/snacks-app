@@ -58,14 +58,30 @@ android {
 
     packaging {
         resources {
-            excludes += "META-INF/DEPENDENCIES"
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+            )
         }
     }
 
     buildTypes {
         release {
+            // MSAL redirect hash for the Play App Signing certificate.
             manifestPlaceholders["msalRedirectPath"] =
-                "/s46h+mgBrqVfAnFDUVD8ERZKOVw="
+                "/nrvBMaqisWak4u1Jp+p7aT5dDhE="
+
+            // Minification is intentionally OFF. It was enabled in 1f55a6f with a
+            // proguard-rules.pro that does not exist and no keep rules, which
+            // stripped MSAL (reflection-heavy) and crashed release builds.
+            // To re-enable later: create proguard-rules.pro with keep rules for
+            // MSAL/msal_auth/Gson/Drift and verify a release build before shipping.
+            isMinifyEnabled = false
+            isShrinkResources = false
+
             // Use the production keystore when available, otherwise keep a
             // debug-signed release build working for local verification.
             signingConfig =
