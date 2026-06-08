@@ -2,3 +2,6 @@
 .idea/
 .vscode/
 server/.wrangler/
+
+# Claude Code local worktrees (must never be committed as gitlinks)
+.claude/worktrees/
