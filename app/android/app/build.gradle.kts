@@ -80,6 +80,7 @@ android {
             // To re-enable later: create proguard-rules.pro with keep rules for
             // MSAL/msal_auth/Gson/Drift and verify a release build before shipping.
             isMinifyEnabled = false
+            isShrinkResources = false
 
             // Use the production keystore when available, otherwise keep a
             // debug-signed release build working for local verification.
