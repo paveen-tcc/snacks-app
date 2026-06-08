@@ -70,13 +70,17 @@ android {
 
     buildTypes {
         release {
-            // 1. Updated to the Google Play Console Base64 Hash
+            // MSAL redirect hash for the Play App Signing certificate.
             manifestPlaceholders["msalRedirectPath"] =
                 "/nrvBMaqisWak4u1Jp+p7aT5dDhE="
-            
-            // 2. Added these two lines to protect MSAL from minification (Kotlin DSL syntax)
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            // Minification is intentionally OFF. It was enabled in 1f55a6f with a
+            // proguard-rules.pro that does not exist and no keep rules, which
+            // stripped MSAL (reflection-heavy) and crashed release builds.
+            // To re-enable later: create proguard-rules.pro with keep rules for
+            // MSAL/msal_auth/Gson/Drift and verify a release build before shipping.
+            isMinifyEnabled = false
+            isShrinkResources = false
 
             // Use the production keystore when available, otherwise keep a
             // debug-signed release build working for local verification.
