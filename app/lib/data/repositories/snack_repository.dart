@@ -1,4 +1,6 @@
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/optimized_image.dart';
 import '../local/app_database.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' as drift;
@@ -55,9 +57,6 @@ class SnackRepository {
                     emoji: json['emoji'] != null
                         ? drift.Value(json['emoji'])
                         : const drift.Value.absent(),
-                    description: json['description'] != null
-                        ? drift.Value(json['description'])
-                        : const drift.Value.absent(),
                     isVeg: drift.Value(json['isVeg'] ?? true),
                     isDefault: drift.Value(json['isDefault'] ?? false),
                     isActive: drift.Value(json['isActive'] ?? true),
@@ -97,6 +96,35 @@ class SnackRepository {
       advanceWindowStart: cached?.advanceWindowStart ?? '06:00',
       advanceWindowEnd: cached?.advanceWindowEnd ?? '22:00',
     );
+  }
+
+  /// Pre-cache all snack images into the CachedNetworkImage disk cache.
+  /// Call fire-and-forget after sync so images are warm before the user scrolls.
+  Future<void> precacheImages() async {
+    try {
+      final snacks = await _localDb.select(_localDb.localSnacks).get();
+      final imageUrls = snacks
+          .where((s) =>
+              s.emoji != null &&
+              (s.emoji!.startsWith('http://') ||
+                  s.emoji!.startsWith('https://')))
+          .map((s) => s.emoji!)
+          .toList();
+
+      if (imageUrls.isEmpty) return;
+
+      final cacheManager = DefaultCacheManager();
+      // Pre-cache with optimized URL matching the grid card size (300px retina)
+      await Future.wait(
+        imageUrls.map((url) {
+          final optimized = optimizeImageUrl(url, 600);
+          return cacheManager.downloadFile(optimized, key: url);
+        }),
+        eagerError: false,
+      );
+    } catch (_) {
+      // Silent fail — images will load on demand as fallback
+    }
   }
 
   // Observes local drift database for reactive UI updates

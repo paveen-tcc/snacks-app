@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
+import '../../core/widgets/optimized_image.dart';
 import '../../core/design/glass.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/food_card.dart' show VegBadge;
@@ -128,9 +129,14 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
           builder: (context, state) {
             if (state is! HomeLoaded) return const SizedBox.shrink();
 
-            final snacks = selectedSnacks(state);
-            final drink = selectedDrink(state);
-            final itemCount = snacks.length + (drink == null ? 0 : 1);
+            final Map<String, int> snackCounts = {};
+            for (final id in state.selectedSnackIds) {
+              snackCounts[id] = (snackCounts[id] ?? 0) + 1;
+            }
+            final uniqueSnacks = state.snacks
+                .where((s) => snackCounts.containsKey(s.id))
+                .toList();
+            final itemCount = state.selectedSnackIds.length;
             final orderPlaced = isOrderPlaced(state);
             final hasChanges = hasOrderChanges(state);
             final closeTime = formatOrderWindowCloseTime(state);
@@ -180,18 +186,14 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (final snack in snacks) ...[
-                            _CartSnackRow(snack: snack, homeBloc: homeBloc),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                          if (drink != null) ...[
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              'Selected Drink',
-                              style: context.text.titleSmall,
+                          for (final snack in uniqueSnacks) ...[
+                            _CartSnackRow(
+                              snack: snack,
+                              quantity: snackCounts[snack.id] ?? 1,
+                              homeBloc: homeBloc,
+                              disabled: isOrderingClosed(state),
                             ),
-                            const SizedBox(height: AppSpacing.sm),
-                            _CartDrinkRow(drink: drink, homeBloc: homeBloc),
+                            const SizedBox(height: AppSpacing.md),
                           ],
                         ],
                       ),
@@ -221,10 +223,17 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
 }
 
 class _CartSnackRow extends StatelessWidget {
-  const _CartSnackRow({required this.snack, required this.homeBloc});
+  const _CartSnackRow({
+    required this.snack,
+    required this.quantity,
+    required this.homeBloc,
+    required this.disabled,
+  });
 
   final LocalSnack snack;
+  final int quantity;
   final HomeBloc homeBloc;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -248,10 +257,27 @@ class _CartSnackRow extends StatelessWidget {
               border: Border.all(color: palette.border),
             ),
             alignment: Alignment.center,
-            child: Text(
-              snack.emoji ?? '🍽️',
-              style: const TextStyle(fontSize: 28),
-            ),
+            child: snack.emoji != null &&
+                    (snack.emoji!.startsWith('http://') ||
+                        snack.emoji!.startsWith('https://'))
+                ? OptimizedImage(
+                    imageUrl: snack.emoji!,
+                    width: 56,
+                    height: 56,
+                    memCacheWidth: 120,
+                    memCacheHeight: 120,
+                    borderRadius: AppRadii.rMd -
+                        const BorderRadius.all(Radius.circular(1)),
+                    fallbackIcon: Icon(
+                      Icons.fastfood_rounded,
+                      size: 28,
+                      color: palette.textSecondary,
+                    ),
+                  )
+                : Text(
+                    snack.emoji ?? '🍽️',
+                    style: const TextStyle(fontSize: 28),
+                  ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -303,91 +329,51 @@ class _CartSnackRow extends StatelessWidget {
                     ),
                   ],
                 ),
-                if ((snack.description ?? '').trim().isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    snack.description ?? '',
-                    style: context.text.bodySmall?.copyWith(
-                      color: palette.textSecondary,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          IconButton(
-            onPressed: () => homeBloc.add(ToggleSnack(snack.id)),
-            icon: Icon(Icons.delete_outline_rounded, color: palette.danger),
-            tooltip: 'Remove item',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CartDrinkRow extends StatelessWidget {
-  const _CartDrinkRow({required this.drink, required this.homeBloc});
-
-  final Map<String, dynamic> drink;
-  final HomeBloc homeBloc;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: palette.surfaceMuted,
-        borderRadius: AppRadii.rLg,
-        border: Border.all(color: palette.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: palette.surface,
-              borderRadius: AppRadii.rMd,
-              border: Border.all(color: palette.border),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              drink['emoji'] as String? ?? '🥤',
-              style: const TextStyle(fontSize: 28),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (disabled)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Text(
+                'Qty: $quantity',
+                style: context.text.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: palette.textSecondary,
+                ),
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  onPressed: () => homeBloc.add(DecrementSnack(snack.id)),
+                  icon: Icon(
+                    quantity == 1
+                        ? Icons.delete_outline_rounded
+                        : Icons.remove_circle_outline_rounded,
+                    color: quantity == 1 ? palette.danger : palette.textSecondary,
+                  ),
+                  tooltip: quantity == 1 ? 'Remove item' : 'Decrease quantity',
+                ),
                 Text(
-                  drink['name'] as String? ?? 'Drink',
-                  style: context.text.bodyLarge?.copyWith(
+                  '$quantity',
+                  style: context.text.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Added to your cart',
-                  style: context.text.bodySmall?.copyWith(
-                    color: palette.textSecondary,
+                IconButton(
+                  onPressed: () => homeBloc.add(IncrementSnack(snack.id)),
+                  icon: Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: palette.brand,
                   ),
+                  tooltip: 'Increase quantity',
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          IconButton(
-            onPressed: () => homeBloc.add(ClearDrinkSelection()),
-            icon: Icon(Icons.delete_outline_rounded, color: palette.danger),
-            tooltip: 'Remove drink',
-          ),
         ],
       ),
     );

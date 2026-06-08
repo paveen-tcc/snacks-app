@@ -2,8 +2,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/local/app_database.dart';
 import '../../../data/repositories/snack_repository.dart';
 import '../../../data/repositories/order_repository.dart';
-import '../../../data/repositories/drink_repository.dart';
 import '../../../core/di/locator.dart';
+import '../home_helpers.dart';
 import 'dart:async';
 
 // ---------- State ----------
@@ -19,10 +19,6 @@ class HomeLoaded extends HomeState {
   final List<String> selectedSnackIds;
   final List<String> confirmedSnackIds;
   final bool isSubmitting;
-  final List<Map<String, dynamic>> drinks;
-  final String? selectedDrinkId;
-  final String? confirmedDrinkId;
-  final bool isDrinkSubmitting;
   final bool isShutdown;
   final String? shutdownReason;
   final String? shutdownType;
@@ -38,10 +34,6 @@ class HomeLoaded extends HomeState {
     this.selectedSnackIds = const [],
     this.confirmedSnackIds = const [],
     this.isSubmitting = false,
-    this.drinks = const [],
-    this.selectedDrinkId,
-    this.confirmedDrinkId,
-    this.isDrinkSubmitting = false,
     this.isShutdown = false,
     this.shutdownReason,
     this.shutdownType,
@@ -61,10 +53,6 @@ class HomeLoaded extends HomeState {
     List<String>? selectedSnackIds,
     List<String>? confirmedSnackIds,
     bool? isSubmitting,
-    List<Map<String, dynamic>>? drinks,
-    Object? selectedDrinkId = _unset,
-    Object? confirmedDrinkId = _unset,
-    bool? isDrinkSubmitting,
     bool? isShutdown,
     Object? shutdownReason = _unset,
     Object? shutdownType = _unset,
@@ -82,14 +70,6 @@ class HomeLoaded extends HomeState {
       selectedSnackIds: selectedSnackIds ?? this.selectedSnackIds,
       confirmedSnackIds: confirmedSnackIds ?? this.confirmedSnackIds,
       isSubmitting: isSubmitting ?? this.isSubmitting,
-      drinks: drinks ?? this.drinks,
-      selectedDrinkId: selectedDrinkId == _unset
-          ? this.selectedDrinkId
-          : selectedDrinkId as String?,
-      confirmedDrinkId: confirmedDrinkId == _unset
-          ? this.confirmedDrinkId
-          : confirmedDrinkId as String?,
-      isDrinkSubmitting: isDrinkSubmitting ?? this.isDrinkSubmitting,
       isShutdown: isShutdown ?? this.isShutdown,
       shutdownReason: shutdownReason == _unset
           ? this.shutdownReason
@@ -138,18 +118,15 @@ class ToggleSnack extends HomeEvent {
 
 class SubmitOrder extends HomeEvent {}
 
-class DrinksLoaded extends HomeEvent {
-  final List<Map<String, dynamic>> drinks;
-  final String? todayVoteId;
-  DrinksLoaded(this.drinks, this.todayVoteId);
+class IncrementSnack extends HomeEvent {
+  final String snackId;
+  IncrementSnack(this.snackId);
 }
 
-class SelectDrink extends HomeEvent {
-  final String drinkId;
-  SelectDrink(this.drinkId);
+class DecrementSnack extends HomeEvent {
+  final String snackId;
+  DecrementSnack(this.snackId);
 }
-
-class ClearDrinkSelection extends HomeEvent {}
 
 class RefreshHome extends HomeEvent {}
 
@@ -170,14 +147,10 @@ class StatusLoaded extends HomeEvent {
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final SnackRepository _snackRepo = locator<SnackRepository>();
   final OrderRepository _orderRepo = locator<OrderRepository>();
-  final DrinkRepository _drinkRepo = locator<DrinkRepository>();
 
   StreamSubscription? _snacksSub;
   StreamSubscription? _orderSub;
 
-  // Buffer drinks/status if they load before HomeLoaded state is set
-  List<Map<String, dynamic>>? _pendingDrinks;
-  String? _pendingVoteId;
   Map<String, dynamic>? _pendingStatus;
   PublicSettings? _pendingSettings;
   List<LocalOrder>? _pendingOrders;
@@ -188,10 +161,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     on<OrderUpdated>(_onOrderUpdated);
     on<ChangeFilter>(_onChangeFilter);
     on<ToggleSnack>(_onToggleSnack);
+    on<IncrementSnack>(_onIncrementSnack);
+    on<DecrementSnack>(_onDecrementSnack);
     on<SubmitOrder>(_onSubmitOrder);
-    on<DrinksLoaded>(_onDrinksLoaded);
-    on<SelectDrink>(_onSelectDrink);
-    on<ClearDrinkSelection>(_onClearDrinkSelection);
     on<StatusLoaded>(_onStatusLoaded);
     on<RefreshHome>(_onRefreshHome);
     on<SettingsLoaded>(_onSettingsLoaded);
@@ -212,19 +184,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     emit(HomeLoading());
 
-    _snackRepo.syncSnacks();
-
-    // Load drinks in background
-    Future.wait([_drinkRepo.fetchDrinks(), _drinkRepo.getTodayVote()])
-        .then((results) {
-          final drinks = results[0] as List<Map<String, dynamic>>;
-          final todayVote = results[1] as String?;
-          add(DrinksLoaded(drinks, todayVote));
-        })
-        .catchError((e) {
-          print('Drink load error: $e');
-          return null;
-        });
+    _snackRepo.syncSnacks().then((_) => _snackRepo.precacheImages());
 
     // Check if today is a shutdown/holiday day
     _orderRepo.fetchTodayStatus().then((status) {
@@ -271,14 +231,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         ),
       );
     } else {
-      // Apply any drinks/status that loaded before state became HomeLoaded
-      final drinks = _pendingDrinks ?? [];
-      final voteId = _pendingVoteId;
       final status = _pendingStatus;
       final settings = _pendingSettings;
       final orders = _pendingOrders ?? const <LocalOrder>[];
-      _pendingDrinks = null;
-      _pendingVoteId = null;
       _pendingStatus = null;
       _pendingSettings = null;
       _pendingOrders = null;
@@ -288,9 +243,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           todaysOrders: orders,
           selectedSnackIds: orders.map((order) => order.snackId).toList(),
           confirmedSnackIds: orders.map((order) => order.snackId).toList(),
-          drinks: drinks,
-          selectedDrinkId: voteId,
-          confirmedDrinkId: voteId,
           isShutdown: status?['isShutdown'] as bool? ?? false,
           shutdownReason: status?['reason'] as String?,
           shutdownType: status?['type'] as String?,
@@ -333,10 +285,28 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final curr = state as HomeLoaded;
       final selectedSnackIds = List<String>.from(curr.selectedSnackIds);
       if (selectedSnackIds.contains(event.snackId)) {
-        selectedSnackIds.remove(event.snackId);
+        selectedSnackIds.removeWhere((id) => id == event.snackId);
       } else {
         selectedSnackIds.add(event.snackId);
       }
+      emit(curr.copyWith(selectedSnackIds: selectedSnackIds));
+    }
+  }
+
+  void _onIncrementSnack(IncrementSnack event, Emitter<HomeState> emit) {
+    if (state is HomeLoaded) {
+      final curr = state as HomeLoaded;
+      final selectedSnackIds = List<String>.from(curr.selectedSnackIds);
+      selectedSnackIds.add(event.snackId);
+      emit(curr.copyWith(selectedSnackIds: selectedSnackIds));
+    }
+  }
+
+  void _onDecrementSnack(DecrementSnack event, Emitter<HomeState> emit) {
+    if (state is HomeLoaded) {
+      final curr = state as HomeLoaded;
+      final selectedSnackIds = List<String>.from(curr.selectedSnackIds);
+      selectedSnackIds.remove(event.snackId);
       emit(curr.copyWith(selectedSnackIds: selectedSnackIds));
     }
   }
@@ -347,85 +317,29 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     if (state is! HomeLoaded) return;
     final curr = state as HomeLoaded;
-    final confirmedSnackIds = curr.confirmedSnackIds.toSet();
-    final selectedSnackIds = curr.selectedSnackIds.toSet();
-    final snackChanged =
-        confirmedSnackIds.length != selectedSnackIds.length ||
-        !confirmedSnackIds.containsAll(selectedSnackIds);
-    final drinkChanged = curr.selectedDrinkId != curr.confirmedDrinkId;
+    final snackChanged = hasSnackSelectionChanges(curr);
 
-    if ((!snackChanged && !drinkChanged) ||
-        curr.isSubmitting ||
-        curr.isDrinkSubmitting) {
+    if (!snackChanged || curr.isSubmitting) {
       return;
     }
 
-    emit(curr.copyWith(isSubmitting: true, isDrinkSubmitting: true));
+    emit(curr.copyWith(isSubmitting: true));
     try {
-      if (snackChanged) {
-        if (curr.selectedSnackIds.isEmpty) {
-          await _orderRepo.clearOrder();
-        } else {
-          await _orderRepo.placeOrder(curr.selectedSnackIds);
-        }
-      }
-      if (drinkChanged) {
-        final drinkId = curr.selectedDrinkId;
-        if (drinkId == null) {
-          await _drinkRepo.clearVote();
-        } else {
-          await _drinkRepo.castVote(drinkId);
-        }
+      if (curr.selectedSnackIds.isEmpty) {
+        await _orderRepo.clearOrder();
+      } else {
+        await _orderRepo.placeOrder(curr.selectedSnackIds);
       }
       emit(
         (state as HomeLoaded).copyWith(
           isSubmitting: false,
-          isDrinkSubmitting: false,
           confirmedSnackIds: curr.selectedSnackIds,
-          confirmedDrinkId: curr.selectedDrinkId,
         ),
       );
     } catch (e) {
-      emit(curr.copyWith(isSubmitting: false, isDrinkSubmitting: false));
+      emit(curr.copyWith(isSubmitting: false));
       print(e);
     }
-  }
-
-  void _onDrinksLoaded(DrinksLoaded event, Emitter<HomeState> emit) {
-    if (state is HomeLoaded) {
-      final curr = state as HomeLoaded;
-      emit(
-        curr.copyWith(
-          drinks: event.drinks,
-          selectedDrinkId: event.todayVoteId,
-          confirmedDrinkId: event.todayVoteId,
-        ),
-      );
-    } else {
-      // State not ready yet — buffer for when snacks arrive
-      _pendingDrinks = event.drinks;
-      _pendingVoteId = event.todayVoteId;
-    }
-  }
-
-  Future<void> _onSelectDrink(
-    SelectDrink event,
-    Emitter<HomeState> emit,
-  ) async {
-    if (state is! HomeLoaded) return;
-    final curr = state as HomeLoaded;
-    if (curr.isSubmitting) return;
-    emit(curr.copyWith(selectedDrinkId: event.drinkId));
-  }
-
-  Future<void> _onClearDrinkSelection(
-    ClearDrinkSelection event,
-    Emitter<HomeState> emit,
-  ) async {
-    if (state is! HomeLoaded) return;
-    final curr = state as HomeLoaded;
-    if (curr.selectedDrinkId == null || curr.isSubmitting) return;
-    emit(curr.copyWith(selectedDrinkId: null));
   }
 
   Future<void> _onRefreshHome(
@@ -433,19 +347,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     Emitter<HomeState> emit,
   ) async {
     // Re-sync from server without showing loading spinner
-    _snackRepo.syncSnacks();
-
-    // Refresh drinks
-    Future.wait([_drinkRepo.fetchDrinks(), _drinkRepo.getTodayVote()])
-        .then((results) {
-          final drinks = results[0] as List<Map<String, dynamic>>;
-          final todayVote = results[1] as String?;
-          add(DrinksLoaded(drinks, todayVote));
-        })
-        .catchError((e) {
-          print('Drink refresh error: $e');
-          return null;
-        });
+    _snackRepo.syncSnacks().then((_) => _snackRepo.precacheImages());
 
     // Refresh shutdown status
     _orderRepo.fetchTodayStatus().then((status) {

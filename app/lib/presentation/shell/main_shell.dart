@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
-import '../../core/widgets/app_logo.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/bloc/home_bloc.dart';
 import '../home/cart.dart';
@@ -158,7 +157,11 @@ class _MainShellState extends State<MainShell> {
                 onNotification: _onScroll,
                 child: IndexedStack(
                   index: _index,
-                  children: const [FoodTab(), DrinkTab(), OrdersTab()],
+                  children: [
+                    const FoodTab(),
+                    const DrinkTab(),
+                    OrdersTab(isActive: _index == 2),
+                  ],
                 ),
               ),
             ),
@@ -245,6 +248,20 @@ class _GreetingBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello, ${username.isNotEmpty ? username : 'there'}',
+                  style: context.text.headlineSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
           Semantics(
             button: true,
             label: 'Profile and settings',
@@ -264,17 +281,6 @@ class _GreetingBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              'Hello, ${username.isNotEmpty ? username : 'there'} 👋',
-              style: context.text.headlineSmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          const AppLogo(size: 36, semanticLabel: null),
         ],
       ),
     );
@@ -312,9 +318,7 @@ class _BottomChrome extends StatelessWidget {
               bloc: homeBloc,
               builder: (context, state) {
                 if (state is! HomeLoaded) return const SizedBox.shrink();
-                final itemCount =
-                    state.selectedSnackIds.length +
-                    (state.selectedDrinkId == null ? 0 : 1);
+                final itemCount = state.selectedSnackIds.length;
                 final orderPlaced = isOrderPlaced(state);
                 final hasChanges = hasOrderChanges(state);
                 final closeTime = formatOrderWindowCloseTime(state);

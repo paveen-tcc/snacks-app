@@ -48,14 +48,14 @@ class _FoodTabState extends State<FoodTab> {
 
         final query = _query.trim().toLowerCase();
         final snacks = state.snacks.where((s) {
+          if (displaySnackCategory(s.category).toLowerCase() == 'drinks') return false;
           if (isVegMode && s.isVeg != true) return false;
           if (category != 'All' &&
               displaySnackCategory(s.category) != category) {
             return false;
           }
           if (query.isNotEmpty &&
-              !s.name.toLowerCase().contains(query) &&
-              !(s.description ?? '').toLowerCase().contains(query)) {
+              !s.name.toLowerCase().contains(query)) {
             return false;
           }
           return true;
@@ -129,7 +129,6 @@ class _FoodTabState extends State<FoodTab> {
                             return SnackCard(
                               name: s.name,
                               isVeg: s.isVeg,
-                              description: s.description,
                               emoji: s.emoji,
                               servingSize: s.servingSize ?? '1 Unit',
                               selected: state.selectedSnackIds.contains(s.id),

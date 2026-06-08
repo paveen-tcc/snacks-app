@@ -27,8 +27,7 @@ export const snacks = pgTable('snacks', {
     id: uuid('id').primaryKey().defaultRandom(),
     name: varchar('name', { length: 100 }).notNull(),
     category: varchar('category', { length: 100 }),
-    emoji: varchar('emoji', { length: 10 }),
-    description: varchar('description', { length: 100 }), // 5-6 word short desc
+    emoji: varchar('emoji', { length: 512 }),
     isVeg: boolean('is_veg').default(true),
     isDefault: boolean('is_default').default(false), // admin-designated default
     isActive: boolean('is_active').default(true),    // admin toggle to show/hide
@@ -45,31 +44,12 @@ export const orders = pgTable('orders', {
     date: date('date').notNull(),
     snackId: uuid('snack_id').notNull(),
     snackNameSnapshot: varchar('snack_name_snapshot', { length: 100 }),
-    snackEmojiSnapshot: varchar('snack_emoji_snapshot', { length: 10 }),
+    snackEmojiSnapshot: varchar('snack_emoji_snapshot', { length: 512 }),
     isDefaultAssigned: boolean('is_default_assigned').default(false),
     orderedAt: timestamp('ordered_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
     userDateIdx: index('orders_user_date_idx').on(t.userId, t.date),
-}));
-
-// Hot drinks catalog
-export const hotDrinks = pgTable('hot_drinks', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    name: varchar('name', { length: 50 }).notNull(), // Tea, Coffee, Boost
-    emoji: varchar('emoji', { length: 10 }),
-    isActive: boolean('is_active').default(true),
-});
-
-// Daily hot drink poll (resets daily)
-export const drinkVotes = pgTable('drink_votes', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').references(() => users.id).notNull(),
-    date: date('date').notNull(),
-    drinkId: uuid('drink_id').references(() => hotDrinks.id).notNull(),
-    votedAt: timestamp('voted_at', { withTimezone: true }).defaultNow(),
-}, (t) => ({
-    unqUserDate: uniqueIndex('drink_votes_user_date_unique').on(t.userId, t.date),
 }));
 
 // Holidays (hybrid: auto-fetched + manual)

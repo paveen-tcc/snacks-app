@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io' show File;
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/snack_categories.dart';
@@ -15,6 +18,7 @@ import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/food_card.dart' show VegBadge;
 import '../../core/widgets/skeleton.dart';
+import '../../core/widgets/optimized_image.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class AdminSnacksScreen extends StatefulWidget {
@@ -113,7 +117,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
 
       if (result == null || result.files.isEmpty) return;
       final file = result.files.single;
-      final bytes = file.bytes;
+
+      // On mobile platforms file.bytes is often null; read via File(path).
+      Uint8List? bytes = file.bytes;
+      if ((bytes == null || bytes.isEmpty) && !kIsWeb && file.path != null) {
+        bytes = await File(file.path!).readAsBytes();
+      }
       if (bytes == null || bytes.isEmpty) {
         _showError('Unable to read selected file');
         return;
@@ -201,15 +210,38 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     return InputDecoration(labelText: label, hintText: hint);
   }
 
+  /// Build a unique, case-insensitive list of categories from DB + predefined.
+  List<String> _buildCategoryList() {
+    final seen = <String, String>{}; // lowercase -> original case
+    // Add predefined categories first
+    for (final cat in snackCategoryOrder) {
+      seen.putIfAbsent(cat.toLowerCase(), () => cat);
+    }
+    // Always add Drinks to category list
+    seen.putIfAbsent('drinks', () => 'Drinks');
+    
+    // Add categories from existing snacks
+    for (final snack in _snacks) {
+      final cat = (snack['category'] as String? ?? '').trim();
+      if (cat.isNotEmpty) {
+        seen.putIfAbsent(cat.toLowerCase(), () => cat);
+      }
+    }
+    return seen.values.toList();
+  }
+
+  /// Match a user-typed category against existing ones (case-insensitive).
+  String _normalizeCategoryInput(String input, List<String> categories) {
+    final lower = input.toLowerCase();
+    for (final cat in categories) {
+      if (cat.toLowerCase() == lower) return cat;
+    }
+    return input; // no match, keep as-is
+  }
+
   void _showSnackForm({Map<String, dynamic>? existing}) {
     final nameCtrl = TextEditingController(text: existing?['name'] ?? '');
-    final categoryCtrl = TextEditingController(
-      text: existing?['category'] as String? ?? '',
-    );
     final emojiCtrl = TextEditingController(text: existing?['emoji'] ?? '');
-    final descCtrl = TextEditingController(
-      text: existing?['description'] ?? '',
-    );
     final sizeCtrl = TextEditingController(
       text: existing?['servingSize'] ?? '',
     );
@@ -217,6 +249,30 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
       text: ((existing?['shareCount'] as num?)?.toInt() ?? 1).toString(),
     );
     bool isVeg = existing?['isVeg'] ?? true;
+
+    final categories = _buildCategoryList();
+    const customOption = 'Custom...';
+    final existingCategory = (existing?['category'] as String? ?? '').trim();
+
+    // Determine initial dropdown value
+    String? selectedCategory;
+    bool showCustomField = false;
+    final customCategoryCtrl = TextEditingController();
+
+    if (existingCategory.isNotEmpty) {
+      final match = categories.firstWhere(
+        (c) => c.toLowerCase() == existingCategory.toLowerCase(),
+        orElse: () => '',
+      );
+      if (match.isNotEmpty) {
+        selectedCategory = match;
+      } else {
+        // Existing category not in our list — show as custom
+        selectedCategory = customOption;
+        showCustomField = true;
+        customCategoryCtrl.text = existingCategory;
+      }
+    }
 
     showGlassBottomSheet(
       context: context,
@@ -241,36 +297,50 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     : 'Update snack details',
               ),
               const SizedBox(height: AppSpacing.xl),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: nameCtrl,
-                      decoration: _notionInput('Name *'),
-                    ),
+              TextField(
+                controller: nameCtrl,
+                decoration: _notionInput('Name *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emojiCtrl,
+                decoration: _notionInput('Image URL', hint: 'https://images.unsplash.com/...'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selectedCategory,
+                decoration: _notionInput('Category'),
+                isExpanded: true,
+                items: [
+                  ...categories.map(
+                    (c) => DropdownMenuItem(value: c, child: Text(c)),
                   ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 80,
-                    child: TextField(
-                      controller: emojiCtrl,
-                      decoration: _notionInput('Emoji'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 22),
-                    ),
+                  const DropdownMenuItem(
+                    value: customOption,
+                    child: Text('Custom...'),
                   ),
                 ],
+                onChanged: (value) {
+                  setModalState(() {
+                    selectedCategory = value;
+                    showCustomField = value == customOption;
+                    if (!showCustomField) {
+                      customCategoryCtrl.clear();
+                    }
+                  });
+                },
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: categoryCtrl,
-                decoration: _notionInput('Category', hint: 'e.g. Burger'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descCtrl,
-                decoration: _notionInput('Short description'),
-              ),
+              if (showCustomField) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: customCategoryCtrl,
+                  decoration: _notionInput(
+                    'Custom category',
+                    hint: 'e.g. Wraps',
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 12),
               TextField(
                 controller: sizeCtrl,
@@ -334,11 +404,20 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     );
                     return;
                   }
+
+                  // Resolve category from dropdown or custom text
+                  String categoryValue;
+                  if (showCustomField) {
+                    final raw = customCategoryCtrl.text.trim();
+                    categoryValue = _normalizeCategoryInput(raw, categories);
+                  } else {
+                    categoryValue = selectedCategory ?? '';
+                  }
+
                   final data = {
                     'name': nameCtrl.text.trim(),
-                    'category': categoryCtrl.text.trim(),
+                    'category': categoryValue,
                     'emoji': emojiCtrl.text.trim(),
-                    'description': descCtrl.text.trim(),
                     'servingSize': sizeCtrl.text.trim(),
                     'shareCount': shareCount,
                     'isVeg': isVeg,
@@ -398,8 +477,14 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
       current += char;
     }
 
+    // Strip outer quotes and trim each value
     values.add(current.trim());
-    return values;
+    return values.map((v) {
+      if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+        return v.substring(1, v.length - 1).trim();
+      }
+      return v;
+    }).toList();
   }
 
   bool _parseBoolToken(String raw, {required bool defaultValue}) {
@@ -416,13 +501,21 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
 
   List<Map<String, dynamic>> _parseBulkSnacks(String raw) {
     final lines = raw
-        .split(RegExp(r'\r?\n'))
+        .split(RegExp(r'\r\n|\r|\n'))
         .map((line) => line.trim())
         .where((line) => line.isNotEmpty)
         .toList();
     if (lines.isEmpty) return const [];
 
-    final delimiter = lines.any((line) => line.contains('\t')) ? '\t' : ',';
+    // Detect delimiter: tabs first, then semicolons, fallback to commas.
+    final String delimiter;
+    if (lines.any((line) => line.contains('\t'))) {
+      delimiter = '\t';
+    } else if (lines.any((line) => line.contains(';'))) {
+      delimiter = ';';
+    } else {
+      delimiter = ',';
+    }
     final firstRow = _splitBulkRow(lines.first, delimiter);
     final hasHeader =
         firstRow.isNotEmpty && firstRow.first.toLowerCase().contains('name');
@@ -434,15 +527,14 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
           final name = cols.isNotEmpty ? cols[0] : '';
           final category = cols.length > 1 ? cols[1] : '';
           final emoji = cols.length > 2 ? cols[2] : '';
-          final description = cols.length > 3 ? cols[3] : '';
-          final type = cols.length > 4 ? cols[4] : '';
-          final servingSize = cols.length > 5 ? cols[5] : '';
-          final shareCount = cols.length > 6 ? int.tryParse(cols[6].trim()) : 1;
-          final isActive = cols.length > 7
-              ? _parseBoolToken(cols[7], defaultValue: true)
+          final type = cols.length > 3 ? cols[3] : '';
+          final servingSize = cols.length > 4 ? cols[4] : '';
+          final shareCount = cols.length > 5 ? int.tryParse(cols[5].trim()) : 1;
+          final isActive = cols.length > 6
+              ? _parseBoolToken(cols[6], defaultValue: true)
               : true;
-          final sortOrder = cols.length > 8
-              ? int.tryParse(cols[8].trim())
+          final sortOrder = cols.length > 7
+              ? int.tryParse(cols[7].trim())
               : null;
           final normalizedType = type.trim().toLowerCase();
           final isVeg = ![
@@ -459,14 +551,13 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             'name': name.trim(),
             'category': category.trim(),
             'emoji': emoji.trim(),
-            'description': description.trim(),
             'isVeg': isVeg,
             'servingSize': servingSize.trim(),
             'shareCount': (shareCount != null && shareCount > 0)
                 ? shareCount
                 : 1,
             'isActive': isActive,
-            'sortOrder': ?sortOrder,
+            if (sortOrder != null) 'sortOrder': sortOrder,
           };
         })
         .where((snack) => (snack['name'] as String).isNotEmpty)
@@ -518,12 +609,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Format: name, category, emoji, description, veg/non-veg, serving size, share count, is active, sort order',
+              'Format: name, category, image URL, veg/non-veg, serving size, share count, is active, sort order',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Example: Pizza, Italian, 🍕, Cheesy pizza slices, veg, 1 box, 2, true, 10',
+              'Example: Pizza, Italian, https://images.unsplash.com/photo-xxx, veg, 1 box, 2, true, 10',
               style: context.text.bodySmall?.copyWith(
                 color: context.palette.textSecondary,
               ),
@@ -690,7 +781,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     final isActive = s['isActive'] as bool? ?? true;
     final isVeg = s['isVeg'] as bool? ?? true;
     final category = displaySnackCategory(s['category'] as String?);
-    final description = (s['description'] as String? ?? '').trim();
     final servingSize = (s['servingSize'] as String? ?? '').trim();
     final shareCount = (s['shareCount'] as num?)?.toInt() ?? 1;
 
@@ -724,10 +814,25 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 borderRadius: AppRadii.rMd,
               ),
               alignment: Alignment.center,
-              child: Text(
-                s['emoji'] ?? '🍽️',
-                style: const TextStyle(fontSize: 24),
-              ),
+              child: s['emoji'] != null &&
+                      (s['emoji'] as String).startsWith('http')
+                  ? OptimizedImage(
+                      imageUrl: s['emoji'] as String,
+                      width: 42,
+                      height: 42,
+                      memCacheWidth: 90,
+                      memCacheHeight: 90,
+                      borderRadius: AppRadii.rMd,
+                      fallbackIcon: Icon(
+                        Icons.fastfood_rounded,
+                        size: 20,
+                        color: palette.textSecondary,
+                      ),
+                    )
+                  : Text(
+                      s['emoji'] ?? '🍽️',
+                      style: const TextStyle(fontSize: 24),
+                    ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -758,17 +863,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                       if (shareCount > 1) chip('Serves $shareCount'),
                     ],
                   ),
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      description,
-                      style: context.text.bodySmall?.copyWith(
-                        color: palette.textSecondary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
                 ],
               ),
             ),

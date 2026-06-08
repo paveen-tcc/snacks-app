@@ -121,8 +121,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   ...List<Map<String, dynamic>>.from(_data!['orders']).map(
                     (o) => _buildCountRow(
                       context,
-                      '${o['snackEmoji'] ?? '🍽️'} ${o['snackName']}',
+                      o['snackName'] as String? ?? 'Unknown',
                       o['count'].toString(),
+                      users: List<String>.from(o['orderedBy'] ?? []),
                     ),
                   ),
                   Divider(height: 1, color: context.palette.divider),
@@ -138,8 +139,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   ...List<Map<String, dynamic>>.from(_data!['drinks']).map(
                     (d) => _buildCountRow(
                       context,
-                      '${d['drinkEmoji'] ?? '☕'} ${d['drinkName']}',
+                      d['drinkName'] as String? ?? 'Unknown',
                       d['count'].toString(),
+                      users: List<String>.from(d['votedBy'] ?? []),
                     ),
                   ),
                   if ((_data!['drinks'] as List).isEmpty)
@@ -204,32 +206,49 @@ class _SummaryScreenState extends State<SummaryScreen> {
     BuildContext context,
     String label,
     String count, {
+    List<String> users = const [],
     bool bold = false,
   }) {
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
         vertical: AppSpacing.md,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Flexible(
-            child: Text(
-              label,
-              style: context.text.bodyMedium?.copyWith(
-                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  style: context.text.bodyMedium?.copyWith(
+                    fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              overflow: TextOverflow.ellipsis,
-            ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                count,
+                style: context.text.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            count,
-            style: context.text.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+          if (users.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              users.join(', '),
+              style: context.text.bodySmall?.copyWith(
+                color: palette.textTertiary,
+                fontSize: 12,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

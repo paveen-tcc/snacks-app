@@ -6,7 +6,6 @@ class LocalSnacks extends Table {
   TextColumn get name => text()();
   TextColumn get category => text().nullable()();
   TextColumn get emoji => text().nullable()();
-  TextColumn get description => text().nullable()();
   BoolColumn get isVeg => boolean().withDefault(const Constant(true))();
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();

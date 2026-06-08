@@ -1,5 +1,5 @@
 import { createDb } from './index';
-import { snacks, hotDrinks, appSettings } from './schema';
+import { snacks, appSettings } from './schema';
 import { eq } from 'drizzle-orm';
 import { menuSnackCatalog } from './menu_catalog';
 
@@ -49,12 +49,7 @@ async function seed() {
         },
     ]).onConflictDoNothing();
 
-    // 2. Hot Drinks Options
-    await db.insert(hotDrinks).values([
-        { name: 'Tea', emoji: '☕', isActive: true },
-        { name: 'Coffee', emoji: '☕', isActive: true },
-        { name: 'Boost', emoji: '🍫', isActive: true },
-    ]).onConflictDoNothing();
+
 
     // 3. Menu Snacks Catalog
     const existingSnacks = await db.select().from(snacks);
@@ -71,7 +66,6 @@ async function seed() {
             name: item.name,
             category: item.category,
             emoji: item.emoji,
-            description: item.description,
             isVeg: item.isVeg,
             isActive: true,
             servingSize: item.servingSize,
