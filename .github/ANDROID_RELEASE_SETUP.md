@@ -32,7 +32,7 @@ Settings → Secrets and variables → Actions → **New repository secret**:
 |---|---|
 | `ANDROID_KEYSTORE_BASE64` | `base64 -i upload-keystore.jks \| pbcopy` |
 | `ANDROID_KEYSTORE_PASSWORD` | keystore store password |
-| `ANDROID_KEY_ALIAS` | `upload` |
+| `ANDROID_KEY_ALIAS` | `tccpantry` |
 | `ANDROID_KEY_PASSWORD` | key password |
 | `PLAY_SERVICE_ACCOUNT_JSON` | full JSON from step 3 |
 
