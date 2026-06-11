@@ -52,9 +52,9 @@ void main() {
       SearchVegRow(
         query: '',
         onQueryChanged: (_) {},
-        showVeg: true,
-        vegOn: false,
-        onVegChanged: (_) {},
+        toggleLabel: 'VEG',
+        toggleValue: false,
+        onToggleChanged: (_) {},
       ),
       GlassBottomNav(
         currentIndex: 0,
@@ -84,8 +84,10 @@ void main() {
     await tester.pumpWidget(_host(AppTheme.light, showcase));
     expect(tester.takeException(), isNull);
     expect(find.text('Samosa'), findsOneWidget);
-    expect(find.text('ADD'), findsOneWidget);
-    expect(find.text('ADDED'), findsOneWidget);
+    // The add button is icon-based: unselected cards show the add glyph, selected
+    // cards show the check glyph. Samosa is unselected, Coffee is selected.
+    expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
   });
 
   testWidgets('design system renders in dark mode', (tester) async {

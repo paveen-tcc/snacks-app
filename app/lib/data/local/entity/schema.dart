@@ -23,8 +23,10 @@ class LocalOrders extends Table {
   TextColumn get userId => text()();
   TextColumn get date => text()(); // YYYY-MM-DD
   TextColumn get snackId => text()();
+  BoolColumn get sugarFree => boolean().withDefault(const Constant(false))();
   BoolColumn get isDefaultAssigned =>
       boolean().withDefault(const Constant(false))();
+  TextColumn get snackNameSnapshot => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

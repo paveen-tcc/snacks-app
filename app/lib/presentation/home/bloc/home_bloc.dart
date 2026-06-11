@@ -26,6 +26,10 @@ class HomeLoaded extends HomeState {
   final bool advanceOrderMode;
   final String advanceWindowStart;
   final String advanceWindowEnd;
+  /// Per-drink sugar-free preference (snackId → isSugarFree).
+  final Map<String, bool> sugarFreePrefs;
+  /// Confirmed per-drink sugar-free preference (snackId → isSugarFree).
+  final Map<String, bool> confirmedSugarFreePrefs;
 
   HomeLoaded({
     required this.snacks,
@@ -41,6 +45,8 @@ class HomeLoaded extends HomeState {
     this.advanceOrderMode = false,
     this.advanceWindowStart = '06:00',
     this.advanceWindowEnd = '22:00',
+    this.sugarFreePrefs = const {},
+    this.confirmedSugarFreePrefs = const {},
   });
 
   // Sentinel to distinguish "pass null explicitly" from "not provided"
@@ -60,6 +66,8 @@ class HomeLoaded extends HomeState {
     bool? advanceOrderMode,
     String? advanceWindowStart,
     String? advanceWindowEnd,
+    Map<String, bool>? sugarFreePrefs,
+    Map<String, bool>? confirmedSugarFreePrefs,
   }) {
     return HomeLoaded(
       snacks: snacks ?? this.snacks,
@@ -81,8 +89,19 @@ class HomeLoaded extends HomeState {
       advanceOrderMode: advanceOrderMode ?? this.advanceOrderMode,
       advanceWindowStart: advanceWindowStart ?? this.advanceWindowStart,
       advanceWindowEnd: advanceWindowEnd ?? this.advanceWindowEnd,
+      sugarFreePrefs: sugarFreePrefs ?? this.sugarFreePrefs,
+      confirmedSugarFreePrefs: confirmedSugarFreePrefs ?? this.confirmedSugarFreePrefs,
     );
   }
+}
+
+/// Rebuilds the sugar-free preference map from persisted order rows.
+Map<String, bool> _sugarPrefsFromOrders(List<LocalOrder> orders) {
+  final prefs = <String, bool>{};
+  for (final order in orders) {
+    if (order.sugarFree) prefs[order.snackId] = true;
+  }
+  return prefs;
 }
 
 class HomeError extends HomeState {
@@ -128,6 +147,11 @@ class DecrementSnack extends HomeEvent {
   DecrementSnack(this.snackId);
 }
 
+class ToggleSugarFree extends HomeEvent {
+  final String snackId;
+  ToggleSugarFree(this.snackId);
+}
+
 class RefreshHome extends HomeEvent {}
 
 class SettingsLoaded extends HomeEvent {
@@ -163,6 +187,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     on<ToggleSnack>(_onToggleSnack);
     on<IncrementSnack>(_onIncrementSnack);
     on<DecrementSnack>(_onDecrementSnack);
+    on<ToggleSugarFree>(_onToggleSugarFree);
     on<SubmitOrder>(_onSubmitOrder);
     on<StatusLoaded>(_onStatusLoaded);
     on<RefreshHome>(_onRefreshHome);
@@ -218,16 +243,20 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             (selectedId) => event.snacks.any((snack) => snack.id == selectedId),
           )
           .toList();
+      bool snackExists(String id) => event.snacks.any((snack) => snack.id == id);
+      Map<String, bool> filterPrefs(Map<String, bool> prefs) => {
+        for (final entry in prefs.entries)
+          if (snackExists(entry.key)) entry.key: entry.value,
+      };
       emit(
         curr.copyWith(
           snacks: event.snacks,
           selectedSnackIds: selection,
           confirmedSnackIds: curr.confirmedSnackIds
-              .where(
-                (confirmedId) =>
-                    event.snacks.any((snack) => snack.id == confirmedId),
-              )
+              .where((confirmedId) => snackExists(confirmedId))
               .toList(),
+          sugarFreePrefs: filterPrefs(curr.sugarFreePrefs),
+          confirmedSugarFreePrefs: filterPrefs(curr.confirmedSugarFreePrefs),
         ),
       );
     } else {
@@ -237,12 +266,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       _pendingStatus = null;
       _pendingSettings = null;
       _pendingOrders = null;
+      final sugarPrefs = _sugarPrefsFromOrders(orders);
       emit(
         HomeLoaded(
           snacks: event.snacks,
           todaysOrders: orders,
           selectedSnackIds: orders.map((order) => order.snackId).toList(),
           confirmedSnackIds: orders.map((order) => order.snackId).toList(),
+          sugarFreePrefs: sugarPrefs,
+          confirmedSugarFreePrefs: sugarPrefs,
           isShutdown: status?['isShutdown'] as bool? ?? false,
           shutdownReason: status?['reason'] as String?,
           shutdownType: status?['type'] as String?,
@@ -258,6 +290,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   void _onOrderUpdated(OrderUpdated event, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
+      final sugarPrefs = _sugarPrefsFromOrders(event.orders);
       emit(
         curr.copyWith(
           todaysOrders: event.orders,
@@ -267,6 +300,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           selectedSnackIds: event.orders.isNotEmpty
               ? event.orders.map((order) => order.snackId).toList()
               : curr.selectedSnackIds,
+          confirmedSugarFreePrefs: sugarPrefs,
+          sugarFreePrefs: event.orders.isNotEmpty
+              ? sugarPrefs
+              : curr.sugarFreePrefs,
         ),
       );
     } else {
@@ -284,12 +321,21 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     if (state is HomeLoaded) {
       final curr = state as HomeLoaded;
       final selectedSnackIds = List<String>.from(curr.selectedSnackIds);
+      Map<String, bool>? updatedPrefs;
       if (selectedSnackIds.contains(event.snackId)) {
         selectedSnackIds.removeWhere((id) => id == event.snackId);
+        // Clean up sugar-free pref when drink is deselected
+        if (curr.sugarFreePrefs.containsKey(event.snackId)) {
+          updatedPrefs = Map<String, bool>.from(curr.sugarFreePrefs)
+            ..remove(event.snackId);
+        }
       } else {
         selectedSnackIds.add(event.snackId);
       }
-      emit(curr.copyWith(selectedSnackIds: selectedSnackIds));
+      emit(curr.copyWith(
+        selectedSnackIds: selectedSnackIds,
+        sugarFreePrefs: updatedPrefs,
+      ));
     }
   }
 
@@ -307,7 +353,31 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final curr = state as HomeLoaded;
       final selectedSnackIds = List<String>.from(curr.selectedSnackIds);
       selectedSnackIds.remove(event.snackId);
-      emit(curr.copyWith(selectedSnackIds: selectedSnackIds));
+      // Clean up sugar-free pref when drink count reaches zero
+      Map<String, bool>? updatedPrefs;
+      if (!selectedSnackIds.contains(event.snackId) &&
+          curr.sugarFreePrefs.containsKey(event.snackId)) {
+        updatedPrefs = Map<String, bool>.from(curr.sugarFreePrefs)
+          ..remove(event.snackId);
+      }
+      emit(curr.copyWith(
+        selectedSnackIds: selectedSnackIds,
+        sugarFreePrefs: updatedPrefs,
+      ));
+    }
+  }
+
+  void _onToggleSugarFree(ToggleSugarFree event, Emitter<HomeState> emit) {
+    if (state is HomeLoaded) {
+      final curr = state as HomeLoaded;
+      final prefs = Map<String, bool>.from(curr.sugarFreePrefs);
+      final current = prefs[event.snackId] ?? false;
+      if (!current) {
+        prefs[event.snackId] = true;
+      } else {
+        prefs.remove(event.snackId);
+      }
+      emit(curr.copyWith(sugarFreePrefs: prefs));
     }
   }
 
@@ -317,9 +387,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     if (state is! HomeLoaded) return;
     final curr = state as HomeLoaded;
-    final snackChanged = hasSnackSelectionChanges(curr);
 
-    if (!snackChanged || curr.isSubmitting) {
+    if (!hasOrderChanges(curr) || curr.isSubmitting) {
       return;
     }
 
@@ -328,12 +397,16 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       if (curr.selectedSnackIds.isEmpty) {
         await _orderRepo.clearOrder();
       } else {
-        await _orderRepo.placeOrder(curr.selectedSnackIds);
+        await _orderRepo.placeOrder(
+          curr.selectedSnackIds,
+          sugarFreePrefs: curr.sugarFreePrefs,
+        );
       }
       emit(
         (state as HomeLoaded).copyWith(
           isSubmitting: false,
           confirmedSnackIds: curr.selectedSnackIds,
+          confirmedSugarFreePrefs: curr.sugarFreePrefs,
         ),
       );
     } catch (e) {

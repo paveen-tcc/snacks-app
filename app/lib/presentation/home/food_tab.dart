@@ -66,9 +66,10 @@ class _FoodTabState extends State<FoodTab> {
             SearchVegRow(
               query: _query,
               onQueryChanged: (q) => setState(() => _query = q),
-              showVeg: true,
-              vegOn: isVegMode,
-              onVegChanged: (v) => bloc.add(ChangeFilter(v ? 'Veg' : 'All')),
+              toggleLabel: 'VEG',
+              toggleValue: isVegMode,
+              onToggleChanged: (v) => bloc.add(ChangeFilter(v ? 'Veg' : 'All')),
+              toggleActiveColor: context.palette.veg,
               hint: 'Search snacks',
             ),
             Expanded(

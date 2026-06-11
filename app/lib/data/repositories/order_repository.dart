@@ -12,6 +12,11 @@ class OrderRepository {
 
   OrderRepository(this._apiClient, this._localDb);
 
+  /// The server records a sugar-free drink by appending " (Sugar Free)" to the
+  /// stored name snapshot — detect that so the local cache can remember it.
+  static bool _isSugarFreeSnapshot(dynamic snapshot) =>
+      snapshot is String && snapshot.endsWith('(Sugar Free)');
+
   Future<String> _effectiveOrderDate() async {
     final settings = await (_localDb.select(
       _localDb.localSettings,
@@ -100,6 +105,12 @@ class OrderRepository {
                   userId: orderJson['userId'],
                   date: orderJson['date'],
                   snackId: orderJson['snackId'],
+                  sugarFree: drift.Value(
+                    _isSugarFreeSnapshot(orderJson['snackNameSnapshot']),
+                  ),
+                  snackNameSnapshot: drift.Value(
+                    orderJson['snackNameSnapshot'] as String?,
+                  ),
                   isDefaultAssigned: drift.Value(
                     orderJson['isDefaultAssigned'] ?? false,
                   ),
@@ -113,34 +124,60 @@ class OrderRepository {
   }
 
   // Place or update order (Offline-First)
-  Future<void> placeOrder(List<String> snackIds) async {
+  Future<void> placeOrder(
+    List<String> snackIds, {
+    Map<String, bool>? sugarFreePrefs,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
     if (userId == null) throw Exception('User not logged in');
 
     final today = await _effectiveOrderDate();
-    final normalizedSnackIds = snackIds.toSet().toList();
-    if (normalizedSnackIds.isEmpty) {
+    // Quantity is expressed as repeated snack IDs (one order row each), so
+    // duplicates must be preserved end-to-end.
+    final orderedSnackIds = List<String>.from(snackIds);
+    if (orderedSnackIds.isEmpty) {
       throw Exception('Select at least one snack');
     }
 
+    // Collect IDs of snacks that should be named as sugar-free
+    final sugarFreeSnackIds = sugarFreePrefs?.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList() ?? <String>[];
+
     // 1. Save locally immediately (Optimistic response)
-    await (_localDb.delete(
-      _localDb.localOrders,
-    )..where((t) => t.userId.equals(userId) & t.date.equals(today))).go();
-    for (final snackId in normalizedSnackIds) {
-      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}_$snackId';
-      await _localDb
-          .into(_localDb.localOrders)
-          .insert(
-            LocalOrdersCompanion.insert(
-              id: tempId,
-              userId: userId,
-              date: today,
-              snackId: snackId,
-              isDefaultAssigned: const drift.Value(false),
-            ),
-          );
+    final batchTimestamp = DateTime.now().millisecondsSinceEpoch;
+    await _localDb.transaction(() async {
+      await (_localDb.delete(
+        _localDb.localOrders,
+      )..where((t) => t.userId.equals(userId) & t.date.equals(today))).go();
+      for (var i = 0; i < orderedSnackIds.length; i++) {
+        final tempId = 'temp_${batchTimestamp}_${i}_${orderedSnackIds[i]}';
+        await _localDb
+            .into(_localDb.localOrders)
+            .insert(
+              LocalOrdersCompanion.insert(
+                id: tempId,
+                userId: userId,
+                date: today,
+                snackId: orderedSnackIds[i],
+                sugarFree: drift.Value(
+                  sugarFreeSnackIds.contains(orderedSnackIds[i]),
+                ),
+                isDefaultAssigned: const drift.Value(false),
+              ),
+            );
+      }
+    });
+
+    // Build request payload
+    final requestData = <String, dynamic>{
+      'snackIds': orderedSnackIds,
+      'date': today,
+    };
+    if (sugarFreeSnackIds.isNotEmpty) {
+      requestData['sugarFreeSnackIds'] = sugarFreeSnackIds;
     }
 
     // 2. Try network
@@ -154,10 +191,7 @@ class OrderRepository {
             SyncQueueCompanion.insert(
               targetTable: 'orders',
               action: 'POST',
-              payloadJson: jsonEncode({
-                'snackIds': normalizedSnackIds,
-                'date': today,
-              }),
+              payloadJson: jsonEncode(requestData),
             ),
           );
       return;
@@ -167,7 +201,7 @@ class OrderRepository {
     try {
       final response = await _apiClient.dio.post(
         '/orders',
-        data: {'snackIds': normalizedSnackIds, 'date': today},
+        data: requestData,
       );
 
       if (response.statusCode == 200) {
@@ -188,6 +222,12 @@ class OrderRepository {
                     userId: serverOrder['userId'],
                     date: serverOrder['date'],
                     snackId: serverOrder['snackId'],
+                    sugarFree: drift.Value(
+                      _isSugarFreeSnapshot(serverOrder['snackNameSnapshot']),
+                    ),
+                    snackNameSnapshot: drift.Value(
+                      serverOrder['snackNameSnapshot'] as String?,
+                    ),
                     isDefaultAssigned: drift.Value(
                       serverOrder['isDefaultAssigned'] ?? false,
                     ),
@@ -205,10 +245,7 @@ class OrderRepository {
             SyncQueueCompanion.insert(
               targetTable: 'orders',
               action: 'POST',
-              payloadJson: jsonEncode({
-                'snackIds': normalizedSnackIds,
-                'date': today,
-              }),
+              payloadJson: jsonEncode(requestData),
             ),
           );
       print('Order queued for sync: $e');

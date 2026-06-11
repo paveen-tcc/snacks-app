@@ -12,7 +12,6 @@ import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../admin/holidays_screen.dart';
 import '../admin/snacks_screen.dart';
-import '../admin/summary_screen.dart';
 import '../admin/users_screen.dart';
 import '../home/bloc/home_bloc.dart';
 
@@ -251,12 +250,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _Section(
               title: 'Admin',
               children: [
-                _NavTile(
-                  icon: Icons.summarize_rounded,
-                  title: "Today's summary",
-                  subtitle: 'Snack counts & drink poll',
-                  onTap: () => _push(const SummaryScreen()),
-                ),
                 _NavTile(
                   icon: Icons.fastfood_rounded,
                   title: 'Manage snacks',

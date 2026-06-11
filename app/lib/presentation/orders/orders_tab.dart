@@ -4,9 +4,15 @@ import '../../core/network/api_client.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/illustrations.dart';
+import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/local/app_database.dart';
+import '../../data/repositories/order_repository.dart';
+import '../home/home_helpers.dart';
+
+/// Suffix the server/app append to a drink's stored name when it's sugar-free.
+const String _sugarFreeSuffix = ' (Sugar Free)';
 
 /// Orders tab — the user's past orders. Renders only the body; the shell
 /// provides the greeting bar + bottom nav chrome.
@@ -23,6 +29,9 @@ class _OrdersTabState extends State<OrdersTab> {
   String? _error;
   List<Map<String, dynamic>> _items = [];
 
+  /// Date key of the order currently being re-placed, for per-card spinners.
+  String? _reorderingDate;
+
   @override
   void initState() {
     super.initState();
@@ -37,7 +46,7 @@ class _OrdersTabState extends State<OrdersTab> {
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool isRefresh = false}) async {
     try {
       final api = locator<ApiClient>();
       final db = locator<AppDatabase>();
@@ -64,13 +73,29 @@ class _OrdersTabState extends State<OrdersTab> {
           () => {
             'date': date,
             'snackNames': <String>[],
+            'lines': <Map<String, dynamic>>[],
             'isDefault': false,
           },
         );
 
-        (existing['snackNames'] as List<String>).add(
-          order['snackName'] as String? ?? snack?.name ?? 'Unknown',
-        );
+        final lineName = order['snackName'] as String? ?? snack?.name;
+        (existing['snackNames'] as List<String>).add(lineName ?? 'Unknown');
+        // The server bakes " (Sugar Free)" into the stored name; strip it for
+        // the base name (used for re-resolution) but remember the flag so a
+        // reorder stays sugar-free.
+        final isSugarFree =
+            lineName != null && lineName.endsWith(_sugarFreeSuffix);
+        final baseName = isSugarFree
+            ? lineName.substring(0, lineName.length - _sugarFreeSuffix.length)
+            : lineName;
+        // One entry per ordered unit so quantity survives a reorder; keep the
+        // name too so a snack whose id changed (e.g. the drinks migration) can
+        // still be re-resolved by name at reorder time.
+        (existing['lines'] as List<Map<String, dynamic>>).add({
+          'id': snackId,
+          'name': baseName,
+          'sugarFree': isSugarFree,
+        });
         existing['isDefault'] = (existing['isDefault'] as bool) ||
             (order['isDefaultAssigned'] ?? false);
       }
@@ -81,6 +106,7 @@ class _OrdersTabState extends State<OrdersTab> {
           'date': item['date'] as String,
           'snackName': snackNames.join(', '),
           'snackNames': snackNames,
+          'lines': List<Map<String, dynamic>>.from(item['lines']),
           'itemCount': snackNames.length,
           'isDefault': item['isDefault'] as bool,
         };
@@ -95,11 +121,114 @@ class _OrdersTabState extends State<OrdersTab> {
         _loading = false;
       });
     } catch (e) {
+      // A failed background refresh (e.g. right after a reorder while offline)
+      // must not wipe the list we're already showing.
+      if (isRefresh) return;
       setState(() {
         _error = e.toString();
         _loading = false;
       });
     }
+  }
+
+  /// Reads cached public settings to mirror the home tab's ordering window
+  /// gate (cutoff time, or the advance-order window when enabled).
+  Future<bool> _isOrderingClosed(AppDatabase db) async {
+    final settings = await (db.select(db.localSettings)
+          ..where((t) => t.id.equals(1)))
+        .getSingleOrNull();
+    if (settings?.advanceOrderMode == true) {
+      return !isWithinTimeRange(
+        settings?.advanceWindowStart ?? '06:00',
+        settings?.advanceWindowEnd ?? '22:00',
+      );
+    }
+    return hasCutoffPassed(settings?.cutoffTime ?? '12:00');
+  }
+
+  /// Re-places a past order's items as today's order. Each historical line is
+  /// resolved to a currently-active snack — by id first, then by name (so a
+  /// snack whose id changed still reorders) — unavailable items are skipped,
+  /// and quantity (duplicate lines) is preserved.
+  Future<void> _reorder(Map<String, dynamic> item) async {
+    if (_reorderingDate != null) return; // one reorder at a time
+    // Claim the busy state synchronously so a fast double-tap can't slip past
+    // the guard during the awaits below.
+    setState(() => _reorderingDate = item['date'] as String);
+    try {
+      final db = locator<AppDatabase>();
+
+      if (await _isOrderingClosed(db)) {
+        _showSnack('Ordering is closed for today.');
+        return;
+      }
+
+      final lines = List<Map<String, dynamic>>.from(
+        item['lines'] ?? const <Map<String, dynamic>>[],
+      );
+      if (lines.isEmpty) {
+        _showSnack('Nothing to reorder.');
+        return;
+      }
+
+      // Resolve against the live active catalog, freshly queried.
+      final activeSnacks = await (db.select(db.localSnacks)
+            ..where((t) => t.isActive.equals(true)))
+          .get();
+      final byId = {for (final s in activeSnacks) s.id: s};
+      final byName = <String, LocalSnack>{};
+      for (final s in activeSnacks) {
+        byName.putIfAbsent(_normalizeName(s.name), () => s);
+      }
+
+      final resolvedIds = <String>[];
+      final sugarFreePrefs = <String, bool>{};
+      var unavailable = 0;
+      for (final line in lines) {
+        final id = line['id'] as String?;
+        final name = line['name'] as String?;
+        final match = (id != null ? byId[id] : null) ??
+            (name != null ? byName[_normalizeName(name)] : null);
+        if (match != null) {
+          resolvedIds.add(match.id);
+          if (line['sugarFree'] == true) sugarFreePrefs[match.id] = true;
+        } else {
+          unavailable++;
+        }
+      }
+
+      if (resolvedIds.isEmpty) {
+        _showSnack('These items are no longer available to order.');
+        return;
+      }
+
+      await locator<OrderRepository>().placeOrder(
+        resolvedIds,
+        sugarFreePrefs: sugarFreePrefs,
+      );
+      if (!mounted) return;
+      _showSnack(
+        unavailable > 0
+            ? 'Reordered ${resolvedIds.length} of ${lines.length} items '
+                  '($unavailable no longer available).'
+            : 'Reordered successfully.',
+      );
+      await _load(isRefresh: true);
+    } catch (_) {
+      if (mounted) _showSnack('Could not reorder. Please try again.');
+    } finally {
+      if (mounted) setState(() => _reorderingDate = null);
+    }
+  }
+
+  String _normalizeName(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   String _formatDate(String dateStr) {
@@ -246,7 +375,12 @@ class _OrdersTabState extends State<OrdersTab> {
             ...sections.thisWeek.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _OrderCard(item: item, dateLabel: _formatDate(item['date'] as String)),
+                child: _OrderCard(
+                  item: item,
+                  dateLabel: _formatDate(item['date'] as String),
+                  onReorder: () => _reorder(item),
+                  isReordering: _reorderingDate == item['date'],
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -257,7 +391,12 @@ class _OrdersTabState extends State<OrdersTab> {
             ...sections.earlier.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _OrderCard(item: item, dateLabel: _formatDate(item['date'] as String)),
+                child: _OrderCard(
+                  item: item,
+                  dateLabel: _formatDate(item['date'] as String),
+                  onReorder: () => _reorder(item),
+                  isReordering: _reorderingDate == item['date'],
+                ),
               ),
             ),
           ],
@@ -301,9 +440,17 @@ class _OrderSections {
 
 /// A single order card with expandable item list.
 class _OrderCard extends StatefulWidget {
-  const _OrderCard({required this.item, required this.dateLabel});
+  const _OrderCard({
+    required this.item,
+    required this.dateLabel,
+    this.onReorder,
+    this.isReordering = false,
+  });
   final Map<String, dynamic> item;
   final String dateLabel;
+  /// When non-null, a "Reorder" action is shown that re-places this order.
+  final VoidCallback? onReorder;
+  final bool isReordering;
 
   @override
   State<_OrderCard> createState() => _OrderCardState();
@@ -561,6 +708,28 @@ class _OrderCardState extends State<_OrderCard>
               ],
             ),
           ),
+          if (widget.onReorder != null) ...[
+            Divider(
+              height: 1,
+              color: palette.divider,
+              indent: AppSpacing.lg,
+              endIndent: AppSpacing.lg,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: GhostButton(
+                  label: widget.isReordering ? 'Reordering…' : 'Reorder',
+                  icon: Icons.replay_rounded,
+                  onPressed: widget.isReordering ? null : widget.onReorder,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

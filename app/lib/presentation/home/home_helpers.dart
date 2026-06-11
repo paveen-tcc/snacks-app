@@ -126,8 +126,19 @@ bool hasSnackSelectionChanges(HomeLoaded state) {
   return false;
 }
 
+Set<String> _sugarFreeKeys(Map<String, bool> prefs) =>
+    prefs.entries.where((e) => e.value).map((e) => e.key).toSet();
+
+/// Whether the sugar-free selection differs from what was last confirmed.
+bool hasSugarFreeChanges(HomeLoaded state) {
+  final selected = _sugarFreeKeys(state.sugarFreePrefs);
+  final confirmed = _sugarFreeKeys(state.confirmedSugarFreePrefs);
+  return selected.length != confirmed.length ||
+      !selected.containsAll(confirmed);
+}
+
 bool hasOrderChanges(HomeLoaded state) {
-  return hasSnackSelectionChanges(state);
+  return hasSnackSelectionChanges(state) || hasSugarFreeChanges(state);
 }
 
 bool isOrderPlaced(HomeLoaded state) {
@@ -141,6 +152,15 @@ List<LocalSnack> selectedSnacks(HomeLoaded state) {
       .whereType<LocalSnack>()
       .toList();
 }
+
+final RegExp _sugarFreePattern = RegExp(
+  r'\b(sugar[\s-]?free|free)\b',
+  caseSensitive: false,
+);
+
+/// Whether a drink/juice is "sugar-free" based on its name. We treat the
+/// standalone word "free" (and "sugar free"/"sugar-free") as the marker.
+bool isSugarFreeItem(String name) => _sugarFreePattern.hasMatch(name);
 
 List<String> buildCategoryOptions(List<LocalSnack> snacks) {
   final categories =
@@ -157,3 +177,12 @@ List<String> buildCategoryOptions(List<LocalSnack> snacks) {
         });
   return ['All', ...categories];
 }
+
+/// Whether a [LocalSnack] belongs to the "Drinks" category.
+bool isDrinkCategory(LocalSnack snack) =>
+    displaySnackCategory(snack.category).toLowerCase() == 'drinks';
+
+/// Returns the display name for a drink, appending " (Sugar Free)" when the
+/// sugar-free toggle is active for that item.
+String drinkDisplayName(String baseName, bool isSugarFree) =>
+    isSugarFree ? '$baseName (Sugar Free)' : baseName;

@@ -9,7 +9,9 @@ import '../../core/widgets/skeleton.dart';
 import '../../data/repositories/admin_repository.dart';
 
 class SummaryScreen extends StatefulWidget {
-  const SummaryScreen({super.key});
+  final bool isTab;
+  final bool isActive;
+  const SummaryScreen({super.key, this.isTab = false, this.isActive = false});
 
   @override
   State<SummaryScreen> createState() => _SummaryScreenState();
@@ -25,12 +27,24 @@ class _SummaryScreenState extends State<SummaryScreen> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant SummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _load();
+    }
+  }
+
   Future<void> _load() async {
     try {
       final data = await locator<AdminRepository>().getSummary();
-      setState(() { _data = data; _loading = false; });
+      if (mounted) {
+        setState(() { _data = data; _loading = false; });
+      }
     } catch (e) {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -45,13 +59,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
     buf.writeln();
     buf.writeln('Drinks:');
     if (drinks.isNotEmpty) {
-      final maxVotes = drinks
-          .map((drink) => (drink['count'] as num?)?.toInt() ?? 0)
-          .fold<int>(0, (maxValue, count) => count > maxValue ? count : maxValue);
-      final topDrinks = drinks
-          .where((drink) => ((drink['count'] as num?)?.toInt() ?? 0) == maxVotes)
-          .toList();
-      for (final d in topDrinks) {
+      final sortedDrinks = List<Map<String, dynamic>>.from(drinks)
+        ..sort(
+          (a, b) => ((b['count'] as num?)?.toInt() ?? 0)
+              .compareTo((a['count'] as num?)?.toInt() ?? 0),
+        );
+      for (final d in sortedDrinks) {
         buf.writeln('${d['drinkName']} - ${d['count']}');
       }
     } else {
@@ -90,6 +103,21 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
   }
 
+  /// Collapses repeated usernames (one row per ordered unit) into a single
+  /// entry with a `×n` suffix when a person ordered more than one, e.g.
+  /// `Dhileep A ×3`. First-seen order is preserved.
+  String _formatUsers(List<String> users) {
+    final counts = <String, int>{};
+    final order = <String>[];
+    for (final user in users) {
+      if (!counts.containsKey(user)) order.add(user);
+      counts[user] = (counts[user] ?? 0) + 1;
+    }
+    return order
+        .map((user) => counts[user]! > 1 ? '$user ×${counts[user]}' : user)
+        .join(', ');
+  }
+
   String _formatWhatsAppDate(String date) {
     final parts = date.split('-');
     if (parts.length != 3) return date;
@@ -98,17 +126,18 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const GlassAppBar(title: "Today's Summary"),
-      body: _loading
-          ? ListView(
+    final bodyContent = _loading
+        ? ListView(
+            padding: const EdgeInsets.all(AppSpacing.page),
+            children: const [FoodListSkeleton(count: 3)],
+          )
+        : _data == null
+        ? const Center(child: Text('Failed to load summary'))
+        : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
               padding: const EdgeInsets.all(AppSpacing.page),
-              children: const [FoodListSkeleton(count: 3)],
-            )
-          : _data == null
-          ? const Center(child: Text('Failed to load summary'))
-          : ListView(
-              padding: const EdgeInsets.all(AppSpacing.page),
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
                 Text(
                   'Date: ${_data!['date']}',
@@ -117,6 +146,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
+                _buildNotOrderedSection(context),
+                const SizedBox(height: AppSpacing.xxl),
                 _buildSection(context, 'Snack Orders', [
                   ...List<Map<String, dynamic>>.from(_data!['orders']).map(
                     (o) => _buildCountRow(
@@ -161,9 +192,66 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   icon: Icons.chat_rounded,
                   onPressed: _sendWhatsApp,
                 ),
+                if (widget.isTab) const SizedBox(height: 100),
               ],
             ),
+          );
+
+    if (widget.isTab) {
+      return Scaffold(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.md,
+                AppSpacing.page,
+                AppSpacing.sm,
+              ),
+              child: Text(
+                "Today's Summary",
+                style: context.text.headlineSmall,
+              ),
+            ),
+            Expanded(child: bodyContent),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: const GlassAppBar(title: "Today's Summary"),
+      body: bodyContent,
     );
+  }
+
+  Widget _buildNotOrderedSection(BuildContext context) {
+    final palette = context.palette;
+    final notOrdered = List<String>.from(_data!['notOrdered'] ?? const []);
+    return _buildSection(context, 'Not Ordered (${notOrdered.length})', [
+      if (notOrdered.isEmpty)
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Text(
+            'Everyone has ordered 🎉',
+            style: context.text.bodySmall?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
+        )
+      else
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Text(
+            notOrdered.join(', '),
+            style: context.text.bodyMedium,
+          ),
+        ),
+    ]);
   }
 
   Widget _buildSection(
@@ -242,7 +330,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           if (users.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
-              users.join(', '),
+              _formatUsers(users),
               style: context.text.bodySmall?.copyWith(
                 color: palette.textTertiary,
                 fontSize: 12,
