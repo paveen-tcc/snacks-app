@@ -85,7 +85,7 @@ orderRoutes.post('/', async (c) => {
     try {
         const db = c.get('db');
         const user = c.get('user');
-        const { snackId, snackIds } = await c.req.json();
+        const { snackId, snackIds, sugarFreeSnackIds } = await c.req.json();
         const orderDate = await getEffectiveOrderDate(db);
         const rawSnackIds = (Array.isArray(snackIds) ? snackIds : [snackId])
             .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
@@ -93,6 +93,13 @@ orderRoutes.post('/', async (c) => {
         if (rawSnackIds.length === 0) {
             return c.json({ error: 'snackIds is required' }, 400);
         }
+
+        // Sugar-free snack IDs (optional) — append "(Sugar Free)" to name snapshot
+        const sugarFreeSet = new Set<string>(
+            Array.isArray(sugarFreeSnackIds) ? sugarFreeSnackIds.filter(
+                (v): v is string => typeof v === 'string'
+            ) : []
+        );
 
         await db.delete(orders)
             .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${orderDate}`));
@@ -118,11 +125,15 @@ orderRoutes.post('/', async (c) => {
                 if (!snack) {
                     throw new Error(`Missing snack for ${selectedSnackId}`);
                 }
+                const isSugarFree = sugarFreeSet.has(selectedSnackId);
+                const snapshotName = isSugarFree
+                    ? `${snack.name} (Sugar Free)`
+                    : snack.name;
                 return {
                     userId: user.userId,
                     date: orderDate,
                     snackId: selectedSnackId,
-                    snackNameSnapshot: snack.name,
+                    snackNameSnapshot: snapshotName,
                     snackEmojiSnapshot: snack.emoji,
                     updatedAt: new Date(),
                 };
@@ -174,8 +185,8 @@ orderRoutes.get('/history', async (c) => {
                 userId: orders.userId,
                 date: orders.date,
                 snackId: orders.snackId,
-                snackName: sql<string>`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
-                snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
+                snackName: sql<string>`coalesce(${orders.snackNameSnapshot}, ${snacks.name}, 'Unknown')`,
+                snackEmoji: sql<string>`coalesce(${orders.snackEmojiSnapshot}, ${snacks.emoji}, '🍽️')`,
                 isDefaultAssigned: orders.isDefaultAssigned,
                 orderedAt: orders.orderedAt,
                 updatedAt: orders.updatedAt,

@@ -192,6 +192,7 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                               quantity: snackCounts[snack.id] ?? 1,
                               homeBloc: homeBloc,
                               disabled: isOrderingClosed(state),
+                              isSugarFree: state.sugarFreePrefs[snack.id] ?? false,
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -228,16 +229,22 @@ class _CartSnackRow extends StatelessWidget {
     required this.quantity,
     required this.homeBloc,
     required this.disabled,
+    this.isSugarFree = false,
   });
 
   final LocalSnack snack;
   final int quantity;
   final HomeBloc homeBloc;
   final bool disabled;
+  final bool isSugarFree;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final isDrink = isDrinkCategory(snack);
+    final displayName = isDrink
+        ? drinkDisplayName(snack.name, isSugarFree)
+        : snack.name;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -245,135 +252,194 @@ class _CartSnackRow extends StatelessWidget {
         borderRadius: AppRadii.rLg,
         border: Border.all(color: palette.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: palette.surface,
-              borderRadius: AppRadii.rMd,
-              border: Border.all(color: palette.border),
-            ),
-            alignment: Alignment.center,
-            child: snack.emoji != null &&
-                    (snack.emoji!.startsWith('http://') ||
-                        snack.emoji!.startsWith('https://'))
-                ? OptimizedImage(
-                    imageUrl: snack.emoji!,
-                    width: 56,
-                    height: 56,
-                    memCacheWidth: 120,
-                    memCacheHeight: 120,
-                    borderRadius: AppRadii.rMd -
-                        const BorderRadius.all(Radius.circular(1)),
-                    fallbackIcon: Icon(
-                      Icons.fastfood_rounded,
-                      size: 28,
-                      color: palette.textSecondary,
-                    ),
-                  )
-                : Text(
-                    snack.emoji ?? '🍽️',
-                    style: const TextStyle(fontSize: 28),
-                  ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  snack.name,
-                  style: context.text.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    height: 1.2,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: AppRadii.rMd,
+                  border: Border.all(color: palette.border),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        VegBadge(isVeg: snack.isVeg),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          snack.isVeg ? 'Veg' : 'Non-veg',
-                          style: context.text.labelSmall?.copyWith(
-                            color: snack.isVeg ? palette.veg : palette.nonVeg,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: palette.surface,
-                        borderRadius: AppRadii.rPill,
-                        border: Border.all(color: palette.border),
-                      ),
-                      child: Text(
-                        snack.servingSize ?? '1 Unit',
-                        style: context.text.labelSmall?.copyWith(
+                alignment: Alignment.center,
+                child: snack.emoji != null &&
+                        (snack.emoji!.startsWith('http://') ||
+                            snack.emoji!.startsWith('https://'))
+                    ? OptimizedImage(
+                        imageUrl: snack.emoji!,
+                        width: 56,
+                        height: 56,
+                        memCacheWidth: 120,
+                        memCacheHeight: 120,
+                        borderRadius: AppRadii.rMd -
+                            const BorderRadius.all(Radius.circular(1)),
+                        fallbackIcon: Icon(
+                          Icons.fastfood_rounded,
+                          size: 28,
                           color: palette.textSecondary,
                         ),
+                      )
+                    : Text(
+                        snack.emoji ?? '🍽️',
+                        style: const TextStyle(fontSize: 28),
                       ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: context.text.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (!isDrink)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              VegBadge(isVeg: snack.isVeg),
+                              const SizedBox(width: AppSpacing.xs),
+                              Text(
+                                snack.isVeg ? 'Veg' : 'Non-veg',
+                                style: context.text.labelSmall?.copyWith(
+                                  color:
+                                      snack.isVeg ? palette.veg : palette.nonVeg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: AppRadii.rPill,
+                            border: Border.all(color: palette.border),
+                          ),
+                          child: Text(
+                            snack.servingSize ?? '1 Unit',
+                            style: context.text.labelSmall?.copyWith(
+                              color: palette.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (isDrink)
+                          GestureDetector(
+                            onTap: disabled
+                                ? null
+                                : () => homeBloc.add(ToggleSugarFree(snack.id)),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSugarFree
+                                    ? palette.brand.withValues(alpha: 0.1)
+                                    : palette.surface,
+                                borderRadius: AppRadii.rPill,
+                                border: Border.all(
+                                  color: isSugarFree
+                                      ? palette.brand
+                                      : palette.border,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isSugarFree
+                                        ? Icons.water_drop
+                                        : Icons.water_drop_outlined,
+                                    size: 12,
+                                    color: isSugarFree
+                                        ? palette.brand
+                                        : palette.textSecondary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Sugar Free',
+                                    style: context.text.labelSmall?.copyWith(
+                                      color: isSugarFree
+                                          ? palette.brand
+                                          : palette.textSecondary,
+                                      fontWeight: isSugarFree
+                                          ? FontWeight.w700
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          if (disabled)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Text(
-                'Qty: $quantity',
-                style: context.text.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: palette.textSecondary,
-                ),
               ),
-            )
-          else
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  onPressed: () => homeBloc.add(DecrementSnack(snack.id)),
-                  icon: Icon(
-                    quantity == 1
-                        ? Icons.delete_outline_rounded
-                        : Icons.remove_circle_outline_rounded,
-                    color: quantity == 1 ? palette.danger : palette.textSecondary,
+              const SizedBox(width: AppSpacing.sm),
+              if (disabled)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: Text(
+                    'Qty: $quantity',
+                    style: context.text.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: palette.textSecondary,
+                    ),
                   ),
-                  tooltip: quantity == 1 ? 'Remove item' : 'Decrease quantity',
+                )
+              else
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: () => homeBloc.add(DecrementSnack(snack.id)),
+                      icon: Icon(
+                        quantity == 1
+                            ? Icons.delete_outline_rounded
+                            : Icons.remove_circle_outline_rounded,
+                        color:
+                            quantity == 1 ? palette.danger : palette.textSecondary,
+                      ),
+                      tooltip:
+                          quantity == 1 ? 'Remove item' : 'Decrease quantity',
+                    ),
+                    Text(
+                      '$quantity',
+                      style: context.text.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => homeBloc.add(IncrementSnack(snack.id)),
+                      icon: Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: palette.brand,
+                      ),
+                      tooltip: 'Increase quantity',
+                    ),
+                  ],
                 ),
-                Text(
-                  '$quantity',
-                  style: context.text.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => homeBloc.add(IncrementSnack(snack.id)),
-                  icon: Icon(
-                    Icons.add_circle_outline_rounded,
-                    color: palette.brand,
-                  ),
-                  tooltip: 'Increase quantity',
-                ),
-              ],
-            ),
+            ],
+          ),
+
         ],
       ),
     );

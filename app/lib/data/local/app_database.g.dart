@@ -658,6 +658,21 @@ class $LocalOrdersTable extends LocalOrders
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sugarFreeMeta = const VerificationMeta(
+    'sugarFree',
+  );
+  @override
+  late final GeneratedColumn<bool> sugarFree = GeneratedColumn<bool>(
+    'sugar_free',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sugar_free" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _isDefaultAssignedMeta = const VerificationMeta(
     'isDefaultAssigned',
   );
@@ -673,13 +688,27 @@ class $LocalOrdersTable extends LocalOrders
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _snackNameSnapshotMeta = const VerificationMeta(
+    'snackNameSnapshot',
+  );
+  @override
+  late final GeneratedColumn<String> snackNameSnapshot =
+      GeneratedColumn<String>(
+        'snack_name_snapshot',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
     userId,
     date,
     snackId,
+    sugarFree,
     isDefaultAssigned,
+    snackNameSnapshot,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -722,12 +751,27 @@ class $LocalOrdersTable extends LocalOrders
     } else if (isInserting) {
       context.missing(_snackIdMeta);
     }
+    if (data.containsKey('sugar_free')) {
+      context.handle(
+        _sugarFreeMeta,
+        sugarFree.isAcceptableOrUnknown(data['sugar_free']!, _sugarFreeMeta),
+      );
+    }
     if (data.containsKey('is_default_assigned')) {
       context.handle(
         _isDefaultAssignedMeta,
         isDefaultAssigned.isAcceptableOrUnknown(
           data['is_default_assigned']!,
           _isDefaultAssignedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('snack_name_snapshot')) {
+      context.handle(
+        _snackNameSnapshotMeta,
+        snackNameSnapshot.isAcceptableOrUnknown(
+          data['snack_name_snapshot']!,
+          _snackNameSnapshotMeta,
         ),
       );
     }
@@ -756,10 +800,18 @@ class $LocalOrdersTable extends LocalOrders
         DriftSqlType.string,
         data['${effectivePrefix}snack_id'],
       )!,
+      sugarFree: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sugar_free'],
+      )!,
       isDefaultAssigned: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_default_assigned'],
       )!,
+      snackNameSnapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snack_name_snapshot'],
+      ),
     );
   }
 
@@ -774,13 +826,17 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
   final String userId;
   final String date;
   final String snackId;
+  final bool sugarFree;
   final bool isDefaultAssigned;
+  final String? snackNameSnapshot;
   const LocalOrder({
     required this.id,
     required this.userId,
     required this.date,
     required this.snackId,
+    required this.sugarFree,
     required this.isDefaultAssigned,
+    this.snackNameSnapshot,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -789,7 +845,11 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
     map['user_id'] = Variable<String>(userId);
     map['date'] = Variable<String>(date);
     map['snack_id'] = Variable<String>(snackId);
+    map['sugar_free'] = Variable<bool>(sugarFree);
     map['is_default_assigned'] = Variable<bool>(isDefaultAssigned);
+    if (!nullToAbsent || snackNameSnapshot != null) {
+      map['snack_name_snapshot'] = Variable<String>(snackNameSnapshot);
+    }
     return map;
   }
 
@@ -799,7 +859,11 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
       userId: Value(userId),
       date: Value(date),
       snackId: Value(snackId),
+      sugarFree: Value(sugarFree),
       isDefaultAssigned: Value(isDefaultAssigned),
+      snackNameSnapshot: snackNameSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(snackNameSnapshot),
     );
   }
 
@@ -813,7 +877,11 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
       userId: serializer.fromJson<String>(json['userId']),
       date: serializer.fromJson<String>(json['date']),
       snackId: serializer.fromJson<String>(json['snackId']),
+      sugarFree: serializer.fromJson<bool>(json['sugarFree']),
       isDefaultAssigned: serializer.fromJson<bool>(json['isDefaultAssigned']),
+      snackNameSnapshot: serializer.fromJson<String?>(
+        json['snackNameSnapshot'],
+      ),
     );
   }
   @override
@@ -824,7 +892,9 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
       'userId': serializer.toJson<String>(userId),
       'date': serializer.toJson<String>(date),
       'snackId': serializer.toJson<String>(snackId),
+      'sugarFree': serializer.toJson<bool>(sugarFree),
       'isDefaultAssigned': serializer.toJson<bool>(isDefaultAssigned),
+      'snackNameSnapshot': serializer.toJson<String?>(snackNameSnapshot),
     };
   }
 
@@ -833,13 +903,19 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
     String? userId,
     String? date,
     String? snackId,
+    bool? sugarFree,
     bool? isDefaultAssigned,
+    Value<String?> snackNameSnapshot = const Value.absent(),
   }) => LocalOrder(
     id: id ?? this.id,
     userId: userId ?? this.userId,
     date: date ?? this.date,
     snackId: snackId ?? this.snackId,
+    sugarFree: sugarFree ?? this.sugarFree,
     isDefaultAssigned: isDefaultAssigned ?? this.isDefaultAssigned,
+    snackNameSnapshot: snackNameSnapshot.present
+        ? snackNameSnapshot.value
+        : this.snackNameSnapshot,
   );
   LocalOrder copyWithCompanion(LocalOrdersCompanion data) {
     return LocalOrder(
@@ -847,9 +923,13 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
       userId: data.userId.present ? data.userId.value : this.userId,
       date: data.date.present ? data.date.value : this.date,
       snackId: data.snackId.present ? data.snackId.value : this.snackId,
+      sugarFree: data.sugarFree.present ? data.sugarFree.value : this.sugarFree,
       isDefaultAssigned: data.isDefaultAssigned.present
           ? data.isDefaultAssigned.value
           : this.isDefaultAssigned,
+      snackNameSnapshot: data.snackNameSnapshot.present
+          ? data.snackNameSnapshot.value
+          : this.snackNameSnapshot,
     );
   }
 
@@ -860,13 +940,23 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
           ..write('userId: $userId, ')
           ..write('date: $date, ')
           ..write('snackId: $snackId, ')
-          ..write('isDefaultAssigned: $isDefaultAssigned')
+          ..write('sugarFree: $sugarFree, ')
+          ..write('isDefaultAssigned: $isDefaultAssigned, ')
+          ..write('snackNameSnapshot: $snackNameSnapshot')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, userId, date, snackId, isDefaultAssigned);
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    date,
+    snackId,
+    sugarFree,
+    isDefaultAssigned,
+    snackNameSnapshot,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -875,7 +965,9 @@ class LocalOrder extends DataClass implements Insertable<LocalOrder> {
           other.userId == this.userId &&
           other.date == this.date &&
           other.snackId == this.snackId &&
-          other.isDefaultAssigned == this.isDefaultAssigned);
+          other.sugarFree == this.sugarFree &&
+          other.isDefaultAssigned == this.isDefaultAssigned &&
+          other.snackNameSnapshot == this.snackNameSnapshot);
 }
 
 class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
@@ -883,14 +975,18 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
   final Value<String> userId;
   final Value<String> date;
   final Value<String> snackId;
+  final Value<bool> sugarFree;
   final Value<bool> isDefaultAssigned;
+  final Value<String?> snackNameSnapshot;
   final Value<int> rowid;
   const LocalOrdersCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.date = const Value.absent(),
     this.snackId = const Value.absent(),
+    this.sugarFree = const Value.absent(),
     this.isDefaultAssigned = const Value.absent(),
+    this.snackNameSnapshot = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LocalOrdersCompanion.insert({
@@ -898,7 +994,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     required String userId,
     required String date,
     required String snackId,
+    this.sugarFree = const Value.absent(),
     this.isDefaultAssigned = const Value.absent(),
+    this.snackNameSnapshot = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        userId = Value(userId),
@@ -909,7 +1007,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     Expression<String>? userId,
     Expression<String>? date,
     Expression<String>? snackId,
+    Expression<bool>? sugarFree,
     Expression<bool>? isDefaultAssigned,
+    Expression<String>? snackNameSnapshot,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -917,7 +1017,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
       if (userId != null) 'user_id': userId,
       if (date != null) 'date': date,
       if (snackId != null) 'snack_id': snackId,
+      if (sugarFree != null) 'sugar_free': sugarFree,
       if (isDefaultAssigned != null) 'is_default_assigned': isDefaultAssigned,
+      if (snackNameSnapshot != null) 'snack_name_snapshot': snackNameSnapshot,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -927,7 +1029,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     Value<String>? userId,
     Value<String>? date,
     Value<String>? snackId,
+    Value<bool>? sugarFree,
     Value<bool>? isDefaultAssigned,
+    Value<String?>? snackNameSnapshot,
     Value<int>? rowid,
   }) {
     return LocalOrdersCompanion(
@@ -935,7 +1039,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
       userId: userId ?? this.userId,
       date: date ?? this.date,
       snackId: snackId ?? this.snackId,
+      sugarFree: sugarFree ?? this.sugarFree,
       isDefaultAssigned: isDefaultAssigned ?? this.isDefaultAssigned,
+      snackNameSnapshot: snackNameSnapshot ?? this.snackNameSnapshot,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -955,8 +1061,14 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
     if (snackId.present) {
       map['snack_id'] = Variable<String>(snackId.value);
     }
+    if (sugarFree.present) {
+      map['sugar_free'] = Variable<bool>(sugarFree.value);
+    }
     if (isDefaultAssigned.present) {
       map['is_default_assigned'] = Variable<bool>(isDefaultAssigned.value);
+    }
+    if (snackNameSnapshot.present) {
+      map['snack_name_snapshot'] = Variable<String>(snackNameSnapshot.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -971,7 +1083,9 @@ class LocalOrdersCompanion extends UpdateCompanion<LocalOrder> {
           ..write('userId: $userId, ')
           ..write('date: $date, ')
           ..write('snackId: $snackId, ')
+          ..write('sugarFree: $sugarFree, ')
           ..write('isDefaultAssigned: $isDefaultAssigned, ')
+          ..write('snackNameSnapshot: $snackNameSnapshot, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2032,7 +2146,9 @@ typedef $$LocalOrdersTableCreateCompanionBuilder =
       required String userId,
       required String date,
       required String snackId,
+      Value<bool> sugarFree,
       Value<bool> isDefaultAssigned,
+      Value<String?> snackNameSnapshot,
       Value<int> rowid,
     });
 typedef $$LocalOrdersTableUpdateCompanionBuilder =
@@ -2041,7 +2157,9 @@ typedef $$LocalOrdersTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<String> date,
       Value<String> snackId,
+      Value<bool> sugarFree,
       Value<bool> isDefaultAssigned,
+      Value<String?> snackNameSnapshot,
       Value<int> rowid,
     });
 
@@ -2074,8 +2192,18 @@ class $$LocalOrdersTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get sugarFree => $composableBuilder(
+    column: $table.sugarFree,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isDefaultAssigned => $composableBuilder(
     column: $table.isDefaultAssigned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snackNameSnapshot => $composableBuilder(
+    column: $table.snackNameSnapshot,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2109,8 +2237,18 @@ class $$LocalOrdersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get sugarFree => $composableBuilder(
+    column: $table.sugarFree,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isDefaultAssigned => $composableBuilder(
     column: $table.isDefaultAssigned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snackNameSnapshot => $composableBuilder(
+    column: $table.snackNameSnapshot,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -2136,8 +2274,16 @@ class $$LocalOrdersTableAnnotationComposer
   GeneratedColumn<String> get snackId =>
       $composableBuilder(column: $table.snackId, builder: (column) => column);
 
+  GeneratedColumn<bool> get sugarFree =>
+      $composableBuilder(column: $table.sugarFree, builder: (column) => column);
+
   GeneratedColumn<bool> get isDefaultAssigned => $composableBuilder(
     column: $table.isDefaultAssigned,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snackNameSnapshot => $composableBuilder(
+    column: $table.snackNameSnapshot,
     builder: (column) => column,
   );
 }
@@ -2177,14 +2323,18 @@ class $$LocalOrdersTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<String> snackId = const Value.absent(),
+                Value<bool> sugarFree = const Value.absent(),
                 Value<bool> isDefaultAssigned = const Value.absent(),
+                Value<String?> snackNameSnapshot = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalOrdersCompanion(
                 id: id,
                 userId: userId,
                 date: date,
                 snackId: snackId,
+                sugarFree: sugarFree,
                 isDefaultAssigned: isDefaultAssigned,
+                snackNameSnapshot: snackNameSnapshot,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2193,14 +2343,18 @@ class $$LocalOrdersTableTableManager
                 required String userId,
                 required String date,
                 required String snackId,
+                Value<bool> sugarFree = const Value.absent(),
                 Value<bool> isDefaultAssigned = const Value.absent(),
+                Value<String?> snackNameSnapshot = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalOrdersCompanion.insert(
                 id: id,
                 userId: userId,
                 date: date,
                 snackId: snackId,
+                sugarFree: sugarFree,
                 isDefaultAssigned: isDefaultAssigned,
+                snackNameSnapshot: snackNameSnapshot,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

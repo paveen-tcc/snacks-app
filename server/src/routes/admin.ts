@@ -392,7 +392,8 @@ adminRoutes.get('/summary', async (c) => {
         const orderCounts = await db
             .select({
                 snackId: orders.snackId,
-                snackName: sql<string>`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
+                snackNameSnapshot: orders.snackNameSnapshot,
+                snackName: sql<string>`coalesce(${orders.snackNameSnapshot}, ${snacks.name}, 'Unknown')`,
                 snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
                 snackCategory: snacks.category,
                 selectedCount: sql<number>`count(*)`.mapWith(Number),
@@ -403,7 +404,8 @@ adminRoutes.get('/summary', async (c) => {
             .where(sql`${orders.date} = ${today}`)
             .groupBy(
                 orders.snackId,
-                sql`coalesce(${snacks.name}, ${orders.snackNameSnapshot}, 'Unknown')`,
+                orders.snackNameSnapshot,
+                sql`coalesce(${orders.snackNameSnapshot}, ${snacks.name}, 'Unknown')`,
                 sql`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
                 snacks.category
             );
@@ -411,11 +413,23 @@ adminRoutes.get('/summary', async (c) => {
         const todayOrders = await db
             .select({
                 snackId: orders.snackId,
+                snackNameSnapshot: orders.snackNameSnapshot,
+                userId: orders.userId,
                 username: users.username,
             })
             .from(orders)
             .innerJoin(users, eq(orders.userId, users.id))
             .where(sql`${orders.date} = ${today}`);
+
+        const allUsers = await db
+            .select({ id: users.id, username: users.username })
+            .from(users);
+
+        const orderedUserIds = new Set(todayOrders.map((o) => o.userId));
+        const notOrdered = allUsers
+            .filter((u) => !orderedUserIds.has(u.id))
+            .map((u) => u.username)
+            .sort((a, b) => a.localeCompare(b));
 
         const foodItems: any[] = [];
         const drinkItems: any[] = [];
@@ -423,8 +437,11 @@ adminRoutes.get('/summary', async (c) => {
 
         for (const item of orderCounts) {
             const count = Math.ceil(item.selectedCount / Math.max(item.shareCount, 1));
+            // Match by both snackId AND snapshot name to correctly separate
+            // sugar-free vs regular drinks with the same snackId.
             const usersList = todayOrders
-                .filter((o) => o.snackId === item.snackId)
+                .filter((o) => o.snackId === item.snackId &&
+                    o.snackNameSnapshot === item.snackNameSnapshot)
                 .map((o) => o.username);
 
             if (item.snackCategory && item.snackCategory.toLowerCase() === 'drinks') {
@@ -447,7 +464,7 @@ adminRoutes.get('/summary', async (c) => {
             }
         }
 
-        return c.json({ date: today, orders: foodItems, drinks: drinkItems, totalOrders }, 200);
+        return c.json({ date: today, orders: foodItems, drinks: drinkItems, totalOrders, notOrdered }, 200);
     } catch (err: any) {
         if (err instanceof Error && err.message.includes('shareCount')) {
             return c.json({ error: err.message }, 400);

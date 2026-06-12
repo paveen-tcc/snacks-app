@@ -3,25 +3,31 @@ import 'package:flutter/material.dart';
 import '../../../core/design/app_theme.dart';
 import '../../../core/design/app_tokens.dart';
 
-/// Pinned row holding an inline search field and (on the Food tab) the veg
-/// toggle. Lives at the top of a tab and is wrapped in a HideableHeader.
+/// Pinned row holding an inline search field and an optional trailing toggle
+/// (the veg filter on the Food tab, the sugar-free filter on the Drink tab).
+/// Lives at the top of a tab and is wrapped in a HideableHeader.
 class SearchVegRow extends StatelessWidget {
   const SearchVegRow({
     super.key,
     required this.query,
     required this.onQueryChanged,
-    this.showVeg = false,
-    this.vegOn = false,
-    this.onVegChanged,
     this.hint = 'Search',
+    this.toggleLabel,
+    this.toggleValue = false,
+    this.onToggleChanged,
+    this.toggleActiveColor,
   });
 
   final String query;
   final ValueChanged<String> onQueryChanged;
-  final bool showVeg;
-  final bool vegOn;
-  final ValueChanged<bool>? onVegChanged;
   final String hint;
+
+  /// When [toggleLabel] and [onToggleChanged] are both provided, a labelled
+  /// switch is shown to the right of the search field.
+  final String? toggleLabel;
+  final bool toggleValue;
+  final ValueChanged<bool>? onToggleChanged;
+  final Color? toggleActiveColor;
 
   @override
   Widget build(BuildContext context) {
@@ -55,22 +61,22 @@ class SearchVegRow extends StatelessWidget {
               ),
             ),
           ),
-          if (showVeg) ...[
+          if (toggleLabel != null && onToggleChanged != null) ...[
             const SizedBox(width: AppSpacing.md),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'VEG',
+                  toggleLabel!,
                   style: context.text.labelMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
                   ),
                 ),
                 Switch.adaptive(
-                  value: vegOn,
-                  activeTrackColor: palette.veg,
-                  onChanged: onVegChanged,
+                  value: toggleValue,
+                  activeTrackColor: toggleActiveColor ?? palette.veg,
+                  onChanged: onToggleChanged,
                 ),
               ],
             ),

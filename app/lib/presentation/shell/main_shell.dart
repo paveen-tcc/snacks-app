@@ -8,6 +8,7 @@ import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../admin/summary_screen.dart';
 import '../home/bloc/home_bloc.dart';
 import '../home/cart.dart';
 import '../home/drink_tab.dart';
@@ -37,22 +38,28 @@ class _MainShellState extends State<MainShell> {
   String _username = '';
   bool _isAdmin = false;
 
-  static const _destinations = [
-    NavDestinationData(
+  List<NavDestinationData> get _destinations => [
+    const NavDestinationData(
       icon: Icons.restaurant_outlined,
       selectedIcon: Icons.restaurant_rounded,
       label: 'Food',
     ),
-    NavDestinationData(
+    const NavDestinationData(
       icon: Icons.local_cafe_outlined,
       selectedIcon: Icons.local_cafe_rounded,
       label: 'Drink',
     ),
-    NavDestinationData(
+    const NavDestinationData(
       icon: Icons.receipt_long_outlined,
       selectedIcon: Icons.receipt_long_rounded,
       label: 'Orders',
     ),
+    if (_isAdmin)
+      const NavDestinationData(
+        icon: Icons.summarize_outlined,
+        selectedIcon: Icons.summarize_rounded,
+        label: 'Summary',
+      ),
   ];
 
   @override
@@ -73,6 +80,10 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _username = prefs.getString('username') ?? '';
       _isAdmin = prefs.getBool('is_admin') ?? false;
+      final maxIndex = _isAdmin ? 3 : 2;
+      if (_index > maxIndex) {
+        _index = 0;
+      }
     });
   }
 
@@ -161,6 +172,8 @@ class _MainShellState extends State<MainShell> {
                     const FoodTab(),
                     const DrinkTab(),
                     OrdersTab(isActive: _index == 2),
+                    if (_isAdmin)
+                      SummaryScreen(isTab: true, isActive: _index == 3),
                   ],
                 ),
               ),

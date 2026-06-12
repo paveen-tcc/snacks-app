@@ -33,10 +33,13 @@ class _DrinkTabState extends State<DrinkTab> {
         final query = _query.trim().toLowerCase();
 
         final drinks = state.snacks.where((d) {
-          if (displaySnackCategory(d.category).toLowerCase() != 'drinks') return false;
-          if (query.isEmpty) return true;
-          final name = d.name.toLowerCase();
-          return name.contains(query);
+          if (displaySnackCategory(d.category).toLowerCase() != 'drinks') {
+            return false;
+          }
+          if (query.isNotEmpty && !d.name.toLowerCase().contains(query)) {
+            return false;
+          }
+          return true;
         }).toList();
 
         return Column(
@@ -199,7 +202,7 @@ class _DrinksClosedCard extends StatelessWidget {
                           ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
-                      'Selected drink: ${d.name}',
+                      'Selected drink: ${drinkDisplayName(d.name, state.sugarFreePrefs[d.id] ?? false)}',
                       style: context.text.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -228,7 +231,10 @@ class _EmptyDrinks extends StatelessWidget {
           children: [
             const EmptyStateIllustration(emoji: '🔍', size: 120),
             const SizedBox(height: AppSpacing.lg),
-            Text('No drinks match "$query"', style: context.text.titleSmall),
+            Text(
+              query.isEmpty ? 'No drinks here' : 'No drinks match "$query"',
+              style: context.text.titleSmall,
+            ),
           ],
         ),
       ),

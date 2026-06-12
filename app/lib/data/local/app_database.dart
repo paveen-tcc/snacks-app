@@ -13,8 +13,10 @@ part 'app_database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  AppDatabase.forTesting(super.e);
+
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -33,6 +35,12 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await m.deleteTable('local_snacks');
         await m.createTable(localSnacks);
+      }
+      if (from < 6) {
+        await m.addColumn(localOrders, localOrders.sugarFree);
+      }
+      if (from < 7) {
+        await m.addColumn(localOrders, localOrders.snackNameSnapshot);
       }
     },
   );
