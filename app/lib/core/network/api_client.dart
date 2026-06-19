@@ -8,9 +8,12 @@ import '../../data/repositories/auth_repository.dart';
 class ApiClient {
   // Use 10.0.2.2 for Android emulator to access localhost, use localhost for iOS
   // Use localhost for iOS Simulator, use your machine IP for physical devices
-  // static const String baseUrl = 'http://192.168.0.132:8787/api';
-  static const String baseUrl =
+  static const String _defaultBaseUrl =
       'https://snacks-app.paveenkumar-dev.workers.dev/api';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: _defaultBaseUrl,
+  );
 
   late Dio _dio;
   bool _isRefreshing = false;

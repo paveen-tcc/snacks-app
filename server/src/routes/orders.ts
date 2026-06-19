@@ -1,27 +1,16 @@
 import { Hono } from 'hono';
-import { orders, holidays, shutdownDays, snacks, appSettings } from '../db/schema';
+import { orders, snacks, holidays, shutdownDays } from '../db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
+import {
+    getOrderWindow,
+    effectiveOrderDate,
+    officeDateString,
+    orderingClosedReason,
+} from '../lib/orderWindow';
 
 const orderRoutes = new Hono<AuthContext>();
-
-function getUtcDateString(offsetDays = 0) {
-    const date = new Date();
-    date.setUTCDate(date.getUTCDate() + offsetDays);
-    return date.toISOString().split('T')[0]!;
-}
-
-async function getEffectiveOrderDate(db: AuthContext['Variables']['db']) {
-    const [settingsRow] = await db.select({
-        advanceOrderMode: appSettings.advanceOrderMode,
-    })
-        .from(appSettings)
-        .where(eq(appSettings.key, 'cutoff_time'))
-        .limit(1);
-
-    return getUtcDateString(settingsRow?.advanceOrderMode ? 1 : 0);
-}
 
 // All order routes are protected
 orderRoutes.use('*', authMiddleware);
@@ -30,7 +19,8 @@ orderRoutes.use('*', authMiddleware);
 orderRoutes.get('/status', async (c) => {
     try {
         const db = c.get('db');
-        const today = new Date().toISOString().split('T')[0];
+        const window = await getOrderWindow(db);
+        const today = officeDateString(window.offsetMinutes, 0);
 
         const [holiday] = await db
             .select()
@@ -62,7 +52,7 @@ orderRoutes.get('/today', async (c) => {
     try {
         const db = c.get('db');
         const user = c.get('user');
-        const today = await getEffectiveOrderDate(db);
+        const today = effectiveOrderDate(await getOrderWindow(db));
 
         const todaysOrders = await db
             .select()
@@ -86,7 +76,16 @@ orderRoutes.post('/', async (c) => {
         const db = c.get('db');
         const user = c.get('user');
         const { snackId, snackIds, sugarFreeSnackIds } = await c.req.json();
-        const orderDate = await getEffectiveOrderDate(db);
+
+        // Authoritative window check — the client cutoff is advisory only and
+        // can be bypassed by changing the device clock, so the server decides.
+        const window = await getOrderWindow(db);
+        const closedReason = await orderingClosedReason(db, window);
+        if (closedReason) {
+            return c.json({ error: closedReason }, 403);
+        }
+
+        const orderDate = effectiveOrderDate(window);
         const rawSnackIds = (Array.isArray(snackIds) ? snackIds : [snackId])
             .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 
@@ -155,7 +154,16 @@ orderRoutes.delete('/', async (c) => {
     try {
         const db = c.get('db');
         const user = c.get('user');
-        const orderDate = await getEffectiveOrderDate(db);
+
+        // Clearing an order is also a mutation to the locked-in list, so the
+        // same window check applies (can't be undone after the cutoff).
+        const window = await getOrderWindow(db);
+        const closedReason = await orderingClosedReason(db, window);
+        if (closedReason) {
+            return c.json({ error: closedReason }, 403);
+        }
+
+        const orderDate = effectiveOrderDate(window);
 
         await db.delete(orders)
             .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${orderDate}`));

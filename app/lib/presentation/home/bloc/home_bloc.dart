@@ -30,6 +30,11 @@ class HomeLoaded extends HomeState {
   final Map<String, bool> sugarFreePrefs;
   /// Confirmed per-drink sugar-free preference (snackId → isSugarFree).
   final Map<String, bool> confirmedSugarFreePrefs;
+  /// Transient message to surface when an order mutation is rejected (e.g. the
+  /// ordering window has closed). Consumed by a BlocListener; [errorNonce]
+  /// increments on each new error so identical messages still re-trigger.
+  final String? orderError;
+  final int errorNonce;
 
   HomeLoaded({
     required this.snacks,
@@ -47,6 +52,8 @@ class HomeLoaded extends HomeState {
     this.advanceWindowEnd = '22:00',
     this.sugarFreePrefs = const {},
     this.confirmedSugarFreePrefs = const {},
+    this.orderError,
+    this.errorNonce = 0,
   });
 
   // Sentinel to distinguish "pass null explicitly" from "not provided"
@@ -68,6 +75,8 @@ class HomeLoaded extends HomeState {
     String? advanceWindowEnd,
     Map<String, bool>? sugarFreePrefs,
     Map<String, bool>? confirmedSugarFreePrefs,
+    Object? orderError = _unset,
+    int? errorNonce,
   }) {
     return HomeLoaded(
       snacks: snacks ?? this.snacks,
@@ -91,6 +100,10 @@ class HomeLoaded extends HomeState {
       advanceWindowEnd: advanceWindowEnd ?? this.advanceWindowEnd,
       sugarFreePrefs: sugarFreePrefs ?? this.sugarFreePrefs,
       confirmedSugarFreePrefs: confirmedSugarFreePrefs ?? this.confirmedSugarFreePrefs,
+      orderError: orderError == _unset
+          ? this.orderError
+          : orderError as String?,
+      errorNonce: errorNonce ?? this.errorNonce,
     );
   }
 }
@@ -392,7 +405,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       return;
     }
 
-    emit(curr.copyWith(isSubmitting: true));
+    emit(curr.copyWith(isSubmitting: true, orderError: null));
     try {
       if (curr.selectedSnackIds.isEmpty) {
         await _orderRepo.clearOrder();
@@ -410,7 +423,20 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         ),
       );
     } catch (e) {
-      emit(curr.copyWith(isSubmitting: false));
+      // A rejected order (e.g. the window closed) has already been rolled back
+      // to the server's truth by the repository; surface the reason so the
+      // user isn't left thinking a stale selection was saved.
+      final latest = state is HomeLoaded ? state as HomeLoaded : curr;
+      final message = e is OrderException
+          ? e.message
+          : 'Could not save your order. Please try again.';
+      emit(
+        latest.copyWith(
+          isSubmitting: false,
+          orderError: message,
+          errorNonce: latest.errorNonce + 1,
+        ),
+      );
       print(e);
     }
   }

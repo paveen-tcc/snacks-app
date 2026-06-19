@@ -6,6 +6,7 @@ import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/design/glass.dart';
 import '../../core/di/locator.dart';
+import '../../core/notifications/push_service.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/glass_app_bar.dart';
 import '../../data/repositories/admin_repository.dart';
@@ -140,6 +141,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (confirm != true) return;
+    // Stop reminders to this device for the user being signed out.
+    await locator<PushService>().unregister();
     await locator<AuthRepository>().logout();
     if (mounted) context.go('/onboarding');
   }

@@ -80,6 +80,17 @@ export const appSettings = pgTable('app_settings', {
     //        whatsapp_template, holiday_country
 });
 
+// Device push tokens (FCM). One row per device install; token is unique, so a
+// device that re-logs-in as another user simply re-points to the new userId.
+export const pushTokens = pgTable('push_tokens', {
+    token: varchar('token', { length: 512 }).primaryKey(),
+    userId: uuid('user_id').references(() => users.id).notNull(),
+    platform: varchar('platform', { length: 20 }).default('android'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => ({
+    userIdx: index('push_tokens_user_idx').on(t.userId),
+}));
+
 // Offline sync queue
 export const syncQueue = pgTable('sync_queue', {
     id: uuid('id').primaryKey().defaultRandom(),

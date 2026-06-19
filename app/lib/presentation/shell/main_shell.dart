@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
+import '../../core/notifications/push_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../admin/summary_screen.dart';
 import '../home/bloc/home_bloc.dart';
@@ -75,6 +76,8 @@ class _MainShellState extends State<MainShell> {
     } catch (_) {
       /* keep cached */
     }
+    // Ensure this device's FCM token is registered for order reminders.
+    locator<PushService>().registerForCurrentUser();
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
@@ -135,7 +138,19 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _homeBloc,
-      child: BlocBuilder<HomeBloc, HomeState>(
+      child: BlocConsumer<HomeBloc, HomeState>(
+        listenWhen: (prev, curr) =>
+            curr is HomeLoaded &&
+            curr.orderError != null &&
+            (prev is! HomeLoaded || prev.errorNonce != curr.errorNonce),
+        listener: (context, state) {
+          final message = (state as HomeLoaded).orderError;
+          if (message != null) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text(message)));
+          }
+        },
         builder: (context, state) {
           if (state is HomeError) {
             return const Scaffold(
