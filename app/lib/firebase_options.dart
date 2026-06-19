@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -58,5 +55,14 @@ class DefaultFirebaseOptions {
     messagingSenderId: '296607314657',
     projectId: 'tcc-pantry',
     storageBucket: 'tcc-pantry.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyD-csxLD7Bknm66IjK5TAVoRA82yJ9fcF4',
+    appId: '1:296607314657:ios:7dea65c2c7cc243f203da0',
+    messagingSenderId: '296607314657',
+    projectId: 'tcc-pantry',
+    storageBucket: 'tcc-pantry.firebasestorage.app',
+    iosBundleId: 'company.thecloud.pantry',
   );
 }

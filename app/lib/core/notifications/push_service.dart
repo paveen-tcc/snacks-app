@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -49,16 +51,44 @@ class PushService {
         return;
       }
 
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
       attachListeners();
+
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final apnsToken = await _waitForApnsToken(messaging);
+        if (apnsToken == null) {
+          if (kDebugMode) {
+            debugPrint('Push registration skipped: APNs token unavailable');
+          }
+          return;
+        }
+      }
 
       final token = await messaging.getToken();
       if (token != null && token.isNotEmpty) {
         await _sendToken(token);
       }
-    } catch (_) {
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Push registration failed: $error');
+      }
       // Best-effort: a failed registration is retried on the next app open or
       // token refresh, so don't surface or block on it.
     }
+  }
+
+  Future<String?> _waitForApnsToken(FirebaseMessaging messaging) async {
+    for (var attempt = 0; attempt < 40; attempt += 1) {
+      final token = await messaging.getAPNSToken();
+      if (token != null && token.isNotEmpty) return token;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return null;
   }
 
   Future<void> _sendToken(String token) async {
@@ -67,7 +97,13 @@ class PushService {
         '/push/token',
         data: {'token': token, 'platform': _platform},
       );
-    } catch (_) {
+      if (kDebugMode) {
+        debugPrint('Push token registered as $_platform');
+      }
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Push token registration POST failed: $error');
+      }
       // Best-effort: a failed registration is retried on the next app open or
       // token refresh, so don't surface or block on it.
     }
@@ -84,7 +120,10 @@ class PushService {
         await _apiClient.dio.delete('/push/token', data: {'token': token});
       }
       await messaging.deleteToken();
-    } catch (_) {
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Push unregister failed: $error');
+      }
       // Ignore — logout proceeds regardless.
     }
   }
