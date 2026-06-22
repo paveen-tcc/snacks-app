@@ -24,6 +24,7 @@ class PushService {
   PushService(this._apiClient);
 
   bool _listenersAttached = false;
+  bool _registrationRetryScheduled = false;
 
   bool get _available => Firebase.apps.isNotEmpty;
 
@@ -32,7 +33,9 @@ class PushService {
   void attachListeners() {
     if (!_available || _listenersAttached) return;
     _listenersAttached = true;
-    FirebaseMessaging.instance.onTokenRefresh.listen(_sendToken);
+    FirebaseMessaging.instance.onTokenRefresh.listen((token) {
+      _sendToken(token);
+    });
   }
 
   /// Request permission (shows the Android 13+ dialog), fetch the FCM token and
@@ -65,13 +68,15 @@ class PushService {
           if (kDebugMode) {
             debugPrint('Push registration skipped: APNs token unavailable');
           }
+          _scheduleRegistrationRetry();
           return;
         }
       }
 
       final token = await messaging.getToken();
       if (token != null && token.isNotEmpty) {
-        await _sendToken(token);
+        final sent = await _sendToken(token);
+        if (!sent) _scheduleRegistrationRetry();
       }
     } catch (error) {
       if (kDebugMode) {
@@ -91,8 +96,11 @@ class PushService {
     return null;
   }
 
-  Future<void> _sendToken(String token) async {
+  Future<bool> _sendToken(String token) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!prefs.containsKey('auth_token')) return false;
+
       await _apiClient.dio.post(
         '/push/token',
         data: {'token': token, 'platform': _platform},
@@ -100,13 +108,26 @@ class PushService {
       if (kDebugMode) {
         debugPrint('Push token registered as $_platform');
       }
+      return true;
     } catch (error) {
       if (kDebugMode) {
         debugPrint('Push token registration POST failed: $error');
       }
       // Best-effort: a failed registration is retried on the next app open or
       // token refresh, so don't surface or block on it.
+      return false;
     }
+  }
+
+  void _scheduleRegistrationRetry() {
+    if (_registrationRetryScheduled) return;
+    _registrationRetryScheduled = true;
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 30), () async {
+        _registrationRetryScheduled = false;
+        await registerForCurrentUser();
+      }),
+    );
   }
 
   /// Drop this device's token on logout so a logged-out phone stops receiving

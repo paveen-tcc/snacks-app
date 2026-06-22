@@ -38,6 +38,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic> _settings = {};
   bool _loadingSettings = true;
+  bool _sendingOrderReminder = false;
 
   @override
   void initState() {
@@ -73,6 +74,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Failed to save')));
       }
+    }
+  }
+
+  Future<void> _sendOrderReminder() async {
+    if (_sendingOrderReminder) return;
+
+    setState(() => _sendingOrderReminder = true);
+    try {
+      final result = await locator<AdminRepository>().sendOrderReminder();
+      if (!mounted) return;
+
+      final skippedReason = result['skippedReason'];
+      final sent = result['sent'] is int ? result['sent'] as int : 0;
+      final targeted = result['targeted'] is int
+          ? result['targeted'] as int
+          : 0;
+      final message = skippedReason is String && skippedReason.isNotEmpty
+          ? 'Reminder not sent: $skippedReason'
+          : sent > 0
+          ? 'Reminder sent to $sent device${sent == 1 ? '' : 's'}'
+          : targeted == 0
+          ? 'No pending users to remind'
+          : 'Reminder sent';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to send reminder')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sendingOrderReminder = false);
     }
   }
 
@@ -193,7 +229,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? [
                       const Padding(
                         padding: EdgeInsets.all(AppSpacing.lg),
-                        child: Center(child: CircularProgressIndicator.adaptive()),
+                        child: Center(
+                          child: CircularProgressIndicator.adaptive(),
+                        ),
                       ),
                     ]
                   : [
@@ -219,7 +257,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _NavTile(
                           icon: Icons.schedule_rounded,
                           title: 'Advance window start',
-                          subtitle: _settings['advance_window_start'] ?? '06:00',
+                          subtitle:
+                              _settings['advance_window_start'] ?? '06:00',
                           onTap: () => _editTime(
                             'advance_window_start',
                             'Window start',
@@ -246,6 +285,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           'Country code (e.g. IN, US)',
                           _settings['holiday_country'] ?? 'IN',
                         ),
+                      ),
+                      _NavTile(
+                        icon: Icons.notifications_active_rounded,
+                        title: 'Send order reminder',
+                        subtitle: _sendingOrderReminder
+                            ? 'Sending...'
+                            : "Order now, it's closing",
+                        enabled: !_sendingOrderReminder,
+                        trailing: _sendingOrderReminder
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator.adaptive(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : null,
+                        onTap: _sendOrderReminder,
                       ),
                     ],
             ),
@@ -288,9 +345,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _push(Widget screen) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => screen)).then((_) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen)).then((
+      _,
+    ) {
       if (widget.isAdmin) _loadSettings();
     });
   }
@@ -393,11 +450,15 @@ class _NavTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.enabled = true,
+    this.trailing,
   });
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool enabled;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -407,14 +468,20 @@ class _NavTile extends StatelessWidget {
         horizontal: AppSpacing.lg,
         vertical: AppSpacing.xs,
       ),
-      leading: Icon(icon, color: palette.textSecondary),
+      enabled: enabled,
+      leading: Icon(
+        icon,
+        color: enabled ? palette.textSecondary : palette.textTertiary,
+      ),
       title: Text(title, style: context.text.titleSmall),
       subtitle: Text(
         subtitle,
         style: context.text.bodySmall?.copyWith(color: palette.textSecondary),
       ),
-      trailing: Icon(Icons.chevron_right_rounded, color: palette.textTertiary),
-      onTap: onTap,
+      trailing:
+          trailing ??
+          Icon(Icons.chevron_right_rounded, color: palette.textTertiary),
+      onTap: enabled ? onTap : null,
     );
   }
 }

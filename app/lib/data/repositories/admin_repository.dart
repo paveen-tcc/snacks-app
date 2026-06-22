@@ -38,6 +38,16 @@ class AdminRepository {
     );
   }
 
+  Future<Map<String, dynamic>> sendOrderReminder({
+    String body = "Order now, it's closing.",
+  }) async {
+    final r = await _apiClient.dio.post(
+      '/admin/order-reminder',
+      data: {'body': body},
+    );
+    return Map<String, dynamic>.from(r.data);
+  }
+
   Future<Map<String, dynamic>> getSummary() async {
     final r = await _apiClient.dio.get('/admin/summary');
     return Map<String, dynamic>.from(r.data);

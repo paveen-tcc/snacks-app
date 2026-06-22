@@ -57,9 +57,6 @@ const body = argValue('body') ?? `Push test sent from local Worker dev tools at 
 if (!databaseUrl) {
     throw new Error('DATABASE_URL is missing. Add it to server/.dev.vars.');
 }
-if (!isFcmConfigured(serviceAccount)) {
-    throw new Error('FCM_SERVICE_ACCOUNT is missing or invalid. Add the Firebase service-account JSON to server/.dev.vars.');
-}
 
 const db = createDb(databaseUrl);
 
@@ -87,6 +84,10 @@ async function printTokenSummary() {
 if (shouldList) {
     await printTokenSummary();
     process.exit(0);
+}
+
+if (!isFcmConfigured(serviceAccount)) {
+    throw new Error('FCM_SERVICE_ACCOUNT is missing or invalid. Add the Firebase service-account JSON to server/.dev.vars.');
 }
 
 const targetRows = platform === 'any'
