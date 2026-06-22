@@ -3,10 +3,14 @@ import { snacks, appSettings, holidays, shutdownDays, users, orders } from '../d
 import { eq, sql } from 'drizzle-orm';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
+import { isFcmConfigured } from '../lib/fcm';
+import { runManualOrderReminder } from '../scheduled';
 
 const adminRoutes = new Hono<AuthContext>();
 
 const GENERAL_CATEGORY = 'General';
+const MANUAL_ORDER_REMINDER_BODY = "Order now, it's closing.";
+const MAX_NOTIFICATION_BODY_LENGTH = 180;
 
 function normalizeWhitespace(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
@@ -14,6 +18,23 @@ function normalizeWhitespace(value: string): string {
 
 function normalizeSnackName(value: string): string {
     return normalizeWhitespace(value).toLowerCase();
+}
+
+function normalizeNotificationBody(value: unknown): string | null {
+    if (value === undefined || value === null) {
+        return MANUAL_ORDER_REMINDER_BODY;
+    }
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const normalized = normalizeWhitespace(value);
+    if (!normalized) {
+        return MANUAL_ORDER_REMINDER_BODY;
+    }
+    if (normalized.length > MAX_NOTIFICATION_BODY_LENGTH) {
+        return null;
+    }
+    return normalized;
 }
 
 function normalizeCategoryValue(value: unknown): string | null {
@@ -377,6 +398,27 @@ adminRoutes.put('/settings', async (c) => {
             .returning();
 
         return c.json({ setting }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+// --- Manual Notifications ---
+
+adminRoutes.post('/order-reminder', async (c) => {
+    try {
+        if (!isFcmConfigured(c.env.FCM_SERVICE_ACCOUNT)) {
+            return c.json({ error: 'FCM_SERVICE_ACCOUNT is not configured' }, 503);
+        }
+
+        const body = await c.req.json().catch(() => ({}));
+        const reminderBody = normalizeNotificationBody(body?.body);
+        if (!reminderBody) {
+            return c.json({ error: `body must be a string up to ${MAX_NOTIFICATION_BODY_LENGTH} characters` }, 400);
+        }
+
+        const result = await runManualOrderReminder(c.env, c.get('db'), reminderBody);
+        return c.json({ success: !result.skippedReason, ...result }, 200);
     } catch (err: any) {
         return c.json({ error: err.message }, 500);
     }

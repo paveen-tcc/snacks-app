@@ -7,8 +7,15 @@ compatibility_flags = ["nodejs_compat"]
 ip = "0.0.0.0"
 port = 8787
 
+# Runs the daily "order closing soon" reminder. The handler only does work
+# during the single minute that is `reminder_lead_minutes` (default 20) before
+# the order window closes, so a per-minute schedule is intentional.
+[triggers]
+crons = ["* * * * *"]
+
 # Secrets (set via: npx wrangler secret put <KEY>)
 # DATABASE_URL = "your-neon-connection-string"
 # JWT_SECRET = "your-secret"
 # AZURE_TENANT_ID = "your-azure-tenant-id"
 # AZURE_CLIENT_ID = "your-azure-client-id"
+# FCM_SERVICE_ACCOUNT = "<firebase service-account JSON, single line>"

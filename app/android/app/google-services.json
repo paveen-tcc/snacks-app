@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "296607314657",
+    "project_id": "tcc-pantry",
+    "storage_bucket": "tcc-pantry.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:296607314657:android:8af95e1c53aa1469203da0",
+        "android_client_info": {
+          "package_name": "company.thecloud.pantry"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD58cC4HLP_9MiJHO5iTxlUuSQKWCjYqaI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

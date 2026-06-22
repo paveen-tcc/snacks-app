@@ -8,6 +8,8 @@ import authRoutes from './routes/auth';
 import snackRoutes from './routes/snacks';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
+import pushRoutes from './routes/push';
+import { runOrderReminder } from './scheduled';
 
 // Cloudflare Worker env bindings
 export type Bindings = {
@@ -15,6 +17,8 @@ export type Bindings = {
     JWT_SECRET: string;
     AZURE_TENANT_ID: string;
     AZURE_CLIENT_ID: string;
+    // Firebase service-account JSON (string) for sending FCM push reminders.
+    FCM_SERVICE_ACCOUNT?: string;
 };
 
 // Variables injected into context per-request
@@ -63,6 +67,7 @@ app.route('/api/auth', authRoutes);
 app.route('/api/snacks', snackRoutes);
 app.route('/api/orders', orderRoutes);
 app.route('/api/admin', adminRoutes);
+app.route('/api/push', pushRoutes);
 
 app.notFound((c) => {
     return c.json({ error: 'Not Found' }, 404);
@@ -73,4 +78,19 @@ app.onError((err, c) => {
     return c.json({ error: 'Internal Server Error', message: err.message }, 500);
 });
 
-export default app;
+// The Worker entrypoint exposes both the HTTP app and the cron handler.
+// `scheduled` is driven by the cron trigger in wrangler.toml.
+export default {
+    fetch: app.fetch,
+    async scheduled(
+        _event: unknown,
+        env: Bindings,
+        ctx: { waitUntil: (promise: Promise<unknown>) => void },
+    ) {
+        ctx.waitUntil(
+            runOrderReminder(env).catch((err) =>
+                console.error('order reminder failed:', err),
+            ),
+        );
+    },
+};

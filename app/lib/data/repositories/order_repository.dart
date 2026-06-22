@@ -1,10 +1,22 @@
 import '../../core/network/api_client.dart';
 import '../local/app_database.dart';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/drift.dart' hide Column;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+
+/// Thrown when the server permanently rejects an order mutation (4xx) — e.g.
+/// the ordering window has closed. Carries a user-facing [message] and is not
+/// retried, unlike transient network failures which are queued for sync.
+class OrderException implements Exception {
+  final String message;
+  OrderException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 class OrderRepository {
   final ApiClient _apiClient;
@@ -16,6 +28,15 @@ class OrderRepository {
   /// stored name snapshot — detect that so the local cache can remember it.
   static bool _isSugarFreeSnapshot(dynamic snapshot) =>
       snapshot is String && snapshot.endsWith('(Sugar Free)');
+
+  /// Pull a human-readable error out of a Dio error response body, if present.
+  static String? _serverMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is String) {
+      return data['error'] as String;
+    }
+    return null;
+  }
 
   Future<String> _effectiveOrderDate() async {
     final settings = await (_localDb.select(
@@ -236,9 +257,19 @@ class OrderRepository {
           }
         });
       }
-    } catch (e) {
-      // API failed despite having connection — queue for sync, don't throw
-      // (order is already saved locally, offline-first behavior)
+    } on DioException catch (e) {
+      final status = e.response?.statusCode ?? 0;
+      if (status >= 400 && status < 500) {
+        // Server permanently rejected the order (e.g. the window has closed).
+        // Retrying will never succeed, so don't queue it. Roll the optimistic
+        // local write back to the server's truth and surface the reason.
+        await syncTodayOrder();
+        throw OrderException(
+          _serverMessage(e) ?? 'Your order could not be placed.',
+        );
+      }
+      // Transient network/5xx failure — keep offline-first behavior and queue
+      // for retry (the order is already saved locally).
       await _localDb
           .into(_localDb.syncQueue)
           .insert(
@@ -279,7 +310,16 @@ class OrderRepository {
 
     try {
       await _apiClient.dio.delete('/orders');
-    } catch (e) {
+    } on DioException catch (e) {
+      final status = e.response?.statusCode ?? 0;
+      if (status >= 400 && status < 500) {
+        // Window closed (or other permanent rejection): the order can't be
+        // cleared anymore. Restore the server's truth and surface the reason.
+        await syncTodayOrder();
+        throw OrderException(
+          _serverMessage(e) ?? 'Your order could not be changed.',
+        );
+      }
       await _localDb
           .into(_localDb.syncQueue)
           .insert(

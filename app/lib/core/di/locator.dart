@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import '../auth/msal_service.dart';
 import '../network/api_client.dart';
+import '../notifications/push_service.dart';
 import '../../data/local/app_database.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/snack_repository.dart';
@@ -33,6 +34,12 @@ Future<void> setupLocator() async {
   locator.registerLazySingleton<AdminRepository>(
     () => AdminRepository(locator<ApiClient>()),
   );
+
+  // Push notifications (order reminders). No-op until Firebase is configured.
+  locator.registerLazySingleton<PushService>(
+    () => PushService(locator<ApiClient>()),
+  );
+  locator<PushService>().attachListeners();
 
   // 3. Sync Engine
   locator.registerLazySingleton<SyncEngine>(

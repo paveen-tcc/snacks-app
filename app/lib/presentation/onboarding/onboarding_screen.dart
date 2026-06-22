@@ -4,6 +4,7 @@ import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
 import '../../core/auth/msal_service.dart';
+import '../../core/notifications/push_service.dart';
 import '../../core/widgets/app_logo.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -31,6 +32,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       final authRepo = locator<AuthRepository>();
       await authRepo.loginWithMicrosoft(idToken);
+
+      // Register for order-reminder push (prompts for permission). Fire and
+      // forget so landing on home isn't blocked by the permission dialog.
+      locator<PushService>().registerForCurrentUser();
 
       if (mounted) context.go('/');
     } on Exception catch (e) {

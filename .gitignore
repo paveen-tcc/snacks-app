@@ -5,3 +5,8 @@ server/.wrangler/
 
 # Claude Code local worktrees (must never be committed as gitlinks)
 .claude/worktrees/
+
+# One-off menu import artifacts
+server/src/db/new_menu.json
+server/src/db/sync_menu.ts
+snacks_menu_updated.xlsx
