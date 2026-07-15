@@ -1,1 +1,0 @@
-ALTER TABLE "snacks" ADD COLUMN "share_count" integer DEFAULT 1 NOT NULL;

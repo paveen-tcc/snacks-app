@@ -1,61 +1,12 @@
 {
   "version": "7",
-  "dialect": "postgresql",
+  "dialect": "sqlite",
   "entries": [
     {
       "idx": 0,
-      "version": "7",
-      "when": 1772648536812,
-      "tag": "0000_nasty_frightful_four",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1773072015977,
-      "tag": "0001_nice_jack_power",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1775083200000,
-      "tag": "0002_tidy_bulk_snacks",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1775139000000,
-      "tag": "0003_spicy_menu_categories",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1775715944143,
-      "tag": "0004_rainy_lorna_dane",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1775725107352,
-      "tag": "0005_ambitious_kree",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1780914604768,
-      "tag": "0006_neat_mentor",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1782118603379,
-      "tag": "0007_yielding_giant_girl",
+      "version": "6",
+      "when": 1784108868865,
+      "tag": "0000_clammy_senator_kelly",
       "breakpoints": true
     }
   ]
