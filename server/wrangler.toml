@@ -10,11 +10,20 @@ port = 8787
 # Runs the daily "order closing soon" reminder. The handler only does work
 # during the single minute that is `reminder_lead_minutes` (default 20) before
 # the order window closes, so a per-minute schedule is intentional.
+# (On D1 this is billed in rows read, not compute-hours, so the per-minute
+# tick is cheap — unlike Neon, which it kept awake 24/7.)
 [triggers]
 crons = ["* * * * *"]
 
-# Secrets (set via: npx wrangler secret put <KEY>)
-# DATABASE_URL = "your-neon-connection-string"
+# database_id is a placeholder until the org database is created in the
+# cutover task; `wrangler dev` and `--local` commands work fine with it.
+[[d1_databases]]
+binding = "DB"
+database_name = "snacks-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "drizzle"
+
+# Secrets (set via: bunx wrangler secret put <KEY>)
 # JWT_SECRET = "your-secret"
 # AZURE_TENANT_ID = "your-azure-tenant-id"
 # AZURE_CLIENT_ID = "your-azure-client-id"

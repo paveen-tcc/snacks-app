@@ -22,11 +22,12 @@
   },
   "scripts": {
     "dev": "wrangler dev",
-    "dev:bun": "bun run --hot src/index.ts",
     "deploy": "wrangler deploy",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
-    "db:seed": "bun run src/db/seed.ts",
+    "db:migrate:local": "wrangler d1 migrations apply snacks-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply snacks-db --remote",
+    "db:seed": "bun run src/db/generate-seed-sql.ts && wrangler d1 execute snacks-db --local --file=seed.sql",
+    "db:seed:remote": "bun run src/db/generate-seed-sql.ts && wrangler d1 execute snacks-db --remote --file=seed.sql",
     "push:test": "bun run src/dev/send-test-push.ts"
   }
 }

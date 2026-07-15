@@ -163,7 +163,7 @@ export async function runOrderReminder(env: Bindings): Promise<void> {
         return;
     }
 
-    const db = createDb(env.DATABASE_URL);
+    const db = createDb(env.DB);
     const window = await getOrderWindow(db);
 
     const nowMinutes = officeMinutesOfDay(window.offsetMinutes);
