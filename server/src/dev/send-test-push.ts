@@ -1,13 +1,11 @@
 import { existsSync, readFileSync } from 'fs';
-import { desc, eq, sql } from 'drizzle-orm';
-import { createDb } from '../db';
-import { pushTokens } from '../db/schema';
 import { isFcmConfigured, sendPushToTokens } from '../lib/fcm';
 
-type DevEnv = {
-    DATABASE_URL?: string;
-    FCM_SERVICE_ACCOUNT?: string;
-};
+// Dev utility: sends a test FCM push to the most recently registered device.
+// Post-D1 it reads tokens through `wrangler d1 execute --remote` instead of a
+// database connection string.
+
+type DevEnv = { FCM_SERVICE_ACCOUNT?: string };
 
 function unquote(value: string): string {
     const trimmed = value.trim();
@@ -23,20 +21,14 @@ function unquote(value: string): string {
 function loadDevVars(): DevEnv {
     const file = '.dev.vars';
     if (!existsSync(file)) return {};
-
     const env: DevEnv = {};
     for (const rawLine of readFileSync(file, 'utf8').split(String.fromCharCode(10))) {
         const line = rawLine.trim();
         if (!line || line.startsWith('#')) continue;
-
         const separator = line.indexOf('=');
         if (separator === -1) continue;
-
         const key = line.slice(0, separator).trim();
-        const value = unquote(line.slice(separator + 1));
-        if (key === 'DATABASE_URL' || key === 'FCM_SERVICE_ACCOUNT') {
-            env[key] = value;
-        }
+        if (key === 'FCM_SERVICE_ACCOUNT') env[key] = unquote(line.slice(separator + 1));
     }
     return env;
 }
@@ -46,38 +38,38 @@ function argValue(name: string): string | undefined {
     return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
 }
 
+async function d1Query<T>(query: string): Promise<T[]> {
+    const proc = await Bun.$`wrangler d1 execute snacks-db --remote --json --command ${query}`.quiet();
+    const parsed = JSON.parse(proc.stdout.toString()) as Array<{ results?: T[] }>;
+    return parsed[0]?.results ?? [];
+}
+
 const localEnv = loadDevVars();
-const databaseUrl = process.env.DATABASE_URL ?? localEnv.DATABASE_URL;
 const serviceAccount = process.env.FCM_SERVICE_ACCOUNT ?? localEnv.FCM_SERVICE_ACCOUNT;
 const platform = argValue('platform') ?? 'ios';
 const shouldList = process.argv.includes('--list');
 const title = argValue('title') ?? 'TCC Pantry local test';
 const body = argValue('body') ?? `Push test sent from local Worker dev tools at ${new Date().toLocaleTimeString()}`;
 
-if (!databaseUrl) {
-    throw new Error('DATABASE_URL is missing. Add it to server/.dev.vars.');
+// platform is interpolated into SQL below — allowlist it.
+if (!['ios', 'android', 'any'].includes(platform)) {
+    throw new Error(`--platform must be ios, android, or any (got "${platform}")`);
 }
 
-const db = createDb(databaseUrl);
+type TokenRow = { token: string; platform: string | null; updated_at: number | null };
 
 async function printTokenSummary() {
-    const rows = await db
-        .select({
-            platform: pushTokens.platform,
-            count: sql<string>`count(*)`,
-            latest: sql<string>`max(${pushTokens.updatedAt})`,
-        })
-        .from(pushTokens)
-        .groupBy(pushTokens.platform);
-
+    const rows = await d1Query<{ platform: string | null; count: number; latest: number | null }>(
+        'SELECT platform, count(*) AS count, max(updated_at) AS latest FROM push_tokens GROUP BY platform',
+    );
     if (rows.length === 0) {
         console.log('Registered push tokens: none');
         return;
     }
-
     console.log('Registered push tokens by platform:');
     for (const row of rows) {
-        console.log(`- ${row.platform ?? 'unknown'}: ${row.count} latest=${row.latest ?? 'unknown'}`);
+        const latest = row.latest == null ? 'unknown' : new Date(Number(row.latest)).toISOString();
+        console.log(`- ${row.platform ?? 'unknown'}: ${row.count} latest=${latest}`);
     }
 }
 
@@ -90,19 +82,10 @@ if (!isFcmConfigured(serviceAccount)) {
     throw new Error('FCM_SERVICE_ACCOUNT is missing or invalid. Add the Firebase service-account JSON to server/.dev.vars.');
 }
 
-const targetRows = platform === 'any'
-    ? await db
-        .select({ token: pushTokens.token, platform: pushTokens.platform, updatedAt: pushTokens.updatedAt })
-        .from(pushTokens)
-        .orderBy(desc(pushTokens.updatedAt))
-        .limit(1)
-    : await db
-        .select({ token: pushTokens.token, platform: pushTokens.platform, updatedAt: pushTokens.updatedAt })
-        .from(pushTokens)
-        .where(eq(pushTokens.platform, platform))
-        .orderBy(desc(pushTokens.updatedAt))
-        .limit(1);
-const [target] = targetRows;
+const where = platform === 'any' ? '' : `WHERE platform = '${platform}' `;
+const [target] = await d1Query<TokenRow>(
+    `SELECT token, platform, updated_at FROM push_tokens ${where}ORDER BY updated_at DESC LIMIT 1`,
+);
 
 if (!target) {
     await printTokenSummary();
@@ -121,4 +104,5 @@ if (!result?.ok) {
     throw new Error(`FCM send failed with status ${result?.status ?? 'unknown'}: ${error}`);
 }
 
-console.log(`Sent local test push to latest ${target.platform ?? platform} device token updated at ${target.updatedAt?.toISOString() ?? 'unknown time'}.`);
+const updatedLabel = target.updated_at == null ? 'unknown time' : new Date(Number(target.updated_at)).toISOString();
+console.log(`Sent local test push to latest ${target.platform ?? platform} device token updated at ${updatedLabel}.`);
