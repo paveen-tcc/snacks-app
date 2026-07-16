@@ -15,12 +15,10 @@ port = 8787
 [triggers]
 crons = ["* * * * *"]
 
-# database_id is a placeholder until the org database is created in the
-# cutover task; `wrangler dev` and `--local` commands work fine with it.
 [[d1_databases]]
 binding = "DB"
 database_name = "snacks-db"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "3e6ed317-f603-464e-9b14-1e739391741e"
 migrations_dir = "drizzle"
 
 # Secrets (set via: bunx wrangler secret put <KEY>)
