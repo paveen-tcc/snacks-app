@@ -7,7 +7,6 @@
     "@cloudflare/workers-types": "^4.20260307.1",
     "@cspotcode/source-map-support": "^0.8.1",
     "@types/bun": "latest",
-    "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.9",
     "wrangler": "^4.71.0"
   },
