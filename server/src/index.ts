@@ -13,7 +13,7 @@ import { runOrderReminder } from './scheduled';
 
 // Cloudflare Worker env bindings
 export type Bindings = {
-    DATABASE_URL: string;
+    DB: D1Database;
     JWT_SECRET: string;
     AZURE_TENANT_ID: string;
     AZURE_CLIENT_ID: string;
@@ -38,7 +38,7 @@ app.use('*', cors());
 
 // Inject db and jwtSecret into every request context
 app.use('*', async (c, next) => {
-    const db = createDb(c.env.DATABASE_URL);
+    const db = createDb(c.env.DB);
     c.set('db', db);
     c.set('jwtSecret', c.env.JWT_SECRET);
     await next();

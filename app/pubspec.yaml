@@ -43,7 +43,7 @@ dependencies:
   go_router: ^17.1.0
   google_fonts: ^8.0.2
   flutter_animate: ^4.5.2
-  file_picker: ^10.1.9
+  file_picker: ^11.0.2
   url_launcher: ^6.3.2
   msal_auth: ^3.3.0
   shared_preferences: ^2.5.4
@@ -76,6 +76,14 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  # SwiftPM is disabled project-wide: file_picker's Package.swift pins
+  # DKImagePickerController to a git branch literally named "4.3.9" that no
+  # longer exists upstream, breaking dependency resolution on every current
+  # file_picker release. CocoaPods resolves the same dependency through the
+  # normal trunk/version-constraint path and isn't affected.
+  config:
+    enable-swift-package-manager: false
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

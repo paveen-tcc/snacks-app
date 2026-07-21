@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a two-part monorepo for an office "snacks" ordering app:
 
 - `app/` — Flutter client (iOS, Android, web, desktop) — Dart SDK `^3.11.1`
-- `server/` — Cloudflare Workers backend (Hono + Drizzle ORM + Neon Postgres) running on Bun
+- `server/` — Cloudflare Workers backend (Hono + Drizzle ORM + Cloudflare D1) running on Bun
 
 The Flutter app talks to the Workers API over HTTPS, authenticating users via Microsoft Entra ID (MSAL) and exchanging the Azure token for a server-issued JWT.
 
@@ -37,22 +37,22 @@ dart run build_runner watch                              # rebuild on change
 
 ```bash
 bun install
-bun run dev            # wrangler dev on :8787 (uses .dev.vars for secrets)
-bun run dev:bun        # alt: run via Bun --hot (no Workers runtime)
-bun run deploy         # wrangler deploy
-bun run db:generate    # drizzle-kit generate migrations from schema.ts
-bun run db:push        # push schema directly (dev)
-bun run db:seed        # seed via src/db/seed.ts
+bun run dev                 # wrangler dev on :8787 (local D1 via miniflare)
+bun run deploy              # wrangler deploy (org account)
+bun run db:generate         # drizzle-kit generate migrations from schema.ts
+bun run db:migrate:local    # apply migrations to local D1
+bun run db:migrate:remote   # apply migrations to org D1
+bun run db:seed             # generate seed.sql and apply to local D1
 ```
 
-Secrets are set with `npx wrangler secret put <KEY>` for: `DATABASE_URL`, `JWT_SECRET`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` (listed in [wrangler.toml](server/wrangler.toml)).
+Secrets are set with `bunx wrangler secret put <KEY>` for: `JWT_SECRET`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `FCM_SERVICE_ACCOUNT` (listed in [wrangler.toml](server/wrangler.toml)). The database is a D1 binding (`DB`), not a secret.
 
 ## Architecture
 
 ### Server (`server/src/`)
 
 - Single Hono app exported as the Worker default export ([index.ts](server/src/index.ts)).
-- Per-request middleware constructs a Drizzle client over `@neondatabase/serverless` and stashes it in `c.set('db', ...)` along with `jwtSecret`. Routes pull these via `c.get(...)` — **do not** instantiate the DB inside route handlers.
+- Per-request middleware constructs a Drizzle client over the D1 binding (c.env.DB) and stashes it in c.set('db', ...) along with jwtSecret. Routes pull these via c.get(...) — **do not** instantiate the DB inside route handlers.
 - `AppEnv` (`Bindings` + `Variables`) is the canonical Hono generic — propagate it through every `new Hono<AppEnv>()` and `Context<AppEnv>` so `c.get('db' | 'jwtSecret' | 'user')` stays typed.
 - Auth ([middleware/auth.ts](server/src/middleware/auth.ts)): `authMiddleware` verifies the server-issued JWT and sets `c.set('user', payload)`; `adminMiddleware` requires `user.isAdmin`. The `/api/auth` routes themselves verify the MSAL/Azure token (via JWKS at `login.microsoftonline.com/{tenant}/discovery/v2.0/keys`) and mint the app JWT.
 - Routes are mounted under `/api/{auth,snacks,orders,drinks,admin}`. Drizzle schema lives in [src/db/schema.ts](server/src/db/schema.ts); migrations go to `server/drizzle/`.

@@ -9,7 +9,7 @@ class ApiClient {
   // Use 10.0.2.2 for Android emulator to access localhost, use localhost for iOS
   // Use localhost for iOS Simulator, use your machine IP for physical devices
   static const String _defaultBaseUrl =
-      'https://snacks-app.paveenkumar-dev.workers.dev/api';
+      'https://snacks-app.cloudcom.workers.dev/api';
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: _defaultBaseUrl,
