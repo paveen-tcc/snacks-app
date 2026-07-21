@@ -1,0 +1,9 @@
+# Generate a long random value for local JWT signing. Do not reuse production secrets.
+JWT_SECRET=replace-with-a-long-random-local-secret
+
+# These must match the Microsoft Entra app registration used by the Flutter app.
+AZURE_TENANT_ID=78c58f88-8385-43c2-b475-a57dcfbbc09f
+AZURE_CLIENT_ID=a9bb1ec3-db6c-4192-96c6-de69296cfe66
+
+# Optional: single-line Firebase service-account JSON for push notifications.
+# FCM_SERVICE_ACCOUNT={"type":"service_account",...}
