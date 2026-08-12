@@ -247,14 +247,9 @@ async function synchronizeDate(db: Database, date: string) {
                 target: [dailyPurchaseItems.date, dailyPurchaseItems.sourceKey],
             });
         } else if (!existing.isEdited && existing.isRemoved) {
-            const unitPriceRupees = existing.unitPriceRupees === 0 &&
-                group.snapshotPrice === null && group.fallbackPrice > 0
-                ? group.fallbackPrice
-                : existing.unitPriceRupees;
             await db.update(dailyPurchaseItems)
                 .set({
                     quantity,
-                    unitPriceRupees,
                     isRemoved: false,
                     updatedAt: new Date(),
                 })
@@ -266,13 +261,6 @@ async function synchronizeDate(db: Database, date: string) {
         } else if (!existing.isEdited && !existing.isRemoved) {
             const updates: Partial<typeof dailyPurchaseItems.$inferInsert> = {};
             if (existing.quantity !== quantity) updates.quantity = quantity;
-            if (
-                existing.unitPriceRupees === 0 &&
-                group.snapshotPrice === null &&
-                group.fallbackPrice > 0
-            ) {
-                updates.unitPriceRupees = group.fallbackPrice;
-            }
             if (Object.keys(updates).length > 0) {
                 await db.update(dailyPurchaseItems)
                     .set({ ...updates, updatedAt: new Date() })

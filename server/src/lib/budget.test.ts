@@ -323,7 +323,7 @@ describe('budget materialization', () => {
         });
     });
 
-    test('fills a zero fallback price once after an unpriced catalog is configured', async () => {
+    test('preserves a materialized zero price after the catalog price changes', async () => {
         const db = createTestDb();
         const snack = await insertOrders(db, 1, { snackPriceRupeesSnapshot: null });
         await db.update(snacks).set({ priceRupees: 0 }).where(eq(snacks.id, snack.id));
@@ -331,9 +331,9 @@ describe('budget materialization', () => {
         expect(unpriced.items[0]!.unitPriceRupees).toBe(0);
 
         await db.update(snacks).set({ priceRupees: 55 }).where(eq(snacks.id, snack.id));
-        const configured = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+        const unchanged = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
 
-        expect(configured.items[0]!.unitPriceRupees).toBe(55);
+        expect(unchanged.items[0]!.unitPriceRupees).toBe(0);
     });
 
     test('does not fill a zero fallback price on an edited line', async () => {
