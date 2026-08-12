@@ -625,6 +625,7 @@ class _BudgetItemFormState extends State<_BudgetItemForm> {
             TextFormField(
               key: const Key('budget-item-name'),
               controller: _nameController,
+              enabled: !_saving,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Item name'),
               validator: (value) => value == null || value.trim().isEmpty
@@ -658,6 +659,7 @@ class _BudgetItemFormState extends State<_BudgetItemForm> {
                   child: TextFormField(
                     key: const Key('budget-item-quantity'),
                     controller: _quantityController,
+                    enabled: !_saving,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Quantity'),
                     validator: (value) {
@@ -673,6 +675,7 @@ class _BudgetItemFormState extends State<_BudgetItemForm> {
                   child: TextFormField(
                     key: const Key('budget-item-price'),
                     controller: _priceController,
+                    enabled: !_saving,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'Unit price (₹)',

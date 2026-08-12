@@ -44,6 +44,9 @@ class BudgetScreen extends StatefulWidget {
 }
 
 class _BudgetScreenState extends State<BudgetScreen> {
+  static final DateTime _reportingStartDate = DateTime(2026, 8, 1);
+  static final DateTime _lastPickerDate = DateTime(9999, 12, 31);
+
   static const _months = [
     'January',
     'February',
@@ -99,7 +102,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
   void initState() {
     super.initState();
     final date = widget.initialDate ?? DateTime.now();
-    _anchor = DateTime(date.year, date.month, date.day);
+    final normalized = DateTime(date.year, date.month, date.day);
+    _anchor = normalized.isBefore(_reportingStartDate)
+        ? _reportingStartDate
+        : normalized;
     if (widget.isActive) _load();
   }
 
@@ -165,7 +171,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
   (DateTime, DateTime) get _rangeBounds {
     if (_period == BudgetPeriod.week) {
       final monday = _anchor.subtract(Duration(days: _anchor.weekday - 1));
-      return (monday, monday.add(const Duration(days: 6)));
+      final sunday = monday.add(const Duration(days: 6));
+      final start = monday.isBefore(_reportingStartDate)
+          ? _reportingStartDate
+          : monday;
+      return (start, sunday);
     }
     final start = DateTime(_anchor.year, _anchor.month);
     final end = DateTime(_anchor.year, _anchor.month + 1, 0);
@@ -197,8 +207,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   void _movePeriod(int direction) {
+    if (direction < 0 && !_canMovePrevious) return;
     setState(() {
-      _anchor = switch (_period) {
+      final moved = switch (_period) {
         BudgetPeriod.day => _anchor.add(Duration(days: direction)),
         BudgetPeriod.week => _anchor.add(Duration(days: 7 * direction)),
         BudgetPeriod.month => DateTime(
@@ -207,6 +218,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
           1,
         ),
       };
+      _anchor = moved.isBefore(_reportingStartDate)
+          ? _reportingStartDate
+          : moved;
       if (_period == BudgetPeriod.day) {
         _day = null;
       } else {
@@ -218,14 +232,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final firstDate = DateTime(now.year, now.month);
-    final initial = _anchor.isBefore(firstDate) ? firstDate : _anchor;
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial,
-      firstDate: firstDate,
-      lastDate: DateTime(now.year + 5, 12, 31),
+      initialDate: _anchor,
+      firstDate: _reportingStartDate,
+      lastDate: _lastPickerDate,
       helpText: 'Select budget date',
     );
     if (picked == null || !mounted) return;
@@ -240,6 +251,15 @@ class _BudgetScreenState extends State<BudgetScreen> {
     });
     _load();
   }
+
+  bool get _canMovePrevious => switch (_period) {
+    BudgetPeriod.day => _anchor.isAfter(_reportingStartDate),
+    BudgetPeriod.week => _rangeBounds.$1.isAfter(_reportingStartDate),
+    BudgetPeriod.month => DateTime(
+      _anchor.year,
+      _anchor.month,
+    ).isAfter(_reportingStartDate),
+  };
 
   void _openDay(String date) {
     setState(() {
@@ -445,7 +465,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   const SizedBox(height: AppSpacing.md),
                   _DateNavigator(
                     label: _periodLabel,
-                    onPrevious: () => _movePeriod(-1),
+                    onPrevious: _canMovePrevious ? () => _movePeriod(-1) : null,
                     onNext: () => _movePeriod(1),
                     onCalendar: _pickDate,
                   ),
@@ -608,7 +628,7 @@ class _DateNavigator extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPrevious;
+  final VoidCallback? onPrevious;
   final VoidCallback onNext;
   final VoidCallback onCalendar;
 
