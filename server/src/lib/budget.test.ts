@@ -88,6 +88,21 @@ describe('budget materialization', () => {
         expect(day.items[0]!.unitPriceRupees).toBe(40);
     });
 
+    test('concurrent first reads materialize one generated line without failing', async () => {
+        const db = createTestDb();
+        await insertOrders(db, 1);
+
+        const [first, second] = await Promise.all([
+            getBudgetDay(db, '2026-08-12', OFFICE_TODAY),
+            getBudgetDay(db, '2026-08-12', OFFICE_TODAY),
+        ]);
+
+        expect(first.items).toHaveLength(1);
+        expect(second.items).toHaveLength(1);
+        const stored = await db.select().from(dailyPurchaseItems);
+        expect(stored).toHaveLength(1);
+    });
+
     test('edited and removed generated lines are not overwritten', async () => {
         const db = createTestDb();
         await insertOrders(db, 1);
@@ -206,5 +221,30 @@ describe('budget validation', () => {
         await expect(createPurchaseItem(db, '2026-08-12', {
             name: ' ', itemType: 'snack', quantity: 0, unitPriceRupees: -1,
         }, OFFICE_TODAY)).rejects.toThrow('name is required');
+    });
+
+    test('existing purchase rows remain editable after month rollover', async () => {
+        const db = createTestDb();
+        const [existing] = await db.insert(dailyPurchaseItems).values({
+            date: '2026-08-12',
+            name: 'Tea',
+            itemType: 'drink',
+            quantity: 2,
+            unitPriceRupees: 15,
+        }).returning();
+
+        const updated = await updatePurchaseItem(
+            db,
+            '2026-08-12',
+            existing!.id,
+            { quantity: 3 },
+            '2026-09-05',
+        );
+        expect(updated.quantity).toBe(3);
+
+        await removePurchaseItem(db, '2026-08-12', existing!.id, '2026-09-05');
+        const [removed] = await db.select().from(dailyPurchaseItems)
+            .where(eq(dailyPurchaseItems.id, existing!.id));
+        expect(removed!.isRemoved).toBe(true);
     });
 });

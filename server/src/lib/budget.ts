@@ -242,6 +242,8 @@ async function synchronizeDate(db: Database, date: string) {
                 itemType,
                 quantity,
                 unitPriceRupees: group.snapshotPrice ?? group.fallbackPrice,
+            }).onConflictDoNothing({
+                target: [dailyPurchaseItems.date, dailyPurchaseItems.sourceKey],
             });
         } else if (!existing.isEdited && !existing.isRemoved && existing.quantity !== quantity) {
             await db.update(dailyPurchaseItems)
@@ -381,9 +383,9 @@ export async function updatePurchaseItem(
     date: string,
     id: string,
     input: PurchaseItemUpdate,
-    officeToday: string,
+    _officeToday: string,
 ): Promise<BudgetLine> {
-    validateReportingDate(date, officeToday);
+    parseDate(date);
     const [existing] = await db.select().from(dailyPurchaseItems).where(and(
         eq(dailyPurchaseItems.id, id),
         eq(dailyPurchaseItems.date, date),
@@ -411,9 +413,9 @@ export async function removePurchaseItem(
     db: Database,
     date: string,
     id: string,
-    officeToday: string,
+    _officeToday: string,
 ): Promise<void> {
-    validateReportingDate(date, officeToday);
+    parseDate(date);
     const [existing] = await db.select({ id: dailyPurchaseItems.id })
         .from(dailyPurchaseItems)
         .where(and(
