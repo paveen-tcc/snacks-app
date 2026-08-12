@@ -112,21 +112,19 @@ function normalizeItemType(value: unknown): BudgetItemType {
 }
 
 function normalizeQuantity(value: unknown): number {
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 1) {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
         throw new BudgetValidationError('quantity must be an integer greater than or equal to 1');
     }
-    return parsed;
+    return value;
 }
 
 function normalizeUnitPrice(value: unknown): number {
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 0) {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
         throw new BudgetValidationError(
             'unitPriceRupees must be a whole number greater than or equal to 0',
         );
     }
-    return parsed;
+    return value;
 }
 
 function normalizeItem(input: PurchaseItemInput) {
@@ -248,10 +246,42 @@ async function synchronizeDate(db: Database, date: string) {
             }).onConflictDoNothing({
                 target: [dailyPurchaseItems.date, dailyPurchaseItems.sourceKey],
             });
-        } else if (!existing.isEdited && !existing.isRemoved && existing.quantity !== quantity) {
+        } else if (!existing.isEdited && existing.isRemoved) {
+            const unitPriceRupees = existing.unitPriceRupees === 0 &&
+                group.snapshotPrice === null && group.fallbackPrice > 0
+                ? group.fallbackPrice
+                : existing.unitPriceRupees;
             await db.update(dailyPurchaseItems)
-                .set({ quantity, updatedAt: new Date() })
-                .where(eq(dailyPurchaseItems.id, existing.id));
+                .set({
+                    quantity,
+                    unitPriceRupees,
+                    isRemoved: false,
+                    updatedAt: new Date(),
+                })
+                .where(and(
+                    eq(dailyPurchaseItems.id, existing.id),
+                    eq(dailyPurchaseItems.isEdited, false),
+                    eq(dailyPurchaseItems.isRemoved, true),
+                ));
+        } else if (!existing.isEdited && !existing.isRemoved) {
+            const updates: Partial<typeof dailyPurchaseItems.$inferInsert> = {};
+            if (existing.quantity !== quantity) updates.quantity = quantity;
+            if (
+                existing.unitPriceRupees === 0 &&
+                group.snapshotPrice === null &&
+                group.fallbackPrice > 0
+            ) {
+                updates.unitPriceRupees = group.fallbackPrice;
+            }
+            if (Object.keys(updates).length > 0) {
+                await db.update(dailyPurchaseItems)
+                    .set({ ...updates, updatedAt: new Date() })
+                    .where(and(
+                        eq(dailyPurchaseItems.id, existing.id),
+                        eq(dailyPurchaseItems.isEdited, false),
+                        eq(dailyPurchaseItems.isRemoved, false),
+                    ));
+            }
         }
     }
 
@@ -265,7 +295,11 @@ async function synchronizeDate(db: Database, date: string) {
         ) {
             await db.update(dailyPurchaseItems)
                 .set({ isRemoved: true, updatedAt: new Date() })
-                .where(eq(dailyPurchaseItems.id, row.id));
+                .where(and(
+                    eq(dailyPurchaseItems.id, row.id),
+                    eq(dailyPurchaseItems.isEdited, false),
+                    eq(dailyPurchaseItems.isRemoved, false),
+                ));
         }
     }
 }
@@ -428,6 +462,6 @@ export async function removePurchaseItem(
         ));
     if (!existing) throw new BudgetNotFoundError('Purchase item not found');
     await db.update(dailyPurchaseItems)
-        .set({ isRemoved: true, updatedAt: new Date() })
+        .set({ isEdited: true, isRemoved: true, updatedAt: new Date() })
         .where(eq(dailyPurchaseItems.id, id));
 }

@@ -12,6 +12,21 @@ import {
 
 const orderRoutes = new Hono<AuthContext>();
 
+// Employee order responses intentionally preserve the pre-budget contract.
+// Budget snapshots remain stored on the order but only admin budget services
+// may read them.
+const employeeOrderSelection = {
+    id: orders.id,
+    userId: orders.userId,
+    date: orders.date,
+    snackId: orders.snackId,
+    snackNameSnapshot: orders.snackNameSnapshot,
+    snackEmojiSnapshot: orders.snackEmojiSnapshot,
+    isDefaultAssigned: orders.isDefaultAssigned,
+    orderedAt: orders.orderedAt,
+    updatedAt: orders.updatedAt,
+};
+
 // All order routes are protected
 orderRoutes.use('*', authMiddleware);
 
@@ -55,7 +70,7 @@ orderRoutes.get('/today', async (c) => {
         const today = effectiveOrderDate(await getOrderWindow(db));
 
         const todaysOrders = await db
-            .select()
+            .select(employeeOrderSelection)
             .from(orders)
             .where(and(eq(orders.userId, user.userId), sql`${orders.date} = ${today}`))
             .orderBy(orders.orderedAt);
@@ -143,7 +158,7 @@ orderRoutes.post('/', async (c) => {
                     updatedAt: new Date(),
                 };
             }))
-            .returning();
+            .returning(employeeOrderSelection);
 
         return c.json({
             order: savedOrders[0] ?? null,

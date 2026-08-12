@@ -86,11 +86,10 @@ function normalizeShareCount(value: unknown): number {
 }
 
 export function normalizePriceRupees(value: unknown): number {
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 0) {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
         throw new Error('priceRupees must be a whole number greater than or equal to 0');
     }
-    return parsed;
+    return value;
 }
 
 function isCatalogValidationError(err: unknown): err is Error {

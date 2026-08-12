@@ -9,7 +9,16 @@ describe('normalizePriceRupees', () => {
         expect(normalizePriceRupees(input)).toBe(expected);
     });
 
-    test.each([-1, 12.5])('rejects invalid rupee prices (%p)', (input) => {
+    test.each([
+        -1,
+        12.5,
+        '25',
+        true,
+        null,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.MAX_SAFE_INTEGER + 1,
+    ])('rejects invalid rupee prices (%p)', (input) => {
         expect(() => normalizePriceRupees(input)).toThrow(
             'priceRupees must be a whole number greater than or equal to 0',
         );

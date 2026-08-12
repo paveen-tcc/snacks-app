@@ -21,6 +21,7 @@ import '../../core/widgets/food_card.dart' show VegBadge;
 import '../../core/widgets/skeleton.dart';
 import '../../core/widgets/optimized_image.dart';
 import '../../data/repositories/admin_repository.dart';
+import 'bulk_snack_parser.dart';
 
 class AdminSnacksScreen extends StatefulWidget {
   const AdminSnacksScreen({super.key});
@@ -132,8 +133,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
       final content = utf8
           .decode(bytes, allowMalformed: true)
           .replaceFirst('\uFEFF', '');
-      final snacks = _parseBulkSnacks(content);
+      final snacks = parseBulkSnacks(content);
       await _uploadParsedSnacks(snacks);
+    } on BulkSnackParseException catch (error) {
+      _showError(error.message);
     } catch (e) {
       _showError('Failed to upload file');
     }
@@ -468,125 +471,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     );
   }
 
-  List<String> _splitBulkRow(String row, String delimiter) {
-    final values = <String>[];
-    var current = '';
-    var inQuotes = false;
-
-    for (var i = 0; i < row.length; i++) {
-      final char = row[i];
-      final nextChar = i + 1 < row.length ? row[i + 1] : '';
-
-      if (char == '"') {
-        if (inQuotes && nextChar == '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-        continue;
-      }
-
-      if (!inQuotes && char == delimiter) {
-        values.add(current.trim());
-        current = '';
-        continue;
-      }
-
-      current += char;
-    }
-
-    // Strip outer quotes and trim each value
-    values.add(current.trim());
-    return values.map((v) {
-      if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
-        return v.substring(1, v.length - 1).trim();
-      }
-      return v;
-    }).toList();
-  }
-
-  bool _parseBoolToken(String raw, {required bool defaultValue}) {
-    final normalized = raw.trim().toLowerCase();
-    if (normalized.isEmpty) return defaultValue;
-    if (['true', 'yes', 'y', '1', 'default', 'active'].contains(normalized)) {
-      return true;
-    }
-    if (['false', 'no', 'n', '0', 'inactive'].contains(normalized)) {
-      return false;
-    }
-    return defaultValue;
-  }
-
-  List<Map<String, dynamic>> _parseBulkSnacks(String raw) {
-    final lines = raw
-        .split(RegExp(r'\r\n|\r|\n'))
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return const [];
-
-    // Detect delimiter: tabs first, then semicolons, fallback to commas.
-    final String delimiter;
-    if (lines.any((line) => line.contains('\t'))) {
-      delimiter = '\t';
-    } else if (lines.any((line) => line.contains(';'))) {
-      delimiter = ';';
-    } else {
-      delimiter = ',';
-    }
-    final firstRow = _splitBulkRow(lines.first, delimiter);
-    final hasHeader =
-        firstRow.isNotEmpty && firstRow.first.toLowerCase().contains('name');
-    final dataLines = hasHeader ? lines.skip(1) : lines;
-
-    return dataLines
-        .map((line) {
-          final cols = _splitBulkRow(line, delimiter);
-          final name = cols.isNotEmpty ? cols[0] : '';
-          final category = cols.length > 1 ? cols[1] : '';
-          final emoji = cols.length > 2 ? cols[2] : '';
-          final type = cols.length > 3 ? cols[3] : '';
-          final servingSize = cols.length > 4 ? cols[4] : '';
-          final shareCount = cols.length > 5 ? int.tryParse(cols[5].trim()) : 1;
-          final priceRupees = cols.length > 6
-              ? parseWholeRupees(cols[6]) ?? 0
-              : 0;
-          final isActive = cols.length > 7
-              ? _parseBoolToken(cols[7], defaultValue: true)
-              : true;
-          final sortOrder = cols.length > 8
-              ? int.tryParse(cols[8].trim())
-              : null;
-          final normalizedType = type.trim().toLowerCase();
-          final isVeg = ![
-            'non-veg',
-            'non veg',
-            'nveg',
-            'nonveg',
-            'false',
-            'no',
-            '0',
-          ].contains(normalizedType);
-
-          return {
-            'name': name.trim(),
-            'category': category.trim(),
-            'emoji': emoji.trim(),
-            'isVeg': isVeg,
-            'servingSize': servingSize.trim(),
-            'shareCount': (shareCount != null && shareCount > 0)
-                ? shareCount
-                : 1,
-            'priceRupees': priceRupees,
-            'isActive': isActive,
-            'sortOrder': ?sortOrder,
-          };
-        })
-        .where((snack) => (snack['name'] as String).isNotEmpty)
-        .toList();
-  }
-
   void _showBulkUploadSheet() {
     final bulkCtrl = TextEditingController();
 
@@ -654,9 +538,13 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  final snacks = _parseBulkSnacks(bulkCtrl.text);
-                  Navigator.pop(ctx);
-                  await _uploadParsedSnacks(snacks);
+                  try {
+                    final snacks = parseBulkSnacks(bulkCtrl.text);
+                    Navigator.pop(ctx);
+                    await _uploadParsedSnacks(snacks);
+                  } on BulkSnackParseException catch (error) {
+                    _showError(error.message);
+                  }
                 },
                 icon: const Icon(Icons.cloud_upload_outlined),
                 label: const Text('Upload Snacks'),

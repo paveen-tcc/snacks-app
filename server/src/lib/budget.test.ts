@@ -8,6 +8,7 @@ import type { Database } from '../db';
 import * as schema from '../db/schema';
 import { dailyPurchaseItems, orders, snacks, users } from '../db/schema';
 import {
+    type PurchaseItemInput,
     createPurchaseItem,
     getBudgetDay,
     getBudgetRange,
@@ -27,6 +28,53 @@ function createTestDb(): Database {
         }
     }
     return drizzle(sqlite, { schema }) as unknown as Database;
+}
+
+function withConcurrentUpdateBeforeWrite(
+    db: Database,
+    shouldIntercept: (values: Record<string, unknown>) => boolean,
+    concurrentUpdate: () => Promise<unknown>,
+): Database {
+    let intercepted = false;
+    return new Proxy(db as object, {
+        get(target, property, receiver) {
+            if (property !== 'update') {
+                const value = Reflect.get(target, property, receiver);
+                return typeof value === 'function' ? value.bind(target) : value;
+            }
+            return (table: unknown) => {
+                const updateBuilder = (db as any).update(table);
+                if (table !== dailyPurchaseItems) return updateBuilder;
+                return new Proxy(updateBuilder, {
+                    get(updateTarget, updateProperty) {
+                        if (updateProperty !== 'set') {
+                            const value = Reflect.get(updateTarget, updateProperty);
+                            return typeof value === 'function' ? value.bind(updateTarget) : value;
+                        }
+                        return (values: Record<string, unknown>) => {
+                            const setBuilder = updateTarget.set(values);
+                            if (intercepted || !shouldIntercept(values)) return setBuilder;
+                            return new Proxy(setBuilder, {
+                                get(setTarget, setProperty) {
+                                    if (setProperty !== 'where') {
+                                        const value = Reflect.get(setTarget, setProperty);
+                                        return typeof value === 'function'
+                                            ? value.bind(setTarget)
+                                            : value;
+                                    }
+                                    return async (condition: unknown) => {
+                                        intercepted = true;
+                                        await concurrentUpdate();
+                                        return setTarget.where(condition);
+                                    };
+                                },
+                            });
+                        };
+                    },
+                });
+            };
+        },
+    }) as Database;
 }
 
 async function insertOrders(
@@ -178,6 +226,131 @@ describe('budget materialization', () => {
         expect(stored!.isRemoved).toBe(true);
     });
 
+    test('reactivates an automatic tombstone when its source order returns', async () => {
+        const db = createTestDb();
+        await insertOrders(db, 1);
+        await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+        const [sourceOrder] = await db.select().from(orders);
+        await db.delete(orders).where(eq(orders.date, '2026-08-12'));
+        expect((await getBudgetDay(db, '2026-08-12', OFFICE_TODAY)).items).toEqual([]);
+
+        await db.insert(orders).values({
+            userId: sourceOrder!.userId,
+            date: sourceOrder!.date,
+            snackId: sourceOrder!.snackId,
+            snackNameSnapshot: sourceOrder!.snackNameSnapshot,
+            snackEmojiSnapshot: sourceOrder!.snackEmojiSnapshot,
+            snackPriceRupeesSnapshot: sourceOrder!.snackPriceRupeesSnapshot,
+            snackShareCountSnapshot: sourceOrder!.snackShareCountSnapshot,
+            snackCategorySnapshot: sourceOrder!.snackCategorySnapshot,
+        });
+
+        const restored = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+        expect(restored.items).toHaveLength(1);
+        expect(restored.items[0]).toMatchObject({ name: 'Samosa', quantity: 1 });
+    });
+
+    test('admin removal is permanent and records an edited tombstone', async () => {
+        const db = createTestDb();
+        await insertOrders(db, 1);
+        const generated = (await getBudgetDay(db, '2026-08-12', OFFICE_TODAY)).items[0]!;
+
+        await removePurchaseItem(db, '2026-08-12', generated.id, OFFICE_TODAY);
+        const afterSync = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+        const [stored] = await db.select().from(dailyPurchaseItems)
+            .where(eq(dailyPurchaseItems.id, generated.id));
+
+        expect(afterSync.items).toEqual([]);
+        expect(stored).toMatchObject({ isEdited: true, isRemoved: true });
+    });
+
+    test('quantity refresh does not overwrite a concurrent admin edit', async () => {
+        const db = createTestDb();
+        await insertOrders(db, 1);
+        const generated = (await getBudgetDay(db, '2026-08-12', OFFICE_TODAY)).items[0]!;
+        const [sourceOrder] = await db.select().from(orders);
+        await db.insert(orders).values([
+            {
+                userId: sourceOrder!.userId,
+                date: sourceOrder!.date,
+                snackId: sourceOrder!.snackId,
+                snackNameSnapshot: sourceOrder!.snackNameSnapshot,
+                snackPriceRupeesSnapshot: sourceOrder!.snackPriceRupeesSnapshot,
+                snackShareCountSnapshot: sourceOrder!.snackShareCountSnapshot,
+                snackCategorySnapshot: sourceOrder!.snackCategorySnapshot,
+            },
+            {
+                userId: sourceOrder!.userId,
+                date: sourceOrder!.date,
+                snackId: sourceOrder!.snackId,
+                snackNameSnapshot: sourceOrder!.snackNameSnapshot,
+                snackPriceRupeesSnapshot: sourceOrder!.snackPriceRupeesSnapshot,
+                snackShareCountSnapshot: sourceOrder!.snackShareCountSnapshot,
+                snackCategorySnapshot: sourceOrder!.snackCategorySnapshot,
+            },
+        ]);
+        const racingDb = withConcurrentUpdateBeforeWrite(
+            db,
+            (values) => Object.prototype.hasOwnProperty.call(values, 'quantity'),
+            () => db.update(dailyPurchaseItems)
+                .set({ quantity: 9, isEdited: true })
+                .where(eq(dailyPurchaseItems.id, generated.id)),
+        );
+
+        const day = await getBudgetDay(racingDb, '2026-08-12', OFFICE_TODAY);
+
+        expect(day.items[0]).toMatchObject({ quantity: 9, isEdited: true });
+    });
+
+    test('auto-tombstone does not hide a concurrent admin edit', async () => {
+        const db = createTestDb();
+        await insertOrders(db, 1);
+        const generated = (await getBudgetDay(db, '2026-08-12', OFFICE_TODAY)).items[0]!;
+        await db.delete(orders).where(eq(orders.date, '2026-08-12'));
+        const racingDb = withConcurrentUpdateBeforeWrite(
+            db,
+            (values) => values.isRemoved === true,
+            () => db.update(dailyPurchaseItems)
+                .set({ name: 'Admin substitute', isEdited: true })
+                .where(eq(dailyPurchaseItems.id, generated.id)),
+        );
+
+        const day = await getBudgetDay(racingDb, '2026-08-12', OFFICE_TODAY);
+
+        expect(day.items[0]).toMatchObject({
+            name: 'Admin substitute',
+            isEdited: true,
+        });
+    });
+
+    test('fills a zero fallback price once after an unpriced catalog is configured', async () => {
+        const db = createTestDb();
+        const snack = await insertOrders(db, 1, { snackPriceRupeesSnapshot: null });
+        await db.update(snacks).set({ priceRupees: 0 }).where(eq(snacks.id, snack.id));
+        const unpriced = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+        expect(unpriced.items[0]!.unitPriceRupees).toBe(0);
+
+        await db.update(snacks).set({ priceRupees: 55 }).where(eq(snacks.id, snack.id));
+        const configured = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+
+        expect(configured.items[0]!.unitPriceRupees).toBe(55);
+    });
+
+    test('does not fill a zero fallback price on an edited line', async () => {
+        const db = createTestDb();
+        const snack = await insertOrders(db, 1, { snackPriceRupeesSnapshot: null });
+        await db.update(snacks).set({ priceRupees: 0 }).where(eq(snacks.id, snack.id));
+        const generated = (await getBudgetDay(db, '2026-08-12', OFFICE_TODAY)).items[0]!;
+        await updatePurchaseItem(db, '2026-08-12', generated.id, {
+            unitPriceRupees: 0,
+        }, OFFICE_TODAY);
+
+        await db.update(snacks).set({ priceRupees: 55 }).where(eq(snacks.id, snack.id));
+        const day = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+
+        expect(day.items[0]).toMatchObject({ unitPriceRupees: 0, isEdited: true });
+    });
+
     test('range reports zero-filled days and aggregated item totals', async () => {
         const db = createTestDb();
         await insertOrders(db, 3);
@@ -250,6 +423,49 @@ describe('budget validation', () => {
         await expect(createPurchaseItem(db, '2026-08-12', {
             name: ' ', itemType: 'snack', quantity: 0, unitPriceRupees: -1,
         }, OFFICE_TODAY)).rejects.toThrow('name is required');
+    });
+
+    test.each([
+        '1',
+        true,
+        null,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.MAX_SAFE_INTEGER + 1,
+        0,
+        -1,
+        1.5,
+    ])('rejects non-JSON-integer quantity %p', async (quantity) => {
+        const db = createTestDb();
+        await expect(createPurchaseItem(db, '2026-08-12', {
+            name: 'Tea',
+            itemType: 'drink',
+            quantity,
+            unitPriceRupees: 1,
+        } satisfies PurchaseItemInput, OFFICE_TODAY)).rejects.toThrow(
+            'quantity must be an integer greater than or equal to 1',
+        );
+    });
+
+    test.each([
+        '1',
+        true,
+        null,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.MAX_SAFE_INTEGER + 1,
+        -1,
+        1.5,
+    ])('rejects non-JSON-integer unit price %p', async (unitPriceRupees) => {
+        const db = createTestDb();
+        await expect(createPurchaseItem(db, '2026-08-12', {
+            name: 'Tea',
+            itemType: 'drink',
+            quantity: 1,
+            unitPriceRupees,
+        } satisfies PurchaseItemInput, OFFICE_TODAY)).rejects.toThrow(
+            'unitPriceRupees must be a whole number greater than or equal to 0',
+        );
     });
 
     test('existing purchase rows remain editable after month rollover', async () => {
