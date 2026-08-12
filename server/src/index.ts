@@ -8,6 +8,7 @@ import authRoutes from './routes/auth';
 import snackRoutes from './routes/snacks';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
+import budgetRoutes from './routes/budget';
 import pushRoutes from './routes/push';
 import { runOrderReminder } from './scheduled';
 
@@ -66,6 +67,7 @@ app.get('/debug/jwks', async (c) => {
 app.route('/api/auth', authRoutes);
 app.route('/api/snacks', snackRoutes);
 app.route('/api/orders', orderRoutes);
+app.route('/api/admin/budget', budgetRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/push', pushRoutes);
 

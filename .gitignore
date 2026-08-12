@@ -6,6 +6,10 @@ server/.wrangler/
 # Claude Code local worktrees (must never be committed as gitlinks)
 .claude/worktrees/
 
+# Local agent worktrees and brainstorming/development artifacts
+.worktrees/
+.superpowers/
+
 # One-off menu import artifacts
 server/src/db/new_menu.json
 server/src/db/sync_menu.ts

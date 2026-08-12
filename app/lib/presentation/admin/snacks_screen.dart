@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/snack_categories.dart';
 import '../../core/di/locator.dart';
+import '../../core/formatters/rupees.dart';
 import '../../core/network/api_client.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
@@ -20,6 +21,7 @@ import '../../core/widgets/food_card.dart' show VegBadge;
 import '../../core/widgets/skeleton.dart';
 import '../../core/widgets/optimized_image.dart';
 import '../../data/repositories/admin_repository.dart';
+import 'bulk_snack_parser.dart';
 
 class AdminSnacksScreen extends StatefulWidget {
   const AdminSnacksScreen({super.key});
@@ -131,8 +133,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
       final content = utf8
           .decode(bytes, allowMalformed: true)
           .replaceFirst('\uFEFF', '');
-      final snacks = _parseBulkSnacks(content);
+      final snacks = parseBulkSnacks(content);
       await _uploadParsedSnacks(snacks);
+    } on BulkSnackParseException catch (error) {
+      _showError(error.message);
     } catch (e) {
       _showError('Failed to upload file');
     }
@@ -219,7 +223,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     }
     // Always add Drinks to category list
     seen.putIfAbsent('drinks', () => 'Drinks');
-    
+
     // Add categories from existing snacks
     for (final snack in _snacks) {
       final cat = (snack['category'] as String? ?? '').trim();
@@ -247,6 +251,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     );
     final shareCountCtrl = TextEditingController(
       text: ((existing?['shareCount'] as num?)?.toInt() ?? 1).toString(),
+    );
+    final priceCtrl = TextEditingController(
+      text: ((existing?['priceRupees'] as num?)?.toInt() ?? 0).toString(),
     );
     bool isVeg = existing?['isVeg'] ?? true;
 
@@ -304,7 +311,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: emojiCtrl,
-                decoration: _notionInput('Image URL', hint: 'https://images.unsplash.com/...'),
+                decoration: _notionInput(
+                  'Image URL',
+                  hint: 'https://images.unsplash.com/...',
+                ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -355,6 +365,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                   hint: '1 = individual, 2 = serves 2 people',
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: _notionInput('Price (₹)', hint: 'e.g. 25'),
+              ),
               const SizedBox(height: AppSpacing.md),
               Builder(
                 builder: (context) {
@@ -404,6 +420,11 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     );
                     return;
                   }
+                  final priceRupees = parseWholeRupees(priceCtrl.text);
+                  if (priceRupees == null) {
+                    _showError('Price must be a non-negative whole number');
+                    return;
+                  }
 
                   // Resolve category from dropdown or custom text
                   String categoryValue;
@@ -420,6 +441,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     'emoji': emojiCtrl.text.trim(),
                     'servingSize': sizeCtrl.text.trim(),
                     'shareCount': shareCount,
+                    'priceRupees': priceRupees,
                     'isVeg': isVeg,
                   };
                   Navigator.pop(ctx);
@@ -447,121 +469,6 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
         ),
       ),
     );
-  }
-
-  List<String> _splitBulkRow(String row, String delimiter) {
-    final values = <String>[];
-    var current = '';
-    var inQuotes = false;
-
-    for (var i = 0; i < row.length; i++) {
-      final char = row[i];
-      final nextChar = i + 1 < row.length ? row[i + 1] : '';
-
-      if (char == '"') {
-        if (inQuotes && nextChar == '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-        continue;
-      }
-
-      if (!inQuotes && char == delimiter) {
-        values.add(current.trim());
-        current = '';
-        continue;
-      }
-
-      current += char;
-    }
-
-    // Strip outer quotes and trim each value
-    values.add(current.trim());
-    return values.map((v) {
-      if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
-        return v.substring(1, v.length - 1).trim();
-      }
-      return v;
-    }).toList();
-  }
-
-  bool _parseBoolToken(String raw, {required bool defaultValue}) {
-    final normalized = raw.trim().toLowerCase();
-    if (normalized.isEmpty) return defaultValue;
-    if (['true', 'yes', 'y', '1', 'default', 'active'].contains(normalized)) {
-      return true;
-    }
-    if (['false', 'no', 'n', '0', 'inactive'].contains(normalized)) {
-      return false;
-    }
-    return defaultValue;
-  }
-
-  List<Map<String, dynamic>> _parseBulkSnacks(String raw) {
-    final lines = raw
-        .split(RegExp(r'\r\n|\r|\n'))
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return const [];
-
-    // Detect delimiter: tabs first, then semicolons, fallback to commas.
-    final String delimiter;
-    if (lines.any((line) => line.contains('\t'))) {
-      delimiter = '\t';
-    } else if (lines.any((line) => line.contains(';'))) {
-      delimiter = ';';
-    } else {
-      delimiter = ',';
-    }
-    final firstRow = _splitBulkRow(lines.first, delimiter);
-    final hasHeader =
-        firstRow.isNotEmpty && firstRow.first.toLowerCase().contains('name');
-    final dataLines = hasHeader ? lines.skip(1) : lines;
-
-    return dataLines
-        .map((line) {
-          final cols = _splitBulkRow(line, delimiter);
-          final name = cols.isNotEmpty ? cols[0] : '';
-          final category = cols.length > 1 ? cols[1] : '';
-          final emoji = cols.length > 2 ? cols[2] : '';
-          final type = cols.length > 3 ? cols[3] : '';
-          final servingSize = cols.length > 4 ? cols[4] : '';
-          final shareCount = cols.length > 5 ? int.tryParse(cols[5].trim()) : 1;
-          final isActive = cols.length > 6
-              ? _parseBoolToken(cols[6], defaultValue: true)
-              : true;
-          final sortOrder = cols.length > 7
-              ? int.tryParse(cols[7].trim())
-              : null;
-          final normalizedType = type.trim().toLowerCase();
-          final isVeg = ![
-            'non-veg',
-            'non veg',
-            'nveg',
-            'nonveg',
-            'false',
-            'no',
-            '0',
-          ].contains(normalizedType);
-
-          return {
-            'name': name.trim(),
-            'category': category.trim(),
-            'emoji': emoji.trim(),
-            'isVeg': isVeg,
-            'servingSize': servingSize.trim(),
-            'shareCount': (shareCount != null && shareCount > 0)
-                ? shareCount
-                : 1,
-            'isActive': isActive,
-            if (sortOrder != null) 'sortOrder': sortOrder,
-          };
-        })
-        .where((snack) => (snack['name'] as String).isNotEmpty)
-        .toList();
   }
 
   void _showBulkUploadSheet() {
@@ -609,12 +516,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Format: name, category, image URL, veg/non-veg, serving size, share count, is active, sort order',
+              'Format: name, category, image URL, veg/non-veg, serving size, share count, price rupees, is active, sort order',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Example: Pizza, Italian, https://images.unsplash.com/photo-xxx, veg, 1 box, 2, true, 10',
+              'Example: Pizza, Italian, https://images.unsplash.com/photo-xxx, veg, 1 box, 2, 250, true, 10',
               style: context.text.bodySmall?.copyWith(
                 color: context.palette.textSecondary,
               ),
@@ -631,9 +538,13 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  final snacks = _parseBulkSnacks(bulkCtrl.text);
-                  Navigator.pop(ctx);
-                  await _uploadParsedSnacks(snacks);
+                  try {
+                    final snacks = parseBulkSnacks(bulkCtrl.text);
+                    Navigator.pop(ctx);
+                    await _uploadParsedSnacks(snacks);
+                  } on BulkSnackParseException catch (error) {
+                    _showError(error.message);
+                  }
                 },
                 icon: const Icon(Icons.cloud_upload_outlined),
                 label: const Text('Upload Snacks'),
@@ -721,7 +632,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: palette.brand.withValues(alpha: 0.12),
+                                    color: palette.brand.withValues(
+                                      alpha: 0.12,
+                                    ),
                                     borderRadius: AppRadii.rPill,
                                   ),
                                   child: Text(
@@ -783,21 +696,25 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     final category = displaySnackCategory(s['category'] as String?);
     final servingSize = (s['servingSize'] as String? ?? '').trim();
     final shareCount = (s['shareCount'] as num?)?.toInt() ?? 1;
+    final priceRupees = (s['priceRupees'] as num?)?.toInt() ?? 0;
 
-    Widget chip(String label) => Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 4,
-      ),
-      decoration: BoxDecoration(
-        color: palette.surfaceMuted,
-        borderRadius: AppRadii.rPill,
-      ),
-      child: Text(
-        label,
-        style: context.text.labelSmall?.copyWith(color: palette.textSecondary),
-      ),
-    );
+    Widget chip(String label, {Color? background, Color? foreground}) =>
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: background ?? palette.surfaceMuted,
+            borderRadius: AppRadii.rPill,
+          ),
+          child: Text(
+            label,
+            style: context.text.labelSmall?.copyWith(
+              color: foreground ?? palette.textSecondary,
+            ),
+          ),
+        );
 
     return Opacity(
       opacity: isActive ? 1 : 0.55,
@@ -814,7 +731,8 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 borderRadius: AppRadii.rMd,
               ),
               alignment: Alignment.center,
-              child: s['emoji'] != null &&
+              child:
+                  s['emoji'] != null &&
                       (s['emoji'] as String).startsWith('http')
                   ? OptimizedImage(
                       imageUrl: s['emoji'] as String,
@@ -861,6 +779,13 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                       chip(category),
                       if (servingSize.isNotEmpty) chip(servingSize),
                       if (shareCount > 1) chip('Serves $shareCount'),
+                      chip(formatRupees(priceRupees)),
+                      if (priceRupees == 0)
+                        chip(
+                          'Price needed',
+                          background: palette.warning.withValues(alpha: 0.14),
+                          foreground: palette.warning,
+                        ),
                     ],
                   ),
                 ],

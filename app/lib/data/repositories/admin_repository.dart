@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../models/budget_models.dart';
 
 class AdminRepository {
   final ApiClient _apiClient;
@@ -79,5 +80,37 @@ class AdminRepository {
 
   Future<void> deleteHoliday(String id) async {
     await _apiClient.dio.delete('/admin/holidays/$id');
+  }
+
+  Future<BudgetDay> getBudgetDay(String date) async {
+    final r = await _apiClient.dio.get('/admin/budget/$date');
+    return BudgetDay.fromJson(Map<String, dynamic>.from(r.data));
+  }
+
+  Future<BudgetRange> getBudgetRange({
+    required String start,
+    required String end,
+  }) async {
+    final r = await _apiClient.dio.get(
+      '/admin/budget',
+      queryParameters: {'start': start, 'end': end},
+    );
+    return BudgetRange.fromJson(Map<String, dynamic>.from(r.data));
+  }
+
+  Future<void> addBudgetItem(String date, Map<String, dynamic> data) async {
+    await _apiClient.dio.post('/admin/budget/$date/items', data: data);
+  }
+
+  Future<void> updateBudgetItem(
+    String date,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    await _apiClient.dio.put('/admin/budget/$date/items/$id', data: data);
+  }
+
+  Future<void> removeBudgetItem(String date, String id) async {
+    await _apiClient.dio.delete('/admin/budget/$date/items/$id');
   }
 }

@@ -85,6 +85,19 @@ function normalizeShareCount(value: unknown): number {
     return parsed;
 }
 
+export function normalizePriceRupees(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+        throw new Error('priceRupees must be a whole number greater than or equal to 0');
+    }
+    return value;
+}
+
+function isCatalogValidationError(err: unknown): err is Error {
+    return err instanceof Error && (
+        err.message.includes('shareCount') || err.message.includes('priceRupees')
+    );
+}
+
 // All admin routes require authentication AND admin privileges
 adminRoutes.use('*', authMiddleware, adminMiddleware);
 
@@ -103,10 +116,22 @@ adminRoutes.get('/snacks', async (c) => {
 adminRoutes.post('/snacks', async (c) => {
     try {
         const db = c.get('db');
-        const { name, category, emoji, isVeg, isDefault, isActive, servingSize, sortOrder, shareCount } = await c.req.json();
+        const {
+            name,
+            category,
+            emoji,
+            isVeg,
+            isDefault,
+            isActive,
+            servingSize,
+            sortOrder,
+            shareCount,
+            priceRupees,
+        } = await c.req.json();
         const normalizedName = typeof name === 'string' ? normalizeWhitespace(name) : '';
         const normalizedCategory = normalizeCategoryValue(category);
         const normalizedShareCount = shareCount === undefined ? 1 : normalizeShareCount(shareCount);
+        const normalizedPriceRupees = priceRupees === undefined ? 0 : normalizePriceRupees(priceRupees);
 
         if (!normalizedName) {
             return c.json({ error: 'name is required' }, 400);
@@ -137,12 +162,13 @@ adminRoutes.post('/snacks', async (c) => {
             isActive,
             servingSize,
             shareCount: normalizedShareCount,
+            priceRupees: normalizedPriceRupees,
             sortOrder
         }).returning();
 
         return c.json({ snack: newSnack }, 201);
     } catch (err: any) {
-        if (err instanceof Error && err.message.includes('shareCount')) {
+        if (isCatalogValidationError(err)) {
             return c.json({ error: err.message }, 400);
         }
         return c.json({ error: err.message }, 500);
@@ -163,6 +189,7 @@ adminRoutes.post('/snacks/bulk', async (c) => {
             isActive: boolean;
             servingSize: string;
             shareCount: number;
+            priceRupees: number;
             sortOrder: number | null;
             index: number;
         };
@@ -177,6 +204,7 @@ adminRoutes.post('/snacks/bulk', async (c) => {
                 isActive: typeof snack?.isActive === 'boolean' ? snack.isActive : true,
                 servingSize: typeof snack?.servingSize === 'string' ? snack.servingSize.trim() : '',
                 shareCount: snack?.shareCount === undefined ? 1 : normalizeShareCount(snack.shareCount),
+                priceRupees: snack?.priceRupees === undefined ? 0 : normalizePriceRupees(snack.priceRupees),
                 sortOrder: Number.isFinite(Number(snack?.sortOrder)) ? Number(snack.sortOrder) : null,
                 index,
             }))
@@ -235,13 +263,14 @@ adminRoutes.post('/snacks/bulk', async (c) => {
                 isActive: snack.isActive,
                 servingSize: snack.servingSize || null,
                 shareCount: snack.shareCount,
+                priceRupees: snack.priceRupees,
                 sortOrder: snack.sortOrder ?? (baseSortOrder + index),
             }))
         ).returning();
 
         return c.json({ snacks: createdSnacks }, 201);
     } catch (err: any) {
-        if (err instanceof Error && err.message.includes('shareCount')) {
+        if (isCatalogValidationError(err)) {
             return c.json({ error: err.message }, 400);
         }
         return c.json({ error: err.message }, 500);
@@ -290,6 +319,9 @@ adminRoutes.put('/snacks/:id', async (c) => {
         if (Object.prototype.hasOwnProperty.call(updateData, 'shareCount')) {
             updateData.shareCount = normalizeShareCount(updateData.shareCount);
         }
+        if (Object.prototype.hasOwnProperty.call(updateData, 'priceRupees')) {
+            updateData.priceRupees = normalizePriceRupees(updateData.priceRupees);
+        }
 
         const [updatedSnack] = await db.update(snacks)
             .set(updateData)
@@ -298,7 +330,7 @@ adminRoutes.put('/snacks/:id', async (c) => {
 
         return c.json({ snack: updatedSnack }, 200);
     } catch (err: any) {
-        if (err instanceof Error && err.message.includes('shareCount')) {
+        if (isCatalogValidationError(err)) {
             return c.json({ error: err.message }, 400);
         }
         return c.json({ error: err.message }, 500);

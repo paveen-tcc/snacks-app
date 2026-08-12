@@ -32,8 +32,8 @@ for (const [key, value] of settings) {
 // old JS check did; catalog names are clean so this is equivalent in practice.
 for (const item of menuSnackCatalog) {
     lines.push(
-        `INSERT INTO snacks (id, name, category, emoji, is_veg, is_default, is_active, serving_size, share_count, sort_order, created_at) ` +
-        `SELECT ${q(crypto.randomUUID())}, ${q(item.name)}, ${q(item.category)}, ${q(item.emoji)}, ${item.isVeg ? 1 : 0}, 0, 1, ${q(item.servingSize)}, 1, ${item.sortOrder}, ${Date.now()} ` +
+        `INSERT INTO snacks (id, name, category, emoji, is_veg, is_default, is_active, serving_size, share_count, price_rupees, sort_order, created_at) ` +
+        `SELECT ${q(crypto.randomUUID())}, ${q(item.name)}, ${q(item.category)}, ${q(item.emoji)}, ${item.isVeg ? 1 : 0}, 0, 1, ${q(item.servingSize)}, 1, 0, ${item.sortOrder}, ${Date.now()} ` +
         `WHERE NOT EXISTS (SELECT 1 FROM snacks WHERE lower(trim(name)) = ${q(normalizeName(item.name))} ` +
         `AND lower(coalesce(nullif(trim(category), ''), 'general')) = ${q(normalizeCategory(item.category))});`,
     );

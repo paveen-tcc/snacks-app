@@ -5,7 +5,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import * as schema from './schema';
-import { users, snacks, orders, appSettings, pushTokens } from './schema';
+import {
+    users,
+    snacks,
+    orders,
+    appSettings,
+    pushTokens,
+    dailyPurchaseItems,
+} from './schema';
 
 const MIGRATIONS_DIR = join(import.meta.dir, '../../drizzle');
 
@@ -115,5 +122,41 @@ describe('D1 schema', () => {
             .groupBy(orders.snackId, sql`coalesce(${orders.snackNameSnapshot}, ${snacks.name}, 'Unknown')`);
         expect(counts).toHaveLength(1);
         expect(counts[0]!.selectedCount).toBe(2);
+    });
+
+    test('budget columns and daily purchase items use integer defaults', async () => {
+        const db = createTestDb();
+        const [user] = await db.insert(users)
+            .values({ username: 'budget', email: 'budget@example.com' })
+            .returning();
+        const [snack] = await db.insert(snacks)
+            .values({ name: 'Tea', category: 'Drinks', priceRupees: 18 })
+            .returning();
+        expect(snack!.priceRupees).toBe(18);
+
+        const [order] = await db.insert(orders).values({
+            userId: user!.id,
+            date: '2026-08-12',
+            snackId: snack!.id,
+            snackNameSnapshot: 'Tea',
+            snackPriceRupeesSnapshot: 18,
+            snackShareCountSnapshot: 2,
+            snackCategorySnapshot: 'Drinks',
+        }).returning();
+        expect(order!.snackPriceRupeesSnapshot).toBe(18);
+        expect(order!.snackShareCountSnapshot).toBe(2);
+        expect(order!.snackCategorySnapshot).toBe('Drinks');
+
+        const [line] = await db.insert(dailyPurchaseItems).values({
+            date: '2026-08-12',
+            sourceKey: `${snack!.id}::Tea`,
+            sourceSnackId: snack!.id,
+            name: 'Tea',
+            itemType: 'drink',
+            quantity: 3,
+            unitPriceRupees: 18,
+        }).returning();
+        expect(line!.isEdited).toBe(false);
+        expect(line!.isRemoved).toBe(false);
     });
 });
