@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/snack_categories.dart';
 import '../../core/di/locator.dart';
+import '../../core/formatters/rupees.dart';
 import '../../core/network/api_client.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
@@ -219,7 +220,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     }
     // Always add Drinks to category list
     seen.putIfAbsent('drinks', () => 'Drinks');
-    
+
     // Add categories from existing snacks
     for (final snack in _snacks) {
       final cat = (snack['category'] as String? ?? '').trim();
@@ -247,6 +248,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     );
     final shareCountCtrl = TextEditingController(
       text: ((existing?['shareCount'] as num?)?.toInt() ?? 1).toString(),
+    );
+    final priceCtrl = TextEditingController(
+      text: ((existing?['priceRupees'] as num?)?.toInt() ?? 0).toString(),
     );
     bool isVeg = existing?['isVeg'] ?? true;
 
@@ -304,7 +308,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: emojiCtrl,
-                decoration: _notionInput('Image URL', hint: 'https://images.unsplash.com/...'),
+                decoration: _notionInput(
+                  'Image URL',
+                  hint: 'https://images.unsplash.com/...',
+                ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -355,6 +362,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                   hint: '1 = individual, 2 = serves 2 people',
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: _notionInput('Price (₹)', hint: 'e.g. 25'),
+              ),
               const SizedBox(height: AppSpacing.md),
               Builder(
                 builder: (context) {
@@ -404,6 +417,11 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     );
                     return;
                   }
+                  final priceRupees = parseWholeRupees(priceCtrl.text);
+                  if (priceRupees == null) {
+                    _showError('Price must be a non-negative whole number');
+                    return;
+                  }
 
                   // Resolve category from dropdown or custom text
                   String categoryValue;
@@ -420,6 +438,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                     'emoji': emojiCtrl.text.trim(),
                     'servingSize': sizeCtrl.text.trim(),
                     'shareCount': shareCount,
+                    'priceRupees': priceRupees,
                     'isVeg': isVeg,
                   };
                   Navigator.pop(ctx);
@@ -530,11 +549,14 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
           final type = cols.length > 3 ? cols[3] : '';
           final servingSize = cols.length > 4 ? cols[4] : '';
           final shareCount = cols.length > 5 ? int.tryParse(cols[5].trim()) : 1;
-          final isActive = cols.length > 6
-              ? _parseBoolToken(cols[6], defaultValue: true)
+          final priceRupees = cols.length > 6
+              ? parseWholeRupees(cols[6]) ?? 0
+              : 0;
+          final isActive = cols.length > 7
+              ? _parseBoolToken(cols[7], defaultValue: true)
               : true;
-          final sortOrder = cols.length > 7
-              ? int.tryParse(cols[7].trim())
+          final sortOrder = cols.length > 8
+              ? int.tryParse(cols[8].trim())
               : null;
           final normalizedType = type.trim().toLowerCase();
           final isVeg = ![
@@ -556,8 +578,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             'shareCount': (shareCount != null && shareCount > 0)
                 ? shareCount
                 : 1,
+            'priceRupees': priceRupees,
             'isActive': isActive,
-            if (sortOrder != null) 'sortOrder': sortOrder,
+            'sortOrder': ?sortOrder,
           };
         })
         .where((snack) => (snack['name'] as String).isNotEmpty)
@@ -609,12 +632,12 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Format: name, category, image URL, veg/non-veg, serving size, share count, is active, sort order',
+              'Format: name, category, image URL, veg/non-veg, serving size, share count, price rupees, is active, sort order',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Example: Pizza, Italian, https://images.unsplash.com/photo-xxx, veg, 1 box, 2, true, 10',
+              'Example: Pizza, Italian, https://images.unsplash.com/photo-xxx, veg, 1 box, 2, 250, true, 10',
               style: context.text.bodySmall?.copyWith(
                 color: context.palette.textSecondary,
               ),
@@ -721,7 +744,9 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: palette.brand.withValues(alpha: 0.12),
+                                    color: palette.brand.withValues(
+                                      alpha: 0.12,
+                                    ),
                                     borderRadius: AppRadii.rPill,
                                   ),
                                   child: Text(
@@ -783,21 +808,25 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     final category = displaySnackCategory(s['category'] as String?);
     final servingSize = (s['servingSize'] as String? ?? '').trim();
     final shareCount = (s['shareCount'] as num?)?.toInt() ?? 1;
+    final priceRupees = (s['priceRupees'] as num?)?.toInt() ?? 0;
 
-    Widget chip(String label) => Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 4,
-      ),
-      decoration: BoxDecoration(
-        color: palette.surfaceMuted,
-        borderRadius: AppRadii.rPill,
-      ),
-      child: Text(
-        label,
-        style: context.text.labelSmall?.copyWith(color: palette.textSecondary),
-      ),
-    );
+    Widget chip(String label, {Color? background, Color? foreground}) =>
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: background ?? palette.surfaceMuted,
+            borderRadius: AppRadii.rPill,
+          ),
+          child: Text(
+            label,
+            style: context.text.labelSmall?.copyWith(
+              color: foreground ?? palette.textSecondary,
+            ),
+          ),
+        );
 
     return Opacity(
       opacity: isActive ? 1 : 0.55,
@@ -814,7 +843,8 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 borderRadius: AppRadii.rMd,
               ),
               alignment: Alignment.center,
-              child: s['emoji'] != null &&
+              child:
+                  s['emoji'] != null &&
                       (s['emoji'] as String).startsWith('http')
                   ? OptimizedImage(
                       imageUrl: s['emoji'] as String,
@@ -861,6 +891,13 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                       chip(category),
                       if (servingSize.isNotEmpty) chip(servingSize),
                       if (shareCount > 1) chip('Serves $shareCount'),
+                      chip(formatRupees(priceRupees)),
+                      if (priceRupees == 0)
+                        chip(
+                          'Price needed',
+                          background: palette.warning.withValues(alpha: 0.14),
+                          foreground: palette.warning,
+                        ),
                     ],
                   ),
                 ],
