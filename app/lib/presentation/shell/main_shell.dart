@@ -9,6 +9,7 @@ import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
 import '../../core/notifications/push_service.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../admin/budget_screen.dart';
 import '../admin/summary_screen.dart';
 import '../home/bloc/home_bloc.dart';
 import '../home/cart.dart';
@@ -61,6 +62,12 @@ class _MainShellState extends State<MainShell> {
         selectedIcon: Icons.summarize_rounded,
         label: 'Summary',
       ),
+    if (_isAdmin)
+      const NavDestinationData(
+        icon: Icons.account_balance_wallet_outlined,
+        selectedIcon: Icons.account_balance_wallet_rounded,
+        label: 'Budget',
+      ),
   ];
 
   @override
@@ -83,7 +90,7 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _username = prefs.getString('username') ?? '';
       _isAdmin = prefs.getBool('is_admin') ?? false;
-      final maxIndex = _isAdmin ? 3 : 2;
+      final maxIndex = _isAdmin ? 4 : 2;
       if (_index > maxIndex) {
         _index = 0;
       }
@@ -189,6 +196,7 @@ class _MainShellState extends State<MainShell> {
                     OrdersTab(isActive: _index == 2),
                     if (_isAdmin)
                       SummaryScreen(isTab: true, isActive: _index == 3),
+                    if (_isAdmin) BudgetScreen(isActive: _index == 4),
                   ],
                 ),
               ),
