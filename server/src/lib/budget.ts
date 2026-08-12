@@ -53,6 +53,8 @@ export type PurchaseItemUpdate = Partial<PurchaseItemInput>;
 export class BudgetValidationError extends Error {}
 export class BudgetNotFoundError extends Error {}
 
+export const BUDGET_REPORTING_START_DATE = '2026-08-01';
+
 const DAY_MS = 86_400_000;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -70,9 +72,10 @@ function parseDate(value: string): Date {
 function validateReportingDate(date: string, officeToday: string, label = 'date'): Date {
     const parsed = parseDate(date);
     parseDate(officeToday);
-    const monthStart = `${officeToday.slice(0, 7)}-01`;
-    if (date < monthStart) {
-        throw new BudgetValidationError(`${label} must be on or after ${monthStart}`);
+    if (date < BUDGET_REPORTING_START_DATE) {
+        throw new BudgetValidationError(
+            `${label} must be on or after ${BUDGET_REPORTING_START_DATE}`,
+        );
     }
     return parsed;
 }

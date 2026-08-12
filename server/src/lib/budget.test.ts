@@ -201,11 +201,40 @@ describe('budget materialization', () => {
 });
 
 describe('budget validation', () => {
-    test('dates before the office month start are rejected', async () => {
+    test('August creation, day, and range remain available after month rollover', async () => {
+        const db = createTestDb();
+        const septemberToday = '2026-09-05';
+        await createPurchaseItem(db, '2026-08-12', {
+            name: 'Tea', itemType: 'drink', quantity: 2, unitPriceRupees: 15,
+        }, septemberToday);
+
+        const day = await getBudgetDay(db, '2026-08-12', septemberToday);
+        const range = await getBudgetRange(
+            db,
+            '2026-08-01',
+            '2026-08-31',
+            septemberToday,
+        );
+
+        expect(day.totals).toEqual({ total: 30, snacks: 0, drinks: 30 });
+        expect(range.totals).toEqual({ total: 30, snacks: 0, drinks: 30 });
+        expect(range.days).toHaveLength(31);
+    });
+
+    test('dates before the budget reporting start are rejected', async () => {
         const db = createTestDb();
         await expect(getBudgetDay(db, '2026-07-31', OFFICE_TODAY)).rejects.toThrow(
             'date must be on or after 2026-08-01',
         );
+        await expect(getBudgetRange(
+            db,
+            '2026-07-31',
+            '2026-08-01',
+            OFFICE_TODAY,
+        )).rejects.toThrow('start must be on or after 2026-08-01');
+        await expect(createPurchaseItem(db, '2026-07-31', {
+            name: 'Tea', itemType: 'drink', quantity: 1, unitPriceRupees: 15,
+        }, OFFICE_TODAY)).rejects.toThrow('date must be on or after 2026-08-01');
     });
 
     test.each([
