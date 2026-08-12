@@ -3,6 +3,7 @@ import {
     text,
     integer,
     index,
+    uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
 // D1/SQLite has no uuid type or gen_random_uuid(); ids are generated
@@ -37,6 +38,7 @@ export const snacks = sqliteTable('snacks', {
     isActive: integer('is_active', { mode: 'boolean' }).default(true),    // admin toggle to show/hide
     servingSize: text('serving_size', { length: 50 }), // per-person: "2 pieces", "1 bowl"
     shareCount: integer('share_count').notNull().default(1), // 1 = per-person, 2 = serves two, etc.
+    priceRupees: integer('price_rupees').notNull().default(0),
     sortOrder: integer('sort_order').default(0),
     createdAt: timestampMs('created_at').$defaultFn(() => new Date()),
 });
@@ -50,11 +52,33 @@ export const orders = sqliteTable('orders', {
     snackId: text('snack_id').notNull(),
     snackNameSnapshot: text('snack_name_snapshot', { length: 100 }),
     snackEmojiSnapshot: text('snack_emoji_snapshot', { length: 512 }),
+    snackPriceRupeesSnapshot: integer('snack_price_rupees_snapshot'),
+    snackShareCountSnapshot: integer('snack_share_count_snapshot'),
+    snackCategorySnapshot: text('snack_category_snapshot', { length: 100 }),
     isDefaultAssigned: integer('is_default_assigned', { mode: 'boolean' }).default(false),
     orderedAt: timestampMs('ordered_at').$defaultFn(() => new Date()),
     updatedAt: timestampMs('updated_at').$defaultFn(() => new Date()),
 }, (t) => ({
     userDateIdx: index('orders_user_date_idx').on(t.userId, t.date),
+}));
+
+// Editable daily purchase ledger used for admin-only budget reporting.
+export const dailyPurchaseItems = sqliteTable('daily_purchase_items', {
+    id: uuidPk('id'),
+    date: text('date').notNull(),
+    sourceKey: text('source_key'),
+    sourceSnackId: text('source_snack_id'),
+    name: text('name', { length: 100 }).notNull(),
+    itemType: text('item_type', { enum: ['snack', 'drink'] }).notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPriceRupees: integer('unit_price_rupees').notNull(),
+    isEdited: integer('is_edited', { mode: 'boolean' }).notNull().default(false),
+    isRemoved: integer('is_removed', { mode: 'boolean' }).notNull().default(false),
+    createdAt: timestampMs('created_at').$defaultFn(() => new Date()),
+    updatedAt: timestampMs('updated_at').$defaultFn(() => new Date()),
+}, (t) => ({
+    dateIdx: index('daily_purchase_items_date_idx').on(t.date),
+    dateSourceUnique: uniqueIndex('daily_purchase_items_date_source_unique').on(t.date, t.sourceKey),
 }));
 
 // Holidays (hybrid: auto-fetched + manual)

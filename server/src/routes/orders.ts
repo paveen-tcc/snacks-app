@@ -108,6 +108,9 @@ orderRoutes.post('/', async (c) => {
             id: snacks.id,
             name: snacks.name,
             emoji: snacks.emoji,
+            category: snacks.category,
+            shareCount: snacks.shareCount,
+            priceRupees: snacks.priceRupees,
         })
             .from(snacks)
             .where(inArray(snacks.id, uniqueSnackIds));
@@ -134,6 +137,9 @@ orderRoutes.post('/', async (c) => {
                     snackId: selectedSnackId,
                     snackNameSnapshot: snapshotName,
                     snackEmojiSnapshot: snack.emoji,
+                    snackPriceRupeesSnapshot: snack.priceRupees,
+                    snackShareCountSnapshot: snack.shareCount,
+                    snackCategorySnapshot: snack.category,
                     updatedAt: new Date(),
                 };
             }))
