@@ -32,7 +32,7 @@ export type BudgetRangeResponse = {
     start: string;
     end: string;
     totals: BudgetTotals;
-    days: Array<{ date: string; totals: BudgetTotals }>;
+    days: Array<{ date: string; totals: BudgetTotals; items: BudgetLine[] }>;
     items: Array<{
         name: string;
         itemType: BudgetItemType;
@@ -348,6 +348,7 @@ export async function getBudgetRange(
     const lines = rows.map(toBudgetLine);
     const totals = emptyTotals();
     const totalsByDate = new Map<string, BudgetTotals>();
+    const linesByDate = new Map<string, BudgetLine[]>();
     const itemGroups = new Map<string, BudgetRangeResponse['items'][number]>();
 
     for (const line of lines) {
@@ -358,6 +359,13 @@ export async function getBudgetRange(
             totalsByDate.set(line.date, dayTotals);
         }
         addLineToTotals(dayTotals, line);
+
+        let dayLines = linesByDate.get(line.date);
+        if (!dayLines) {
+            dayLines = [];
+            linesByDate.set(line.date, dayLines);
+        }
+        dayLines.push(line);
 
         const itemKey = `${line.itemType}::${line.name}`;
         const existing = itemGroups.get(itemKey);
@@ -377,7 +385,11 @@ export async function getBudgetRange(
     const days: BudgetRangeResponse['days'] = [];
     for (let time = parsedStart.getTime(); time <= parsedEnd.getTime(); time += DAY_MS) {
         const date = new Date(time).toISOString().slice(0, 10);
-        days.push({ date, totals: totalsByDate.get(date) ?? emptyTotals() });
+        days.push({
+            date,
+            totals: totalsByDate.get(date) ?? emptyTotals(),
+            items: linesByDate.get(date) ?? [],
+        });
     }
     const items = Array.from(itemGroups.values()).sort((a, b) =>
         a.name.localeCompare(b.name) || a.itemType.localeCompare(b.itemType),

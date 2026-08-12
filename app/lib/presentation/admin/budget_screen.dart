@@ -84,6 +84,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
   BudgetRange? _range;
   bool _loading = false;
   String? _error;
+  String _searchQuery = '';
   final Set<String> _activeMutations = {};
   int _requestToken = 0;
 
@@ -197,6 +198,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     setState(() {
       _period = period;
       _error = null;
+      _searchQuery = '';
       if (period == BudgetPeriod.day) {
         _day = null;
       } else {
@@ -227,6 +229,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         _range = null;
       }
       _error = null;
+      _searchQuery = '';
     });
     _load();
   }
@@ -248,6 +251,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         _range = null;
       }
       _error = null;
+      _searchQuery = '';
     });
     _load();
   }
@@ -267,6 +271,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       _period = BudgetPeriod.day;
       _day = null;
       _error = null;
+      _searchQuery = '';
     });
     _load();
   }
@@ -491,12 +496,19 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   Widget _buildDayContent() {
+    final query = _searchQuery.trim().toLowerCase();
     final lines = (_day?.items ?? const <BudgetLine>[])
         .where((line) => _filter.includes(line.itemType))
+        .where((line) => query.isEmpty || line.name.toLowerCase().contains(query))
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        BudgetSearchField(
+          query: _searchQuery,
+          onChanged: (value) => setState(() => _searchQuery = value),
+        ),
+        const SizedBox(height: AppSpacing.md),
         Row(
           children: [
             Expanded(

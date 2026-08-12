@@ -362,9 +362,33 @@ describe('budget materialization', () => {
 
         expect(range.totals).toEqual({ total: 110, snacks: 80, drinks: 30 });
         expect(range.days).toEqual([
-            { date: '2026-08-12', totals: { total: 80, snacks: 80, drinks: 0 } },
-            { date: '2026-08-13', totals: { total: 30, snacks: 0, drinks: 30 } },
-            { date: '2026-08-14', totals: { total: 0, snacks: 0, drinks: 0 } },
+            {
+                date: '2026-08-12',
+                totals: { total: 80, snacks: 80, drinks: 0 },
+                items: [expect.objectContaining({
+                    date: '2026-08-12',
+                    name: 'Samosa',
+                    itemType: 'snack',
+                    quantity: 2,
+                    unitPriceRupees: 40,
+                    lineTotalRupees: 80,
+                    isManual: false,
+                })],
+            },
+            {
+                date: '2026-08-13',
+                totals: { total: 30, snacks: 0, drinks: 30 },
+                items: [expect.objectContaining({
+                    date: '2026-08-13',
+                    name: 'Tea',
+                    itemType: 'drink',
+                    quantity: 2,
+                    unitPriceRupees: 15,
+                    lineTotalRupees: 30,
+                    isManual: true,
+                })],
+            },
+            { date: '2026-08-14', totals: { total: 0, snacks: 0, drinks: 0 }, items: [] },
         ]);
         expect(range.items).toEqual([
             { name: 'Samosa', itemType: 'snack', quantity: 2, totalRupees: 80 },

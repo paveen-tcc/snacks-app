@@ -11,6 +11,7 @@ import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/glass_app_bar.dart';
 import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../admin/budget_export_screen.dart';
 import '../admin/holidays_screen.dart';
 import '../admin/snacks_screen.dart';
 import '../admin/users_screen.dart';
@@ -327,6 +328,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Manage users',
                   subtitle: 'Grant or revoke admin',
                   onTap: () => _push(const AdminUsersScreen()),
+                ),
+                _NavTile(
+                  icon: Icons.ios_share_rounded,
+                  title: 'Export budget report',
+                  subtitle: 'WhatsApp-ready monthly summary',
+                  onTap: () => _push(const BudgetExportScreen()),
                 ),
               ],
             ),

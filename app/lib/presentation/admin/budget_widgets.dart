@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/snack_categories.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/design/glass.dart';
+import '../../core/di/locator.dart';
 import '../../core/formatters/rupees.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../data/models/budget_models.dart';
+import '../../data/repositories/admin_repository.dart';
 
 enum BudgetPeriod { day, week, month }
 
@@ -514,6 +517,74 @@ class _LineBadge extends StatelessWidget {
   }
 }
 
+class BudgetSearchField extends StatefulWidget {
+  const BudgetSearchField({
+    super.key,
+    required this.query,
+    required this.onChanged,
+  });
+
+  final String query;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<BudgetSearchField> createState() => _BudgetSearchFieldState();
+}
+
+class _BudgetSearchFieldState extends State<BudgetSearchField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.query,
+  );
+
+  @override
+  void didUpdateWidget(covariant BudgetSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != _controller.text) {
+      _controller.text = widget.query;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return SizedBox(
+      height: 44,
+      child: TextField(
+        key: const Key('budget-search'),
+        controller: _controller,
+        onChanged: widget.onChanged,
+        textInputAction: TextInputAction.search,
+        style: context.text.bodyMedium,
+        decoration: InputDecoration(
+          hintText: 'Search purchase lines',
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: palette.textTertiary,
+            size: 20,
+          ),
+          suffixIcon: widget.query.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: () {
+                    _controller.clear();
+                    widget.onChanged('');
+                  },
+                ),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> showBudgetItemSheet({
   required BuildContext context,
   required Future<void> Function(Map<String, dynamic> data) onSave,
@@ -538,17 +609,20 @@ class _BudgetItemForm extends StatefulWidget {
 class _BudgetItemFormState extends State<_BudgetItemForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final FocusNode _nameFocusNode;
   late final TextEditingController _quantityController;
   late final TextEditingController _priceController;
   late BudgetItemType _type;
   bool _saving = false;
   String? _saveError;
+  List<Map<String, dynamic>>? _catalog;
 
   @override
   void initState() {
     super.initState();
     final line = widget.line;
     _nameController = TextEditingController(text: line?.name ?? '');
+    _nameFocusNode = FocusNode();
     _quantityController = TextEditingController(
       text: line?.quantity.toString() ?? '1',
     );
@@ -556,11 +630,60 @@ class _BudgetItemFormState extends State<_BudgetItemForm> {
       text: line?.unitPriceRupees.toString() ?? '',
     );
     _type = line?.itemType ?? BudgetItemType.snack;
+    _quantityController.addListener(_recomputeTotal);
+    _priceController.addListener(_recomputeTotal);
+    _loadCatalog();
+  }
+
+  Future<void> _loadCatalog() async {
+    try {
+      final snacks = await locator<AdminRepository>().getAllSnacks();
+      if (!mounted) return;
+      setState(() {
+        _catalog = snacks
+            .where((snack) => (snack['isActive'] as bool?) ?? true)
+            .toList();
+      });
+    } catch (_) {
+      if (mounted) setState(() => _catalog = const []);
+    }
+  }
+
+  void _recomputeTotal() => setState(() {});
+
+  int? get _liveLineTotal {
+    final quantity = int.tryParse(_quantityController.text.trim());
+    final price = parseWholeRupees(_priceController.text);
+    if (quantity == null || quantity < 1 || price == null) return null;
+    return quantity * price;
+  }
+
+  Iterable<Map<String, dynamic>> _catalogOptions(TextEditingValue value) {
+    final catalog = _catalog;
+    final query = value.text.trim().toLowerCase();
+    if (catalog == null || catalog.isEmpty || query.isEmpty) return const [];
+    return catalog.where(
+      (item) => (item['name'] as String? ?? '').toLowerCase().contains(query),
+    );
+  }
+
+  void _onCatalogItemSelected(Map<String, dynamic> item) {
+    final price = (item['priceRupees'] as num?)?.toInt();
+    final category = item['category'] as String?;
+    setState(() {
+      if (price != null) _priceController.text = price.toString();
+      _type = displaySnackCategory(category).toLowerCase() == 'drinks'
+          ? BudgetItemType.drink
+          : BudgetItemType.snack;
+    });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameFocusNode.dispose();
+    _quantityController.removeListener(_recomputeTotal);
+    _priceController.removeListener(_recomputeTotal);
     _quantityController.dispose();
     _priceController.dispose();
     super.dispose();
@@ -622,15 +745,62 @@ class _BudgetItemFormState extends State<_BudgetItemForm> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            TextFormField(
-              key: const Key('budget-item-name'),
-              controller: _nameController,
-              enabled: !_saving,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Item name'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter an item name'
-                  : null,
+            RawAutocomplete<Map<String, dynamic>>(
+              textEditingController: _nameController,
+              focusNode: _nameFocusNode,
+              optionsBuilder: _catalogOptions,
+              displayStringForOption: (item) => item['name'] as String? ?? '',
+              onSelected: _onCatalogItemSelected,
+              fieldViewBuilder: (context, controller, focusNode, _) =>
+                  TextFormField(
+                    key: const Key('budget-item-name'),
+                    controller: controller,
+                    focusNode: focusNode,
+                    enabled: !_saving,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      hintText: 'Search the catalog or type a custom name',
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Enter an item name'
+                        : null,
+                  ),
+              optionsViewBuilder: (context, onSelected, options) {
+                final list = options.toList();
+                final width =
+                    MediaQuery.sizeOf(context).width - (AppSpacing.xxl * 2);
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: AppRadii.rMd,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: width,
+                        maxHeight: 220,
+                      ),
+                      child: ListView.builder(
+                        key: const Key('budget-item-name-options'),
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: list.length,
+                        itemBuilder: (context, index) {
+                          final item = list[index];
+                          final price =
+                              (item['priceRupees'] as num?)?.toInt() ?? 0;
+                          return ListTile(
+                            dense: true,
+                            title: Text(item['name'] as String? ?? ''),
+                            trailing: Text(formatRupees(price)),
+                            onTap: () => onSelected(item),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<BudgetItemType>(
@@ -686,6 +856,16 @@ class _BudgetItemFormState extends State<_BudgetItemForm> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _liveLineTotal != null
+                  ? 'Line total: ${formatRupees(_liveLineTotal!)}'
+                  : 'Line total: —',
+              style: context.text.bodyMedium?.copyWith(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             if (_saveError != null) ...[
               const SizedBox(height: AppSpacing.md),
