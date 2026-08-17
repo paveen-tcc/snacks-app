@@ -147,35 +147,49 @@ class StatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = _toneColor(context);
+    final isSingleLine = subtitle == null;
+
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: isSingleLine ? 10 : AppSpacing.lg,
+      ),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.10),
-        borderRadius: AppRadii.rLg,
+        borderRadius: AppRadii.rMd,
         border: Border.all(color: accent.withValues(alpha: 0.22)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: isSingleLine ? 32 : 38,
+            height: isSingleLine ? 32 : 38,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.16),
               borderRadius: AppRadii.rSm,
             ),
-            child: Icon(icon ?? _defaultIcon(), color: accent, size: 20),
+            child: Icon(
+              icon ?? _defaultIcon(),
+              color: accent,
+              size: isSingleLine ? 18 : 20,
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   title,
-                  style: context.text.titleSmall?.copyWith(
+                  style: (isSingleLine
+                          ? context.text.bodyMedium
+                          : context.text.titleSmall)
+                      ?.copyWith(
                     color: context.palette.textPrimary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (subtitle != null) ...[

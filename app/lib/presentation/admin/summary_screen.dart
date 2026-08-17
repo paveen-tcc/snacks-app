@@ -4,7 +4,6 @@ import '../../core/di/locator.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/glass_app_bar.dart';
-import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/repositories/admin_repository.dart';
 
@@ -136,16 +135,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
         : RefreshIndicator(
             onRefresh: _load,
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.page),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.sm,
+                AppSpacing.page,
+                120,
+              ),
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Text(
-                  'Date: ${_data!['date']}',
-                  style: context.text.bodySmall?.copyWith(
-                    color: context.palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
                 _buildNotOrderedSection(context),
                 const SizedBox(height: AppSpacing.xxl),
                 _buildSection(context, 'Snack Orders', [
@@ -166,7 +163,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   ),
                 ]),
                 const SizedBox(height: AppSpacing.xxl),
-                _buildSection(context, 'Hot Drink Poll', [
+                _buildSection(context, 'Drink Orders', [
                   ...List<Map<String, dynamic>>.from(_data!['drinks']).map(
                     (d) => _buildCountRow(
                       context,
@@ -186,32 +183,35 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       ),
                     ),
                 ]),
-                const SizedBox(height: AppSpacing.x3),
-                PrimaryButton(
-                  label: 'Send to WhatsApp',
-                  icon: Icons.chat_rounded,
-                  onPressed: _sendWhatsApp,
-                ),
-                if (widget.isTab) const SizedBox(height: 100),
+                const SizedBox(height: AppSpacing.xxl),
               ],
             ),
           );
+
+    final whatsappAction = _data != null
+        ? _WhatsAppButton(onPressed: _sendWhatsApp)
+        : null;
 
     if (widget.isTab) {
       return Scaffold(
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.page,
-                AppSpacing.md,
-                AppSpacing.page,
-                AppSpacing.sm,
-              ),
-              child: Text(
-                "Today's Summary",
-                style: context.text.headlineSmall,
+            Container(
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'Summary',
+                    style: context.text.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  ?whatsappAction,
+                ],
               ),
             ),
             Expanded(child: bodyContent),
@@ -221,7 +221,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
 
     return Scaffold(
-      appBar: const GlassAppBar(title: "Today's Summary"),
+      appBar: GlassAppBar(
+        title: 'Summary',
+        actions: [
+          if (whatsappAction != null)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.page),
+              child: Center(child: whatsappAction),
+            ),
+        ],
+      ),
       body: bodyContent,
     );
   }
@@ -338,6 +347,45 @@ class _SummaryScreenState extends State<SummaryScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _WhatsAppButton extends StatelessWidget {
+  const _WhatsAppButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF25D366),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.chat_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+              SizedBox(width: 4),
+              Text(
+                'WhatsApp',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

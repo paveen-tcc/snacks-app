@@ -62,17 +62,17 @@ void main() {
         destinations: const [
           NavDestinationData(
             icon: Icons.restaurant_outlined,
-            selectedIcon: Icons.restaurant_rounded,
+            selectedIcon: Icons.restaurant,
             label: 'Food',
           ),
           NavDestinationData(
             icon: Icons.local_cafe_outlined,
-            selectedIcon: Icons.local_cafe_rounded,
+            selectedIcon: Icons.local_cafe,
             label: 'Drink',
           ),
           NavDestinationData(
             icon: Icons.receipt_long_outlined,
-            selectedIcon: Icons.receipt_long_rounded,
+            selectedIcon: Icons.receipt_long,
             label: 'Orders',
           ),
         ],
@@ -84,10 +84,10 @@ void main() {
     await tester.pumpWidget(_host(AppTheme.light, showcase));
     expect(tester.takeException(), isNull);
     expect(find.text('Samosa'), findsOneWidget);
-    // The add button is icon-based: unselected cards show the add glyph, selected
-    // cards show the check glyph. Samosa is unselected, Coffee is selected.
+    // Unselected cards show "ADD", selected cards show stepper (+/- and count)
+    expect(find.text('ADD'), findsOneWidget);
     expect(find.byIcon(Icons.add_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.remove_rounded), findsOneWidget);
   });
 
   testWidgets('design system renders in dark mode', (tester) async {

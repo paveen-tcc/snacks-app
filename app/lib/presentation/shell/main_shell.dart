@@ -16,15 +16,16 @@ import '../home/cart.dart';
 import '../home/drink_tab.dart';
 import '../home/food_tab.dart';
 import '../home/home_helpers.dart';
+import '../home/widgets/status_banner.dart';
 import '../orders/orders_tab.dart';
 import '../profile/profile_screen.dart';
 import 'brand_loading.dart';
 import 'glass_bottom_nav.dart';
 
-/// The app shell: greeting bar (profile top-left, only visible at the top of the
-/// list) + Food/Drink/Orders tabs + glass bottom nav. The greeting hides on any
-/// scroll; the bottom nav hides on scroll-down and returns on scroll-up; the
-/// per-tab search + veg row is always visible.
+/// The app shell: greeting bar + countdown banner (only visible at the top of
+/// the list) + Food/Drink/Orders tabs + glass bottom nav. The greeting and
+/// countdown hide on any scroll and only show at top; the bottom nav hides on
+/// scroll-down and returns on scroll-up; the per-tab search + filter tabs are always visible.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -36,6 +37,7 @@ class _MainShellState extends State<MainShell> {
   late final HomeBloc _homeBloc;
   final ValueNotifier<bool> _navVisible = ValueNotifier(true);
   final ValueNotifier<bool> _greetingVisible = ValueNotifier(true);
+  final Map<int, double> _tabScrollOffsets = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0};
   int _index = 0;
   String _username = '';
   bool _isAdmin = false;
@@ -43,29 +45,29 @@ class _MainShellState extends State<MainShell> {
   List<NavDestinationData> get _destinations => [
     const NavDestinationData(
       icon: Icons.restaurant_outlined,
-      selectedIcon: Icons.restaurant_rounded,
+      selectedIcon: Icons.restaurant,
       label: 'Food',
     ),
     const NavDestinationData(
       icon: Icons.local_cafe_outlined,
-      selectedIcon: Icons.local_cafe_rounded,
+      selectedIcon: Icons.local_cafe,
       label: 'Drink',
     ),
     const NavDestinationData(
       icon: Icons.receipt_long_outlined,
-      selectedIcon: Icons.receipt_long_rounded,
+      selectedIcon: Icons.receipt_long,
       label: 'Orders',
     ),
     if (_isAdmin)
       const NavDestinationData(
         icon: Icons.summarize_outlined,
-        selectedIcon: Icons.summarize_rounded,
+        selectedIcon: Icons.summarize,
         label: 'Summary',
       ),
     if (_isAdmin)
       const NavDestinationData(
         icon: Icons.account_balance_wallet_outlined,
-        selectedIcon: Icons.account_balance_wallet_rounded,
+        selectedIcon: Icons.account_balance_wallet,
         label: 'Budget',
       ),
   ];
@@ -107,25 +109,32 @@ class _MainShellState extends State<MainShell> {
 
   bool _onScroll(UserScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
+    _tabScrollOffsets[_index] = n.metrics.pixels;
     final atTop = n.metrics.pixels <= 8;
     if (atTop) {
       _navVisible.value = true;
-      _greetingVisible.value = true;
-    } else if (n.direction == ScrollDirection.reverse) {
-      _navVisible.value = false;
+      if (_index == 0 || _index == 1) {
+        _greetingVisible.value = true;
+      }
+    } else {
       _greetingVisible.value = false;
-    } else if (n.direction == ScrollDirection.forward) {
-      _navVisible.value = true;
-      _greetingVisible.value = true;
+      if (n.direction == ScrollDirection.reverse) {
+        _navVisible.value = false;
+      } else if (n.direction == ScrollDirection.forward) {
+        _navVisible.value = true;
+      }
     }
     return false;
   }
 
   void _selectTab(int i) {
     if (i == _index) return;
-    setState(() => _index = i);
-    _navVisible.value = true;
-    _greetingVisible.value = true;
+    final isTargetTabAtTop = (_tabScrollOffsets[i] ?? 0) <= 8;
+    setState(() {
+      _index = i;
+      _navVisible.value = true;
+      _greetingVisible.value = (i == 0 || i == 1) && isTargetTabAtTop;
+    });
   }
 
   Future<void> _openProfile() async {
@@ -172,46 +181,74 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildShell(BuildContext context) {
-    return Scaffold(
-      extendBody: true, // body scrolls under the glass nav so the blur shows
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _Hideable(
-              visible: _greetingVisible,
-              child: _GreetingBar(
-                username: _username,
-                onProfileTap: _openProfile,
-              ),
-            ),
-            Expanded(
-              child: NotificationListener<UserScrollNotification>(
-                onNotification: _onScroll,
-                child: IndexedStack(
-                  index: _index,
-                  children: [
-                    const FoodTab(),
-                    const DrinkTab(),
-                    OrdersTab(isActive: _index == 2),
-                    if (_isAdmin)
-                      SummaryScreen(isTab: true, isActive: _index == 3),
-                    if (_isAdmin) BudgetScreen(isActive: _index == 4),
-                  ],
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        extendBody: true, // body scrolls under the glass nav so the blur shows
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              if (_index == 0 || _index == 1)
+                _Hideable(
+                  visible: _greetingVisible,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _GreetingBar(
+                        username: _username,
+                        onProfileTap: _openProfile,
+                      ),
+                      BlocBuilder<HomeBloc, HomeState>(
+                        builder: (context, state) {
+                          if (state is! HomeLoaded ||
+                              state.isShutdown ||
+                              isOrderingClosed(state)) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.page,
+                              0,
+                              AppSpacing.page,
+                              AppSpacing.xs,
+                            ),
+                            child: HomeStatusBanner(state: state),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: NotificationListener<UserScrollNotification>(
+                  onNotification: _onScroll,
+                  child: IndexedStack(
+                    index: _index,
+                    children: [
+                      const FoodTab(),
+                      const DrinkTab(),
+                      OrdersTab(isActive: _index == 2),
+                      if (_isAdmin)
+                        SummaryScreen(isTab: true, isActive: _index == 3),
+                      if (_isAdmin) BudgetScreen(isActive: _index == 4),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: _BottomChrome(
-        navVisible: _navVisible,
-        showCart: _index == 0 || _index == 1,
-        homeBloc: _homeBloc,
-        nav: GlassBottomNav(
-          currentIndex: _index,
-          onTap: _selectTab,
-          destinations: _destinations,
+        bottomNavigationBar: _BottomChrome(
+          navVisible: _navVisible,
+          showCart: _index == 0 || _index == 1,
+          homeBloc: _homeBloc,
+          nav: GlassBottomNav(
+            currentIndex: _index,
+            onTap: _selectTab,
+            destinations: _destinations,
+          ),
         ),
       ),
     );
@@ -278,9 +315,9 @@ class _GreetingBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.page,
-        AppSpacing.md,
+        2,
         AppSpacing.page,
-        AppSpacing.sm,
+        AppSpacing.xs,
       ),
       child: Row(
         children: [

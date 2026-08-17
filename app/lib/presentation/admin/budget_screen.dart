@@ -404,31 +404,23 @@ class _BudgetScreenState extends State<BudgetScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.md,
-              AppSpacing.page,
-              AppSpacing.sm,
-            ),
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Budget', style: context.text.headlineSmall),
-                      Text(
-                        'Actual office purchases',
-                        style: context.text.bodySmall?.copyWith(
-                          color: context.palette.textSecondary,
-                        ),
-                      ),
-                    ],
+                Text(
+                  'Budget',
+                  style: context.text.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 IconButton(
                   tooltip: 'Refresh budget',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                   onPressed: _loading ? null : () => _load(),
                   icon: const Icon(Icons.refresh_rounded),
                 ),

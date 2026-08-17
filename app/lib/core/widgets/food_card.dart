@@ -9,7 +9,7 @@ import '../design/app_tokens.dart';
 /// The Swiggy/Zomato-style veg/non-veg indicator: a bordered square with a
 /// center dot (green = veg, red = non-veg).
 class VegBadge extends StatelessWidget {
-  const VegBadge({super.key, required this.isVeg, this.size = 16});
+  const VegBadge({super.key, required this.isVeg, this.size = 14});
 
   final bool isVeg;
   final double size;
@@ -24,12 +24,12 @@ class VegBadge extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           border: Border.all(color: color, width: 1.5),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(3),
         ),
         child: Center(
           child: Container(
-            width: size * 0.42,
-            height: size * 0.42,
+            width: size * 0.44,
+            height: size * 0.44,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         ),
@@ -45,9 +45,12 @@ class FoodCard extends StatelessWidget {
     required this.name,
     required this.isVeg,
     required this.selected,
+    this.count = 0,
     this.emoji,
     this.servingSize,
     this.onTap,
+    this.onIncrement,
+    this.onDecrement,
     this.fallbackEmoji = '🍽️',
     this.showVegBadge = true,
   });
@@ -55,15 +58,26 @@ class FoodCard extends StatelessWidget {
   final String name;
   final bool isVeg;
   final bool selected;
+  final int count;
   final String? emoji;
   final String? servingSize;
   final VoidCallback? onTap;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
   final String fallbackEmoji;
   final bool showVegBadge;
 
   void _handleTap() {
     HapticFeedback.selectionClick();
-    onTap?.call();
+    if (count == 0) {
+      if (onIncrement != null) {
+        onIncrement!();
+      } else {
+        onTap?.call();
+      }
+    } else {
+      onTap?.call();
+    }
   }
 
   Widget _buildContent(String val, AppPalette palette) {
@@ -94,22 +108,29 @@ class FoodCard extends StatelessWidget {
     final palette = context.palette;
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final metaLabel = showVegBadge ? (isVeg ? 'Veg' : 'Non-veg') : 'Drink';
+    final effectiveCount = count > 0 ? count : (selected ? 1 : 0);
+    final isSelected = effectiveCount > 0;
+
+    // Filter out "drink" / "drinks" from servingSize
+    final hasValidServingSize = servingSize != null &&
+        servingSize!.trim().isNotEmpty &&
+        servingSize!.trim().toLowerCase() != 'drink' &&
+        servingSize!.trim().toLowerCase() != 'drinks';
 
     return Semantics(
       button: true,
-      selected: selected,
-      label: '$name, $metaLabel${selected ? ', added' : ''}',
+      selected: isSelected,
+      label:
+          '$name${showVegBadge ? (isVeg ? ', Veg' : ', Non-veg') : ''}${isSelected ? ', $effectiveCount added' : ''}',
       child: GestureDetector(
-        onTap: onTap == null ? null : _handleTap,
+        onTap: _handleTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: reduceMotion ? Duration.zero : AppMotion.base,
           curve: AppMotion.standard,
-          constraints: const BoxConstraints(minHeight: 216),
-          decoration: BoxDecoration(
+          constraints: const BoxConstraints(minHeight: 160),
+          decoration: const BoxDecoration(
             color: Colors.transparent,
-            borderRadius: AppRadii.rMd,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,13 +145,13 @@ class FoodCard extends StatelessWidget {
                         duration: reduceMotion ? Duration.zero : AppMotion.base,
                         curve: AppMotion.standard,
                         decoration: BoxDecoration(
-                          color: selected
+                          color: isSelected
                               ? palette.brand.withValues(alpha: 0.08)
                               : palette.surfaceMuted,
                           borderRadius: AppRadii.rMd,
                           border: Border.all(
-                            color: selected ? palette.brand : palette.border,
-                            width: selected ? 1.4 : 1,
+                            color: isSelected ? palette.brand : palette.border,
+                            width: isSelected ? 1.5 : 1,
                           ),
                         ),
                         alignment: Alignment.center,
@@ -139,44 +160,25 @@ class FoodCard extends StatelessWidget {
                     ),
                     Positioned(
                       right: 4,
-                      bottom: -6,
-                      child: _AddButton(
-                        selected: selected,
+                      bottom: -8,
+                      child: _AddStepperButton(
+                        count: effectiveCount,
+                        onIncrement: onIncrement ?? onTap,
+                        onDecrement: onDecrement,
                         reduceMotion: reduceMotion,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  if (showVegBadge)
-                    VegBadge(isVeg: isVeg, size: 13)
-                  else
-                    Icon(
-                      Icons.local_cafe_rounded,
-                      size: 13,
-                      color: palette.textSecondary,
-                    ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      metaLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.text.labelSmall?.copyWith(
-                        color: showVegBadge
-                            ? (isVeg ? palette.veg : palette.nonVeg)
-                            : palette.textSecondary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: AppSpacing.sm + 2),
+              if (showVegBadge) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: VegBadge(isVeg: isVeg, size: 14),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ],
               Text(
                 name,
                 style: context.text.labelMedium?.copyWith(
@@ -188,33 +190,16 @@ class FoodCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (servingSize != null) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      maxWidth: double.infinity,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xs,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: AppRadii.rSm,
-                      border: Border.all(color: palette.border),
-                    ),
-                    child: Text(
-                      servingSize!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.text.labelSmall?.copyWith(
-                        color: palette.brand,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
-                    ),
+              if (hasValidServingSize) ...[
+                const SizedBox(height: 2),
+                Text(
+                  servingSize!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.text.labelSmall?.copyWith(
+                    color: palette.textTertiary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -226,36 +211,115 @@ class FoodCard extends StatelessWidget {
   }
 }
 
-class _AddButton extends StatelessWidget {
-  const _AddButton({required this.selected, required this.reduceMotion});
+class _AddStepperButton extends StatelessWidget {
+  const _AddStepperButton({
+    required this.count,
+    this.onIncrement,
+    this.onDecrement,
+    required this.reduceMotion,
+  });
 
-  final bool selected;
+  final int count;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
   final bool reduceMotion;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+
+    if (count == 0) {
+      return GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onIncrement?.call();
+        },
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: reduceMotion ? Duration.zero : AppMotion.base,
+          curve: AppMotion.standard,
+          height: 28,
+          constraints: const BoxConstraints(minWidth: 54),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: palette.brand,
+              width: 1.4,
+            ),
+            boxShadow: context.shadows.sm,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            'ADD',
+            style: TextStyle(
+              color: palette.brand,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      );
+    }
+
     return AnimatedContainer(
       duration: reduceMotion ? Duration.zero : AppMotion.base,
       curve: AppMotion.standard,
-      width: 34,
-      height: 34,
+      height: 28,
       decoration: BoxDecoration(
-        color: selected ? palette.brand : palette.surface,
-        borderRadius: AppRadii.rSm,
-        border: Border.all(
-          color: selected
-              ? palette.brand
-              : palette.brand.withValues(alpha: 0.72),
-          width: 1.4,
-        ),
+        color: palette.brand,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: palette.brand, width: 1.4),
         boxShadow: context.shadows.sm,
       ),
-      alignment: Alignment.center,
-      child: Icon(
-        selected ? Icons.check_rounded : Icons.add_rounded,
-        size: 23,
-        color: selected ? palette.onBrand : palette.brand,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onDecrement?.call();
+            },
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Icon(
+                Icons.remove_rounded,
+                size: 15,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onIncrement?.call();
+            },
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Icon(
+                Icons.add_rounded,
+                size: 15,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -268,9 +332,12 @@ class SnackCard extends FoodCard {
     required super.name,
     required super.isVeg,
     required super.selected,
+    super.count,
     super.emoji,
     super.servingSize,
     super.onTap,
+    super.onIncrement,
+    super.onDecrement,
   }) : super(fallbackEmoji: '🍽️');
 }
 
@@ -281,8 +348,11 @@ class DrinkCard extends FoodCard {
     required super.name,
     required super.selected,
     super.isVeg = true,
+    super.count,
     super.emoji,
     super.servingSize,
     super.onTap,
+    super.onIncrement,
+    super.onDecrement,
   }) : super(fallbackEmoji: '🥤', showVegBadge: false);
 }

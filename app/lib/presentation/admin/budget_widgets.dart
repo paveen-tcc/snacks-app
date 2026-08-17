@@ -7,6 +7,7 @@ import '../../core/design/glass.dart';
 import '../../core/di/locator.dart';
 import '../../core/formatters/rupees.dart';
 import '../../core/widgets/app_buttons.dart';
+import '../../core/widgets/app_card.dart';
 import '../../data/models/budget_models.dart';
 import '../../data/repositories/admin_repository.dart';
 
@@ -130,148 +131,129 @@ class BudgetSummaryCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 620;
-        if (!compact) {
-          return Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: _KpiCard(
-                  label: 'Period total',
-                  value: formatRupees(totals.total),
-                  icon: Icons.account_balance_wallet_rounded,
-                  accent: context.palette.brand,
-                  emphasized: true,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _KpiCard(
-                  label: 'Snacks',
-                  value: formatRupees(totals.snacks),
-                  icon: Icons.restaurant_rounded,
-                  accent: context.palette.warning,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _KpiCard(
-                  label: 'Drinks',
-                  value: formatRupees(totals.drinks),
-                  icon: Icons.local_cafe_rounded,
-                  accent: context.palette.info,
-                ),
-              ),
-            ],
-          );
-        }
-
-        return Column(
-          children: [
-            _KpiCard(
-              label: 'Period total',
-              value: formatRupees(totals.total),
-              icon: Icons.account_balance_wallet_rounded,
-              accent: context.palette.brand,
-              emphasized: true,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: _KpiCard(
-                    label: 'Snacks',
-                    value: formatRupees(totals.snacks),
-                    icon: Icons.restaurant_rounded,
-                    accent: context.palette.warning,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _KpiCard(
-                    label: 'Drinks',
-                    value: formatRupees(totals.drinks),
-                    icon: Icons.local_cafe_rounded,
-                    accent: context.palette.info,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.accent,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color accent;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) {
     final palette = context.palette;
+    final total = totals.total;
+    final snacks = totals.snacks;
+    final drinks = totals.drinks;
+
+    final snackRatio = total > 0 ? (snacks / total).clamp(0.0, 1.0) : 0.5;
+    final drinkRatio = total > 0 ? (drinks / total).clamp(0.0, 1.0) : 0.5;
+
+    final snackColor = palette.warning;
+    final drinkColor = palette.info;
+
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
       decoration: BoxDecoration(
-        color: emphasized
-            ? accent.withValues(alpha: palette.isDark ? 0.16 : 0.09)
-            : palette.surface,
-        borderRadius: AppRadii.rLg,
-        border: Border.all(
-          color: emphasized ? accent.withValues(alpha: 0.28) : palette.border,
-        ),
+        color: palette.surface,
+        borderRadius: AppRadii.rMd,
+        border: Border.all(color: palette.border),
         boxShadow: context.shadows.sm,
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.13),
-              borderRadius: AppRadii.rMd,
-            ),
-            child: Icon(icon, color: accent, size: 20),
+          // Single-line header: Total amount on left, Snacks and Drinks breakdown on right
+          Row(
+            children: [
+              Text(
+                formatRupees(total),
+                style: context.text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: palette.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              _BudgetLegendItem(
+                color: snackColor,
+                label: 'Snacks ${formatRupees(snacks)}',
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _BudgetLegendItem(
+                color: drinkColor,
+                label: 'Drinks ${formatRupees(drinks)}',
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: context.text.labelMedium?.copyWith(
-                    color: palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  value,
-                  style:
-                      (emphasized
-                              ? context.text.headlineSmall
-                              : context.text.titleLarge)
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ],
+          const SizedBox(height: AppSpacing.xs + 2),
+          // Animated horizontal bar chart
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: SizedBox(
+              height: 6,
+              child: TweenAnimationBuilder<double>(
+                duration: AppMotion.base,
+                curve: AppMotion.standard,
+                tween: Tween<double>(begin: 0.0, end: total > 0 ? 1.0 : 0.0),
+                builder: (context, anim, child) {
+                  if (total == 0) {
+                    return Container(
+                      color: palette.surfaceMuted,
+                    );
+                  }
+                  return Row(
+                    children: [
+                      if (snacks > 0)
+                        Expanded(
+                          flex: (snackRatio * 1000 * anim).round().clamp(1, 1000),
+                          child: Container(
+                            color: snackColor,
+                          ),
+                        ),
+                      if (snacks > 0 && drinks > 0)
+                        const SizedBox(width: 2),
+                      if (drinks > 0)
+                        Expanded(
+                          flex: (drinkRatio * 1000 * anim).round().clamp(1, 1000),
+                          child: Container(
+                            color: drinkColor,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BudgetLegendItem extends StatelessWidget {
+  const _BudgetLegendItem({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: context.text.labelSmall?.copyWith(
+            color: palette.textSecondary,
+            fontWeight: FontWeight.w600,
+            fontSize: 10,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -498,6 +480,63 @@ class UserSpendingStatsCard extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.accent,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: AppRadii.rSm,
+                ),
+                child: Icon(icon, size: 16, color: accent),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  label,
+                  style: context.text.labelSmall?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            value,
+            style: context.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
