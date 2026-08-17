@@ -79,6 +79,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
   late DateTime _anchor;
   BudgetPeriod _period = BudgetPeriod.day;
+  BudgetViewMode _viewMode = BudgetViewMode.purchases;
   BudgetTypeFilter _filter = BudgetTypeFilter.all;
   BudgetDay? _day;
   BudgetRange? _range;
@@ -474,6 +475,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     onNext: () => _movePeriod(1),
                     onCalendar: _pickDate,
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  BudgetViewModeControl(
+                    value: _viewMode,
+                    onChanged: (mode) => setState(() => _viewMode = mode),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   BudgetSummaryCards(totals: totals),
                   const SizedBox(height: AppSpacing.xl),
@@ -482,7 +488,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     onChanged: (value) => setState(() => _filter = value),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  if (_period == BudgetPeriod.day)
+                  if (_viewMode == BudgetViewMode.people)
+                    _buildPeopleContent()
+                  else if (_period == BudgetPeriod.day)
                     _buildDayContent()
                   else
                     _buildRangeContent(),
@@ -492,6 +500,85 @@ class _BudgetScreenState extends State<BudgetScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPeopleContent() {
+    final query = _searchQuery.trim().toLowerCase();
+    final allSpendings = _period == BudgetPeriod.day
+        ? (_day?.userSpendings ?? const <UserSpending>[])
+        : (_range?.userSpendings ?? const <UserSpending>[]);
+
+    final filteredSpendings = allSpendings
+        .where((user) {
+          if (query.isEmpty) return true;
+          final matchesUser = user.username.toLowerCase().contains(query) ||
+              user.email.toLowerCase().contains(query);
+          final matchesItem = user.items.any(
+            (item) => item.name.toLowerCase().contains(query),
+          );
+          return matchesUser || matchesItem;
+        })
+        .where((user) => user.amountForFilter(_filter) > 0)
+        .toList();
+
+    final maxAmount = filteredSpendings.fold<int>(
+      0,
+      (highest, user) => user.amountForFilter(_filter) > highest
+          ? user.amountForFilter(_filter)
+          : highest,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        UserSpendingStatsCard(
+          userSpendings: allSpendings,
+          filter: _filter,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        BudgetSearchField(
+          query: _searchQuery,
+          onChanged: (value) => setState(() => _searchQuery = value),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _SectionHeading(
+          title: 'Per-person spending ranking',
+          subtitle:
+              '${filteredSpendings.length} ${filteredSpendings.length == 1 ? 'person' : 'people'} in this view',
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _SectionCard(
+          child: filteredSpendings.isEmpty
+              ? const _BudgetEmpty(
+                  icon: Icons.people_outline_rounded,
+                  title: 'No spending recorded',
+                  message: 'No employee orders found for this selection.',
+                )
+              : Column(
+                  children: [
+                    for (var index = 0;
+                        index < filteredSpendings.length;
+                        index++) ...[
+                      UserSpendingRow(
+                        user: filteredSpendings[index],
+                        rank: index + 1,
+                        filter: _filter,
+                        maxAmount: maxAmount,
+                        onTap: () => showUserSpendingSheet(
+                          context: context,
+                          user: filteredSpendings[index],
+                          filter: _filter,
+                          periodLabel: _periodLabel,
+                        ),
+                      ),
+                      if (index != filteredSpendings.length - 1)
+                        const Divider(),
+                    ],
+                  ],
+                ),
+        ),
+      ],
     );
   }
 

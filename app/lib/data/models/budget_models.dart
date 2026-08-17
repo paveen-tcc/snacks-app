@@ -20,6 +20,24 @@ enum BudgetItemType {
   String get jsonValue => name;
 }
 
+enum BudgetTypeFilter {
+  all,
+  snacks,
+  drinks;
+
+  bool includes(BudgetItemType type) => switch (this) {
+    BudgetTypeFilter.all => true,
+    BudgetTypeFilter.snacks => type == BudgetItemType.snack,
+    BudgetTypeFilter.drinks => type == BudgetItemType.drink,
+  };
+
+  int amountFrom(BudgetTotals totals) => switch (this) {
+    BudgetTypeFilter.all => totals.total,
+    BudgetTypeFilter.snacks => totals.snacks,
+    BudgetTypeFilter.drinks => totals.drinks,
+  };
+}
+
 @immutable
 class BudgetTotals {
   const BudgetTotals({
@@ -79,11 +97,115 @@ class BudgetLine {
 }
 
 @immutable
+class UserBudgetItem {
+  const UserBudgetItem({
+    required this.snackId,
+    required this.name,
+    this.emoji,
+    this.category,
+    required this.itemType,
+    required this.quantity,
+    required this.unitPriceRupees,
+    required this.totalRupees,
+  });
+
+  factory UserBudgetItem.fromJson(Map<String, dynamic> json) => UserBudgetItem(
+    snackId: json['snackId'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    emoji: json['emoji'] as String?,
+    category: json['category'] as String?,
+    itemType: BudgetItemType.fromJson(json['itemType']),
+    quantity: _asInt(json['quantity']),
+    unitPriceRupees: _asInt(json['unitPriceRupees']),
+    totalRupees: _asInt(json['totalRupees']),
+  );
+
+  final String snackId;
+  final String name;
+  final String? emoji;
+  final String? category;
+  final BudgetItemType itemType;
+  final int quantity;
+  final int unitPriceRupees;
+  final int totalRupees;
+}
+
+@immutable
+class UserDailySpend {
+  const UserDailySpend({
+    required this.date,
+    required this.totalRupees,
+    required this.itemCount,
+  });
+
+  factory UserDailySpend.fromJson(Map<String, dynamic> json) => UserDailySpend(
+    date: json['date'] as String? ?? '',
+    totalRupees: _asInt(json['totalRupees']),
+    itemCount: _asInt(json['itemCount']),
+  );
+
+  final String date;
+  final int totalRupees;
+  final int itemCount;
+}
+
+@immutable
+class UserSpending {
+  const UserSpending({
+    required this.userId,
+    required this.username,
+    required this.email,
+    required this.totalSpendRupees,
+    required this.totalOrdersCount,
+    required this.snackSpendRupees,
+    required this.drinkSpendRupees,
+    this.items = const [],
+    this.dailySpend = const [],
+  });
+
+  factory UserSpending.fromJson(Map<String, dynamic> json) => UserSpending(
+    userId: json['userId'] as String? ?? '',
+    username: json['username'] as String? ?? '',
+    email: json['email'] as String? ?? '',
+    totalSpendRupees: _asInt(json['totalSpendRupees']),
+    totalOrdersCount: _asInt(json['totalOrdersCount']),
+    snackSpendRupees: _asInt(json['snackSpendRupees']),
+    drinkSpendRupees: _asInt(json['drinkSpendRupees']),
+    items: List.unmodifiable(
+      _asMapList(json['items']).map(UserBudgetItem.fromJson),
+    ),
+    dailySpend: List.unmodifiable(
+      _asMapList(json['dailySpend']).map(UserDailySpend.fromJson),
+    ),
+  );
+
+  final String userId;
+  final String username;
+  final String email;
+  final int totalSpendRupees;
+  final int totalOrdersCount;
+  final int snackSpendRupees;
+  final int drinkSpendRupees;
+  final List<UserBudgetItem> items;
+  final List<UserDailySpend> dailySpend;
+
+  int amountForFilter(BudgetTypeFilter filter) => switch (filter) {
+    BudgetTypeFilter.all => totalSpendRupees,
+    BudgetTypeFilter.snacks => snackSpendRupees,
+    BudgetTypeFilter.drinks => drinkSpendRupees,
+  };
+
+  List<UserBudgetItem> itemsForFilter(BudgetTypeFilter filter) =>
+      items.where((item) => filter.includes(item.itemType)).toList();
+}
+
+@immutable
 class BudgetDay {
   const BudgetDay({
     required this.date,
     required this.totals,
     this.items = const [],
+    this.userSpendings = const [],
   });
 
   factory BudgetDay.fromJson(Map<String, dynamic> json) => BudgetDay(
@@ -92,11 +214,15 @@ class BudgetDay {
     items: List.unmodifiable(
       _asMapList(json['items']).map(BudgetLine.fromJson),
     ),
+    userSpendings: List.unmodifiable(
+      _asMapList(json['userSpendings']).map(UserSpending.fromJson),
+    ),
   );
 
   final String date;
   final BudgetTotals totals;
   final List<BudgetLine> items;
+  final List<UserSpending> userSpendings;
 }
 
 @immutable
@@ -130,6 +256,7 @@ class BudgetRange {
     required this.totals,
     this.days = const [],
     this.items = const [],
+    this.userSpendings = const [],
   });
 
   factory BudgetRange.fromJson(Map<String, dynamic> json) => BudgetRange(
@@ -140,6 +267,9 @@ class BudgetRange {
     items: List.unmodifiable(
       _asMapList(json['items']).map(BudgetItemTotal.fromJson),
     ),
+    userSpendings: List.unmodifiable(
+      _asMapList(json['userSpendings']).map(UserSpending.fromJson),
+    ),
   );
 
   final String start;
@@ -147,4 +277,5 @@ class BudgetRange {
   final BudgetTotals totals;
   final List<BudgetDay> days;
   final List<BudgetItemTotal> items;
+  final List<UserSpending> userSpendings;
 }

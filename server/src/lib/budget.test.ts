@@ -517,3 +517,186 @@ describe('budget validation', () => {
         expect(removed!.isRemoved).toBe(true);
     });
 });
+
+describe('user budget spendings', () => {
+    test('aggregates per-person spendings with correct snack/drink split and item breakdown', async () => {
+        const db = createTestDb();
+        const [alice] = await db.insert(users).values({
+            username: 'alice',
+            email: 'alice@example.com',
+        }).returning();
+        const [bob] = await db.insert(users).values({
+            username: 'bob',
+            email: 'bob@example.com',
+        }).returning();
+
+        const [pizza] = await db.insert(snacks).values({
+            name: 'Smiley Veg Pizza',
+            category: 'Pizza',
+            shareCount: 1,
+            priceRupees: 85,
+        }).returning();
+        const [chai] = await db.insert(snacks).values({
+            name: 'Masala Tea',
+            category: 'Drinks',
+            shareCount: 1,
+            priceRupees: 15,
+        }).returning();
+
+        // Alice orders pizza and chai on 2026-08-12
+        await db.insert(orders).values([
+            {
+                userId: alice!.id,
+                date: '2026-08-12',
+                snackId: pizza!.id,
+                snackNameSnapshot: 'Smiley Veg Pizza',
+                snackPriceRupeesSnapshot: 85,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Pizza',
+            },
+            {
+                userId: alice!.id,
+                date: '2026-08-12',
+                snackId: chai!.id,
+                snackNameSnapshot: 'Masala Tea',
+                snackPriceRupeesSnapshot: 15,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Drinks',
+            },
+        ]);
+
+        // Bob orders 2 chais on 2026-08-12
+        await db.insert(orders).values([
+            {
+                userId: bob!.id,
+                date: '2026-08-12',
+                snackId: chai!.id,
+                snackNameSnapshot: 'Masala Tea',
+                snackPriceRupeesSnapshot: 15,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Drinks',
+            },
+            {
+                userId: bob!.id,
+                date: '2026-08-12',
+                snackId: chai!.id,
+                snackNameSnapshot: 'Masala Tea',
+                snackPriceRupeesSnapshot: 15,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Drinks',
+            },
+        ]);
+
+        const day = await getBudgetDay(db, '2026-08-12', OFFICE_TODAY);
+        expect(day.userSpendings).toHaveLength(2);
+
+        // Alice should be first (₹100 > ₹30)
+        expect(day.userSpendings[0]).toMatchObject({
+            userId: alice!.id,
+            username: 'alice',
+            email: 'alice@example.com',
+            totalSpendRupees: 100,
+            totalOrdersCount: 2,
+            snackSpendRupees: 85,
+            drinkSpendRupees: 15,
+        });
+        expect(day.userSpendings[0]!.items).toEqual([
+            {
+                snackId: pizza!.id,
+                name: 'Smiley Veg Pizza',
+                emoji: null,
+                category: 'Pizza',
+                itemType: 'snack',
+                quantity: 1,
+                unitPriceRupees: 85,
+                totalRupees: 85,
+            },
+            {
+                snackId: chai!.id,
+                name: 'Masala Tea',
+                emoji: null,
+                category: 'Drinks',
+                itemType: 'drink',
+                quantity: 1,
+                unitPriceRupees: 15,
+                totalRupees: 15,
+            },
+        ]);
+
+        // Bob should be second (₹30)
+        expect(day.userSpendings[1]).toMatchObject({
+            userId: bob!.id,
+            username: 'bob',
+            email: 'bob@example.com',
+            totalSpendRupees: 30,
+            totalOrdersCount: 2,
+            snackSpendRupees: 0,
+            drinkSpendRupees: 30,
+        });
+        expect(day.userSpendings[1]!.items).toEqual([
+            {
+                snackId: chai!.id,
+                name: 'Masala Tea',
+                emoji: null,
+                category: 'Drinks',
+                itemType: 'drink',
+                quantity: 2,
+                unitPriceRupees: 15,
+                totalRupees: 30,
+            },
+        ]);
+    });
+
+    test('range aggregation includes multi-day daily spend breakdown per person', async () => {
+        const db = createTestDb();
+        const [alice] = await db.insert(users).values({
+            username: 'alice',
+            email: 'alice@example.com',
+        }).returning();
+        const [snack] = await db.insert(snacks).values({
+            name: 'Puff',
+            category: 'Snacks',
+            shareCount: 1,
+            priceRupees: 25,
+        }).returning();
+
+        // Alice orders on Aug 10 and Aug 11
+        await db.insert(orders).values([
+            {
+                userId: alice!.id,
+                date: '2026-08-10',
+                snackId: snack!.id,
+                snackNameSnapshot: 'Puff',
+                snackPriceRupeesSnapshot: 25,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Snacks',
+            },
+            {
+                userId: alice!.id,
+                date: '2026-08-11',
+                snackId: snack!.id,
+                snackNameSnapshot: 'Puff',
+                snackPriceRupeesSnapshot: 25,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Snacks',
+            },
+            {
+                userId: alice!.id,
+                date: '2026-08-11',
+                snackId: snack!.id,
+                snackNameSnapshot: 'Puff',
+                snackPriceRupeesSnapshot: 25,
+                snackShareCountSnapshot: 1,
+                snackCategorySnapshot: 'Snacks',
+            },
+        ]);
+
+        const range = await getBudgetRange(db, '2026-08-10', '2026-08-12', OFFICE_TODAY);
+        expect(range.userSpendings).toHaveLength(1);
+        expect(range.userSpendings[0]!.totalSpendRupees).toBe(75);
+        expect(range.userSpendings[0]!.dailySpend).toEqual([
+            { date: '2026-08-10', totalRupees: 25, itemCount: 1 },
+            { date: '2026-08-11', totalRupees: 50, itemCount: 2 },
+        ]);
+    });
+});

@@ -108,8 +108,108 @@ void main() {
 
       expect(range.days, isEmpty);
       expect(range.items, isEmpty);
+      expect(range.userSpendings, isEmpty);
       expect(range.totals.snacks, 0);
       expect(range.totals.drinks, 0);
+    });
+  });
+
+  group('UserSpending.fromJson', () {
+    test('decodes user spending with items and daily breakdown', () {
+      final user = UserSpending.fromJson({
+        'userId': 'user-1',
+        'username': 'dhileep',
+        'email': 'dhileep@example.com',
+        'totalSpendRupees': 125,
+        'totalOrdersCount': 2,
+        'snackSpendRupees': 85,
+        'drinkSpendRupees': 40,
+        'items': [
+          {
+            'snackId': 'snack-1',
+            'name': 'Smiley Veg Pizza',
+            'emoji': '🍕',
+            'category': 'Pizza',
+            'itemType': 'snack',
+            'quantity': 1,
+            'unitPriceRupees': 85,
+            'totalRupees': 85,
+          },
+          {
+            'snackId': 'drink-1',
+            'name': 'Cold coffee',
+            'emoji': '☕',
+            'category': 'Drinks',
+            'itemType': 'drink',
+            'quantity': 1,
+            'unitPriceRupees': 40,
+            'totalRupees': 40,
+          },
+        ],
+        'dailySpend': [
+          {
+            'date': '2026-08-12',
+            'totalRupees': 125,
+            'itemCount': 2,
+          },
+        ],
+      });
+
+      expect(user.userId, 'user-1');
+      expect(user.username, 'dhileep');
+      expect(user.email, 'dhileep@example.com');
+      expect(user.totalSpendRupees, 125);
+      expect(user.totalOrdersCount, 2);
+      expect(user.snackSpendRupees, 85);
+      expect(user.drinkSpendRupees, 40);
+      expect(user.items, hasLength(2));
+      expect(user.items.first.name, 'Smiley Veg Pizza');
+      expect(user.items.first.itemType, BudgetItemType.snack);
+      expect(user.items.last.name, 'Cold coffee');
+      expect(user.items.last.itemType, BudgetItemType.drink);
+      expect(user.dailySpend, hasLength(1));
+      expect(user.dailySpend.first.date, '2026-08-12');
+      expect(user.dailySpend.first.totalRupees, 125);
+    });
+
+    test('amountForFilter and itemsForFilter behave correctly', () {
+      final user = UserSpending.fromJson({
+        'userId': 'user-1',
+        'username': 'dhileep',
+        'email': 'dhileep@example.com',
+        'totalSpendRupees': 125,
+        'totalOrdersCount': 2,
+        'snackSpendRupees': 85,
+        'drinkSpendRupees': 40,
+        'items': [
+          {
+            'snackId': 'snack-1',
+            'name': 'Pizza',
+            'itemType': 'snack',
+            'quantity': 1,
+            'unitPriceRupees': 85,
+            'totalRupees': 85,
+          },
+          {
+            'snackId': 'drink-1',
+            'name': 'Chai',
+            'itemType': 'drink',
+            'quantity': 1,
+            'unitPriceRupees': 40,
+            'totalRupees': 40,
+          },
+        ],
+      });
+
+      expect(user.amountForFilter(BudgetTypeFilter.all), 125);
+      expect(user.amountForFilter(BudgetTypeFilter.snacks), 85);
+      expect(user.amountForFilter(BudgetTypeFilter.drinks), 40);
+
+      expect(user.itemsForFilter(BudgetTypeFilter.all), hasLength(2));
+      expect(user.itemsForFilter(BudgetTypeFilter.snacks), hasLength(1));
+      expect(user.itemsForFilter(BudgetTypeFilter.snacks).first.name, 'Pizza');
+      expect(user.itemsForFilter(BudgetTypeFilter.drinks), hasLength(1));
+      expect(user.itemsForFilter(BudgetTypeFilter.drinks).first.name, 'Chai');
     });
   });
 }

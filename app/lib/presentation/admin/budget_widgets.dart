@@ -12,22 +12,41 @@ import '../../data/repositories/admin_repository.dart';
 
 enum BudgetPeriod { day, week, month }
 
-enum BudgetTypeFilter {
-  all,
-  snacks,
-  drinks;
+enum BudgetViewMode { purchases, people }
 
-  bool includes(BudgetItemType type) => switch (this) {
-    BudgetTypeFilter.all => true,
-    BudgetTypeFilter.snacks => type == BudgetItemType.snack,
-    BudgetTypeFilter.drinks => type == BudgetItemType.drink,
-  };
+class BudgetViewModeControl extends StatelessWidget {
+  const BudgetViewModeControl({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
-  int amountFrom(BudgetTotals totals) => switch (this) {
-    BudgetTypeFilter.all => totals.total,
-    BudgetTypeFilter.snacks => totals.snacks,
-    BudgetTypeFilter.drinks => totals.drinks,
-  };
+  final BudgetViewMode value;
+  final ValueChanged<BudgetViewMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<BudgetViewMode>(
+        segments: const [
+          ButtonSegment(
+            value: BudgetViewMode.purchases,
+            icon: Icon(Icons.receipt_long_rounded, size: 18),
+            label: Text('Purchases', key: Key('budget-view-purchases')),
+          ),
+          ButtonSegment(
+            value: BudgetViewMode.people,
+            icon: Icon(Icons.leaderboard_rounded, size: 18),
+            label: Text('People Spend', key: Key('budget-view-people')),
+          ),
+        ],
+        selected: {value},
+        onSelectionChanged: (selection) => onChanged(selection.first),
+        showSelectedIcon: false,
+      ),
+    );
+  }
 }
 
 class BudgetPeriodControl extends StatelessWidget {
@@ -377,6 +396,583 @@ class BudgetItemTotalRow extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class UserSpendingStatsCard extends StatelessWidget {
+  const UserSpendingStatsCard({
+    super.key,
+    required this.userSpendings,
+    required this.filter,
+  });
+
+  final List<UserSpending> userSpendings;
+  final BudgetTypeFilter filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeUsers = userSpendings
+        .where((u) => u.amountForFilter(filter) > 0)
+        .toList();
+    final totalSpend = activeUsers.fold<int>(
+      0,
+      (sum, u) => sum + u.amountForFilter(filter),
+    );
+    final count = activeUsers.length;
+    final avgSpend = count > 0 ? (totalSpend / count).round() : 0;
+    final topSpender = activeUsers.isNotEmpty ? activeUsers.first : null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        if (!compact) {
+          return Row(
+            children: [
+              Expanded(
+                child: _KpiCard(
+                  label: 'Active spenders',
+                  value: '$count ${count == 1 ? 'person' : 'people'}',
+                  icon: Icons.people_alt_rounded,
+                  accent: context.palette.brand,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _KpiCard(
+                  label: 'Average spend',
+                  value: formatRupees(avgSpend),
+                  icon: Icons.analytics_rounded,
+                  accent: context.palette.info,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _KpiCard(
+                  label: 'Top spender',
+                  value: topSpender != null
+                      ? '${topSpender.username} (${formatRupees(topSpender.amountForFilter(filter))})'
+                      : '—',
+                  icon: Icons.military_tech_rounded,
+                  accent: context.palette.warning,
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Active spenders',
+                    value: '$count ${count == 1 ? 'person' : 'people'}',
+                    icon: Icons.people_alt_rounded,
+                    accent: context.palette.brand,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Average spend',
+                    value: formatRupees(avgSpend),
+                    icon: Icons.analytics_rounded,
+                    accent: context.palette.info,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _KpiCard(
+              label: 'Top spender',
+              value: topSpender != null
+                  ? '${topSpender.username} (${formatRupees(topSpender.amountForFilter(filter))})'
+                  : '—',
+              icon: Icons.military_tech_rounded,
+              accent: context.palette.warning,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class UserSpendingRow extends StatelessWidget {
+  const UserSpendingRow({
+    super.key,
+    required this.user,
+    required this.rank,
+    required this.filter,
+    required this.maxAmount,
+    required this.onTap,
+  });
+
+  final UserSpending user;
+  final int rank;
+  final BudgetTypeFilter filter;
+  final int maxAmount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final totalAmount = user.amountForFilter(filter);
+    final snackAmount = user.snackSpendRupees;
+    final drinkAmount = user.drinkSpendRupees;
+    final totalFraction = maxAmount <= 0
+        ? 0.0
+        : (totalAmount / maxAmount).clamp(0.0, 1.0);
+
+    final snackRatio = totalAmount > 0 ? (snackAmount / totalAmount) : 0.0;
+    final drinkRatio = totalAmount > 0 ? (drinkAmount / totalAmount) : 0.0;
+
+    final rankColor = switch (rank) {
+      1 => const Color(0xFFEAB308),
+      2 => const Color(0xFF94A3B8),
+      3 => const Color(0xFFD97706),
+      _ => palette.textTertiary,
+    };
+
+    final isTop3 = rank <= 3;
+
+    return InkWell(
+      key: Key('user-spending-${user.userId}'),
+      onTap: onTap,
+      borderRadius: AppRadii.rMd,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isTop3
+                        ? rankColor.withValues(alpha: 0.18)
+                        : palette.surfaceMuted,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$rank',
+                    style: context.text.labelSmall?.copyWith(
+                      color: isTop3 ? rankColor : palette.textSecondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: palette.brand.withValues(alpha: 0.14),
+                  child: Text(
+                    user.username.isNotEmpty
+                        ? user.username[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      color: palette.brand,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.username,
+                        style: context.text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${user.totalOrdersCount} ${user.totalOrdersCount == 1 ? 'item' : 'items'} ordered',
+                        style: context.text.bodySmall?.copyWith(
+                          color: palette.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  formatRupees(totalAmount),
+                  style: context.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: palette.textTertiary,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ClipRRect(
+              borderRadius: AppRadii.rPill,
+              child: Container(
+                height: 8,
+                color: palette.surfaceMuted,
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: totalFraction,
+                  child: filter == BudgetTypeFilter.all
+                      ? Row(
+                          children: [
+                            if (snackRatio > 0)
+                              Flexible(
+                                flex: (snackRatio * 1000).round(),
+                                child: Container(color: palette.warning),
+                              ),
+                            if (drinkRatio > 0)
+                              Flexible(
+                                flex: (drinkRatio * 1000).round(),
+                                child: Container(color: palette.info),
+                              ),
+                          ],
+                        )
+                      : Container(
+                          color: filter == BudgetTypeFilter.drinks
+                              ? palette.info
+                              : palette.warning,
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> showUserSpendingSheet({
+  required BuildContext context,
+  required UserSpending user,
+  required BudgetTypeFilter filter,
+  String? periodLabel,
+}) {
+  return showGlassBottomSheet<void>(
+    context: context,
+    builder: (_) => _UserSpendingDetailSheet(
+      user: user,
+      filter: filter,
+      periodLabel: periodLabel,
+    ),
+  );
+}
+
+class _UserSpendingDetailSheet extends StatelessWidget {
+  const _UserSpendingDetailSheet({
+    required this.user,
+    required this.filter,
+    this.periodLabel,
+  });
+
+  final UserSpending user;
+  final BudgetTypeFilter filter;
+  final String? periodLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final items = user.itemsForFilter(filter);
+    final totalAmount = user.amountForFilter(filter);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.xxl,
+        AppSpacing.md,
+        AppSpacing.xxl,
+        MediaQuery.viewInsetsOf(context).bottom + AppSpacing.xxl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: palette.brand.withValues(alpha: 0.16),
+                child: Text(
+                  user.username.isNotEmpty
+                      ? user.username[0].toUpperCase()
+                      : '?',
+                  style: TextStyle(
+                    color: palette.brand,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(user.username, style: context.text.headlineSmall),
+                    if (user.email.isNotEmpty)
+                      Text(
+                        user.email,
+                        style: context.text.bodySmall?.copyWith(
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (periodLabel != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.surfaceMuted,
+                    borderRadius: AppRadii.rPill,
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Text(
+                    periodLabel!,
+                    style: context.text.labelSmall?.copyWith(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: AppRadii.rLg,
+              border: Border.all(color: palette.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Total Spend',
+                        style: context.text.labelSmall?.copyWith(
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatRupees(totalAmount),
+                        style: context.text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: palette.brand,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(width: 1, height: 32, color: palette.divider),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Snacks',
+                        style: context.text.labelSmall?.copyWith(
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatRupees(user.snackSpendRupees),
+                        style: context.text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: palette.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(width: 1, height: 32, color: palette.divider),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Drinks',
+                        style: context.text.labelSmall?.copyWith(
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatRupees(user.drinkSpendRupees),
+                        style: context.text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: palette.info,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (user.dailySpend.length > 1) ...[
+            const SizedBox(height: AppSpacing.xl),
+            Text('Daily Spend Timeline', style: context.text.titleSmall),
+            const SizedBox(height: AppSpacing.xs),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: AppRadii.rMd,
+                border: Border.all(color: palette.border),
+              ),
+              child: Column(
+                children: [
+                  for (final daily in user.dailySpend) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 90,
+                            child: Text(
+                              daily.date,
+                              style: context.text.bodySmall?.copyWith(
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${daily.itemCount} ${daily.itemCount == 1 ? 'item' : 'items'}',
+                              style: context.text.bodySmall,
+                            ),
+                          ),
+                          Text(
+                            formatRupees(daily.totalRupees),
+                            style: context.text.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xl),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Itemized Breakdown', style: context.text.titleSmall),
+              Text(
+                '${items.length} ${items.length == 1 ? 'item' : 'items'}',
+                style: context.text.bodySmall?.copyWith(
+                  color: palette.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Center(
+                child: Text(
+                  'No items in this filter',
+                  style: context.text.bodyMedium?.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ),
+            )
+          else
+            for (final item in items) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: AppRadii.rMd,
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: (item.itemType == BudgetItemType.drink
+                                  ? palette.info
+                                  : palette.warning)
+                              .withValues(alpha: 0.12),
+                          borderRadius: AppRadii.rSm,
+                        ),
+                        child: Icon(
+                          item.itemType == BudgetItemType.drink
+                              ? Icons.local_cafe_rounded
+                              : Icons.restaurant_rounded,
+                          size: 18,
+                          color: item.itemType == BudgetItemType.drink
+                              ? palette.info
+                              : palette.warning,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.name,
+                              style: context.text.titleSmall,
+                            ),
+                            Text(
+                              '${item.quantity} × ${formatRupees(item.unitPriceRupees)}',
+                              style: context.text.bodySmall?.copyWith(
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        formatRupees(item.totalRupees),
+                        style: context.text.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );

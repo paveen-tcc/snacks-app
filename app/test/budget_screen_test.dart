@@ -457,4 +457,118 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('People Spend view renders ranking, filters, search, and opens detail sheet', (
+    tester,
+  ) async {
+    const alice = UserSpending(
+      userId: 'user-alice',
+      username: 'Alice Wonderland',
+      email: 'alice@example.com',
+      totalSpendRupees: 125,
+      totalOrdersCount: 2,
+      snackSpendRupees: 85,
+      drinkSpendRupees: 40,
+      items: [
+        UserBudgetItem(
+          snackId: 'snack-pizza',
+          name: 'Smiley Veg Pizza',
+          itemType: BudgetItemType.snack,
+          quantity: 1,
+          unitPriceRupees: 85,
+          totalRupees: 85,
+        ),
+        UserBudgetItem(
+          snackId: 'snack-coffee',
+          name: 'Cold coffee',
+          itemType: BudgetItemType.drink,
+          quantity: 1,
+          unitPriceRupees: 40,
+          totalRupees: 40,
+        ),
+      ],
+    );
+
+    const bob = UserSpending(
+      userId: 'user-bob',
+      username: 'Bob Builder',
+      email: 'bob@example.com',
+      totalSpendRupees: 30,
+      totalOrdersCount: 2,
+      snackSpendRupees: 0,
+      drinkSpendRupees: 30,
+      items: [
+        UserBudgetItem(
+          snackId: 'snack-chai',
+          name: 'Masala Tea',
+          itemType: BudgetItemType.drink,
+          quantity: 2,
+          unitPriceRupees: 15,
+          totalRupees: 30,
+        ),
+      ],
+    );
+
+    const day = BudgetDay(
+      date: '2026-08-12',
+      totals: BudgetTotals(total: 155, snacks: 85, drinks: 70),
+      items: [],
+      userSpendings: [alice, bob],
+    );
+
+    await pumpBudget(
+      tester,
+      loadDay: (_) async => day,
+      loadRange: ({required start, required end}) async =>
+          BudgetRange(start: start, end: end, totals: BudgetTotals.zero),
+    );
+
+    // Switch to People Spend view
+    await tester.tap(find.byKey(const Key('budget-view-people')));
+    await tester.pumpAndSettle();
+
+    // Verify stats & rankings
+    expect(find.text('Active spenders'), findsOneWidget);
+    expect(find.text('2 people'), findsOneWidget);
+    expect(find.text('Alice Wonderland'), findsOneWidget);
+    expect(find.text('Bob Builder'), findsOneWidget);
+    expect(find.text('₹125'), findsOneWidget);
+    expect(find.text('₹30'), findsOneWidget);
+
+    // Filter by Snacks only: Bob (₹0 snack spend) should disappear from the list
+    await tester.tap(find.byKey(const Key('budget-filter-snacks')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Wonderland'), findsOneWidget);
+    expect(find.text('Bob Builder'), findsNothing);
+
+    // Filter back to All
+    await tester.tap(find.byKey(const Key('budget-filter-all')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Wonderland'), findsOneWidget);
+    expect(find.text('Bob Builder'), findsOneWidget);
+
+    // Search for Bob
+    await tester.enterText(find.byKey(const Key('budget-search')), 'bob');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bob Builder'), findsOneWidget);
+    expect(find.text('Alice Wonderland'), findsNothing);
+
+    // Clear search
+    await tester.enterText(find.byKey(const Key('budget-search')), '');
+    await tester.pumpAndSettle();
+
+    // Tap Alice to open details bottom sheet
+    await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-spending-user-alice')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Total Spend'), findsOneWidget);
+    expect(find.text('Smiley Veg Pizza'), findsOneWidget);
+    expect(find.text('Cold coffee'), findsOneWidget);
+    expect(find.text('1 × ₹85'), findsOneWidget);
+  });
 }

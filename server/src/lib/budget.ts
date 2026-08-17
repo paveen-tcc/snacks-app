@@ -1,6 +1,6 @@
 import { and, eq, gte, isNotNull, lte } from 'drizzle-orm';
 import type { Database } from '../db';
-import { dailyPurchaseItems, orders, snacks } from '../db/schema';
+import { dailyPurchaseItems, orders, snacks, users } from '../db/schema';
 
 export type BudgetItemType = 'snack' | 'drink';
 
@@ -22,10 +22,40 @@ export type BudgetLine = {
     isManual: boolean;
 };
 
+export type UserBudgetItem = {
+    snackId: string;
+    name: string;
+    emoji: string | null;
+    category: string | null;
+    itemType: BudgetItemType;
+    quantity: number;
+    unitPriceRupees: number;
+    totalRupees: number;
+};
+
+export type UserDailySpend = {
+    date: string;
+    totalRupees: number;
+    itemCount: number;
+};
+
+export type UserSpending = {
+    userId: string;
+    username: string;
+    email: string;
+    totalSpendRupees: number;
+    totalOrdersCount: number;
+    snackSpendRupees: number;
+    drinkSpendRupees: number;
+    items: UserBudgetItem[];
+    dailySpend: UserDailySpend[];
+};
+
 export type BudgetDayResponse = {
     date: string;
     totals: BudgetTotals;
     items: BudgetLine[];
+    userSpendings: UserSpending[];
 };
 
 export type BudgetRangeResponse = {
@@ -39,6 +69,7 @@ export type BudgetRangeResponse = {
         quantity: number;
         totalRupees: number;
     }>;
+    userSpendings: UserSpending[];
 };
 
 export type PurchaseItemInput = {
@@ -302,6 +333,140 @@ async function readVisibleLines(db: Database, date: string): Promise<BudgetLine[
     return rows.map(toBudgetLine);
 }
 
+export async function getUserSpendings(
+    db: Database,
+    start: string,
+    end: string,
+): Promise<UserSpending[]> {
+    const orderRows = await db
+        .select({
+            orderId: orders.id,
+            userId: orders.userId,
+            username: users.username,
+            email: users.email,
+            date: orders.date,
+            snackId: orders.snackId,
+            snackNameSnapshot: orders.snackNameSnapshot,
+            snackEmojiSnapshot: orders.snackEmojiSnapshot,
+            snackPriceRupeesSnapshot: orders.snackPriceRupeesSnapshot,
+            snackShareCountSnapshot: orders.snackShareCountSnapshot,
+            snackCategorySnapshot: orders.snackCategorySnapshot,
+            catalogName: snacks.name,
+            catalogEmoji: snacks.emoji,
+            catalogPriceRupees: snacks.priceRupees,
+            catalogShareCount: snacks.shareCount,
+            catalogCategory: snacks.category,
+        })
+        .from(orders)
+        .innerJoin(users, eq(orders.userId, users.id))
+        .leftJoin(snacks, eq(orders.snackId, snacks.id))
+        .where(and(gte(orders.date, start), lte(orders.date, end)));
+
+    type UserAccumulator = {
+        userId: string;
+        username: string;
+        email: string;
+        totalSpendRupees: number;
+        totalOrdersCount: number;
+        snackSpendRupees: number;
+        drinkSpendRupees: number;
+        itemMap: Map<string, UserBudgetItem>;
+        dailyMap: Map<string, UserDailySpend>;
+    };
+
+    const userMap = new Map<string, UserAccumulator>();
+
+    for (const row of orderRows) {
+        let userAcc = userMap.get(row.userId);
+        if (!userAcc) {
+            userAcc = {
+                userId: row.userId,
+                username: row.username,
+                email: row.email,
+                totalSpendRupees: 0,
+                totalOrdersCount: 0,
+                snackSpendRupees: 0,
+                drinkSpendRupees: 0,
+                itemMap: new Map(),
+                dailyMap: new Map(),
+            };
+            userMap.set(row.userId, userAcc);
+        }
+
+        const name = normalizeName(row.snackNameSnapshot ?? row.catalogName ?? 'Unknown');
+        const emoji = row.snackEmojiSnapshot ?? row.catalogEmoji ?? null;
+        const category = row.snackCategorySnapshot ?? row.catalogCategory ?? null;
+        const itemType: BudgetItemType = category?.trim().toLowerCase() === 'drinks'
+            ? 'drink'
+            : 'snack';
+        const price = row.snackPriceRupeesSnapshot ?? row.catalogPriceRupees ?? 0;
+        const shareCount = row.snackShareCountSnapshot ?? row.catalogShareCount ?? 1;
+        const unitCost = Math.round(price / Math.max(shareCount, 1));
+
+        userAcc.totalOrdersCount += 1;
+        userAcc.totalSpendRupees += unitCost;
+        if (itemType === 'drink') {
+            userAcc.drinkSpendRupees += unitCost;
+        } else {
+            userAcc.snackSpendRupees += unitCost;
+        }
+
+        const itemKey = `${row.snackId}::${name}`;
+        let item = userAcc.itemMap.get(itemKey);
+        if (!item) {
+            item = {
+                snackId: row.snackId,
+                name,
+                emoji,
+                category,
+                itemType,
+                quantity: 0,
+                unitPriceRupees: unitCost,
+                totalRupees: 0,
+            };
+            userAcc.itemMap.set(itemKey, item);
+        }
+        item.quantity += 1;
+        item.totalRupees += unitCost;
+
+        let daily = userAcc.dailyMap.get(row.date);
+        if (!daily) {
+            daily = {
+                date: row.date,
+                totalRupees: 0,
+                itemCount: 0,
+            };
+            userAcc.dailyMap.set(row.date, daily);
+        }
+        daily.totalRupees += unitCost;
+        daily.itemCount += 1;
+    }
+
+    const result: UserSpending[] = Array.from(userMap.values()).map((u) => ({
+        userId: u.userId,
+        username: u.username,
+        email: u.email,
+        totalSpendRupees: u.totalSpendRupees,
+        totalOrdersCount: u.totalOrdersCount,
+        snackSpendRupees: u.snackSpendRupees,
+        drinkSpendRupees: u.drinkSpendRupees,
+        items: Array.from(u.itemMap.values()).sort((a, b) =>
+            b.totalRupees - a.totalRupees || a.name.localeCompare(b.name),
+        ),
+        dailySpend: Array.from(u.dailyMap.values()).sort((a, b) =>
+            a.date.localeCompare(b.date),
+        ),
+    }));
+
+    result.sort((a, b) =>
+        b.totalSpendRupees - a.totalSpendRupees ||
+        b.totalOrdersCount - a.totalOrdersCount ||
+        a.username.localeCompare(b.username),
+    );
+
+    return result;
+}
+
 export async function getBudgetDay(
     db: Database,
     date: string,
@@ -312,7 +477,8 @@ export async function getBudgetDay(
     const items = await readVisibleLines(db, date);
     const totals = emptyTotals();
     for (const item of items) addLineToTotals(totals, item);
-    return { date, totals, items };
+    const userSpendings = await getUserSpendings(db, date, date);
+    return { date, totals, items, userSpendings };
 }
 
 export async function getBudgetRange(
@@ -394,7 +560,8 @@ export async function getBudgetRange(
     const items = Array.from(itemGroups.values()).sort((a, b) =>
         a.name.localeCompare(b.name) || a.itemType.localeCompare(b.itemType),
     );
-    return { start, end, totals, days, items };
+    const userSpendings = await getUserSpendings(db, start, end);
+    return { start, end, totals, days, items, userSpendings };
 }
 
 export async function createPurchaseItem(
