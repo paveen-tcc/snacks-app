@@ -95,4 +95,35 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Coffee'), findsOneWidget);
   });
+
+  testWidgets('VegToggleSwitch renders VegBadge icon and responds to taps', (tester) async {
+    bool toggled = false;
+    await tester.pumpWidget(
+      _host(
+        AppTheme.light,
+        StatefulBuilder(
+          builder: (context, setState) {
+            return SearchVegRow(
+              query: '',
+              onQueryChanged: (_) {},
+              toggleLabel: 'VEG',
+              toggleValue: toggled,
+              onToggleChanged: (val) {
+                setState(() => toggled = val);
+              },
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(find.text('VEG'), findsOneWidget);
+    expect(find.byType(VegBadge), findsOneWidget);
+
+    await tester.tap(find.byType(VegToggleSwitch));
+    await tester.pumpAndSettle();
+
+    expect(toggled, isTrue);
+  });
 }
+

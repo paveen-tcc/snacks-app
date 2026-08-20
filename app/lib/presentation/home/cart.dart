@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/constants/food_assets.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/optimized_image.dart';
@@ -11,9 +13,11 @@ import '../../data/local/app_database.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
 
-/// Sticky "View Cart" pill (brand-coloured), shown above the bottom nav on the
-/// Food & Drink tabs when there are selections.
-class CartBar extends StatelessWidget {
+/// Sticky "View Cart" pill, shown above the bottom nav on the Food & Drink tabs.
+/// - Unconfirmed state: Pure white card with blue count bubble and dark text.
+/// - Confirmed state: Royal Blue gradient card (NOT green).
+/// - Animate in: Starts as a circle from bottom and expands horizontally to full rounded pill!
+class CartBar extends StatefulWidget {
   const CartBar({
     super.key,
     required this.itemCount,
@@ -30,90 +34,247 @@ class CartBar extends StatelessWidget {
   final String? editUntilLabel;
 
   @override
+  State<CartBar> createState() => _CartBarState();
+}
+
+class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
+  late final AnimationController _morphController;
+  late final Animation<double> _slideAnimation;
+  late final Animation<double> _expandAnimation;
+  late final Animation<double> _contentFadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _morphController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 460),
+    );
+
+    // 1. Circle slides up from bottom
+    _slideAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _morphController,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
+      ),
+    );
+
+    // 2. Circle expands horizontally into pill
+    _expandAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _morphController,
+        curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 3. Text content fades in
+    _contentFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _morphController,
+        curve: const Interval(0.60, 1.0, curve: Curves.easeIn),
+      ),
+    );
+
+    _morphController.forward();
+  }
+
+  @override
+  void dispose() {
+    _morphController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final color = orderPlaced ? palette.success : palette.brand;
+    final orderPlaced = widget.orderPlaced;
+    final hasChanges = widget.hasChanges;
+    final itemCount = widget.itemCount;
+
     final title = orderPlaced
         ? 'Order placed'
         : hasChanges
         ? 'Review changes'
         : 'View Cart';
     final subtitle = orderPlaced
-        ? 'Tap to edit your order until ${editUntilLabel ?? 'the window closes'}'
+        ? 'Tap to edit your order until ${widget.editUntilLabel ?? 'the window closes'}'
         : hasChanges
         ? 'Confirm to update order'
         : itemCount == 1
         ? '1 item selected'
         : '$itemCount items selected';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.lg,
-        AppSpacing.sm,
-      ),
-      child: PressableScale(
-        onTap: onTap,
-        borderRadius: AppRadii.rXl,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.md,
-          ),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: AppRadii.rXl,
-            boxShadow: context.shadows.md,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: palette.onBrand.withValues(alpha: 0.18),
-                  borderRadius: AppRadii.rMd,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$itemCount',
-                  style: context.text.titleMedium?.copyWith(
-                    color: palette.onBrand,
-                    fontWeight: FontWeight.w800,
+
+    return AnimatedBuilder(
+      animation: _morphController,
+      builder: (context, child) {
+        final slideVal = _slideAnimation.value;
+        final expandVal = _expandAnimation.value;
+        final fadeVal = _contentFadeAnimation.value;
+
+        return Transform.translate(
+          offset: Offset(0, slideVal * 60),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: Align(
+              alignment: Alignment.center,
+              child: PressableScale(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  height: 56,
+                  width: expandVal < 0.99
+                      ? (56.0 +
+                            (MediaQuery.of(context).size.width - 56.0 - 32.0) *
+                                expandVal)
+                      : double.infinity,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: expandVal < 0.5 ? 8 : 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: orderPlaced
+                        ? null
+                        : (palette.isDark ? palette.surface : Colors.white),
+                    gradient: orderPlaced
+                        ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: palette.headerGradient,
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: orderPlaced
+                          ? Colors.white.withValues(alpha: 0.35)
+                          : (palette.isDark
+                              ? palette.border
+                              : const Color(0xFFE2E8F0)),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: palette.brand.withValues(
+                          alpha: orderPlaced ? 0.35 : 0.12,
+                        ),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      // Left Count Bubble
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: orderPlaced
+                                ? null
+                                : LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: palette.headerGradient,
+                                  ),
+                            color: orderPlaced
+                                ? Colors.white.withValues(alpha: 0.22)
+                                : null,
+                            boxShadow: orderPlaced
+                                ? null
+                                : [
+                                    BoxShadow(
+                                      color: palette.brand.withValues(
+                                        alpha: 0.30,
+                                      ),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$itemCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Text and chevron (faded in as width expands)
+                      if (expandVal > 0.3)
+                        Positioned.fill(
+                          left: 52,
+                          child: Opacity(
+                            opacity: fadeVal.clamp(0.0, 1.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: orderPlaced
+                                              ? Colors.white
+                                              : palette.textPrimary,
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 1),
+                                      Text(
+                                        subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: orderPlaced
+                                              ? Colors.white.withValues(
+                                                  alpha: 0.85,
+                                                )
+                                              : palette.textSecondary,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.keyboard_arrow_up_rounded,
+                                  color: orderPlaced
+                                      ? Colors.white
+                                      : palette.brand,
+                                  size: 26,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: context.text.titleMedium?.copyWith(
-                        color: palette.onBrand,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: context.text.bodySmall?.copyWith(
-                        color: palette.onBrand.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.keyboard_arrow_up_rounded,
-                color: palette.onBrand,
-                size: 28,
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -174,9 +335,10 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                           ],
                         ),
                       ),
-                      IconButton(
+                      IconButton.filledTonal(
+                        tooltip: 'Close cart',
                         onPressed: () => Navigator.of(sheetContext).pop(),
-                        icon: const Icon(Icons.close_rounded),
+                        icon: const Icon(Icons.close_rounded, size: 20),
                       ),
                     ],
                   ),
@@ -192,7 +354,8 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                               quantity: snackCounts[snack.id] ?? 1,
                               homeBloc: homeBloc,
                               disabled: isOrderingClosed(state),
-                              isSugarFree: state.sugarFreePrefs[snack.id] ?? false,
+                              isSugarFree:
+                                  state.sugarFreePrefs[snack.id] ?? false,
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -209,6 +372,7 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                         : 'Confirm Order',
                     loading: state.isSubmitting,
                     onPressed: () {
+                      HapticFeedback.heavyImpact();
                       Navigator.of(sheetContext).pop();
                       if (!orderPlaced) homeBloc.add(SubmitOrder());
                     },
@@ -257,36 +421,68 @@ class _CartSnackRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: palette.surface,
-                  borderRadius: AppRadii.rMd,
-                  border: Border.all(color: palette.border),
-                ),
-                alignment: Alignment.center,
-                child: snack.emoji != null &&
-                        (snack.emoji!.startsWith('http://') ||
-                            snack.emoji!.startsWith('https://'))
-                    ? OptimizedImage(
-                        imageUrl: snack.emoji!,
-                        width: 56,
-                        height: 56,
-                        memCacheWidth: 120,
-                        memCacheHeight: 120,
-                        borderRadius: AppRadii.rMd -
-                            const BorderRadius.all(Radius.circular(1)),
-                        fallbackIcon: Icon(
-                          Icons.fastfood_rounded,
-                          size: 28,
-                          color: palette.textSecondary,
-                        ),
-                      )
-                    : Text(
-                        snack.emoji ?? '🍽️',
-                        style: const TextStyle(fontSize: 28),
+              Builder(
+                builder: (context) {
+                  final localAsset = resolveLocalFoodAsset(snack.name);
+                  return Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: palette.isDark ? palette.surface : Colors.white,
+                      gradient: RadialGradient(
+                        center: const Alignment(0, 0.05),
+                        radius: 0.85,
+                        colors: palette.cardGlowGradient,
+                        stops: palette.isDark
+                            ? const [0.0, 0.55, 1.0]
+                            : const [0.0, 0.55, 1.0],
                       ),
+                      borderRadius: AppRadii.rMd,
+                      border: Border.all(
+                        color: palette.isDark
+                            ? palette.border
+                            : const Color(0xFFE5ECF6),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: localAsset != null
+                        ? Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Image.asset(
+                              localAsset,
+                              fit: BoxFit.contain,
+                              cacheWidth: 160,
+                              errorBuilder: (c, e, s) => Icon(
+                                Icons.fastfood_rounded,
+                                size: 28,
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                          )
+                        : snack.emoji != null &&
+                                (snack.emoji!.startsWith('http://') ||
+                                    snack.emoji!.startsWith('https://'))
+                            ? OptimizedImage(
+                                imageUrl: snack.emoji!,
+                                width: 56,
+                                height: 56,
+                                memCacheWidth: 120,
+                                memCacheHeight: 120,
+                                borderRadius:
+                                    AppRadii.rMd -
+                                    const BorderRadius.all(Radius.circular(1)),
+                                fallbackIcon: Icon(
+                                  Icons.fastfood_rounded,
+                                  size: 28,
+                                  color: palette.textSecondary,
+                                ),
+                              )
+                            : Text(
+                                snack.emoji ?? '🍽️',
+                                style: const TextStyle(fontSize: 28),
+                              ),
+                  );
+                },
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -315,8 +511,9 @@ class _CartSnackRow extends StatelessWidget {
                               Text(
                                 snack.isVeg ? 'Veg' : 'Non-veg',
                                 style: context.text.labelSmall?.copyWith(
-                                  color:
-                                      snack.isVeg ? palette.veg : palette.nonVeg,
+                                  color: snack.isVeg
+                                      ? palette.veg
+                                      : palette.nonVeg,
                                 ),
                               ),
                             ],
@@ -324,7 +521,7 @@ class _CartSnackRow extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm,
-                            vertical: 4,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: palette.surface,
@@ -339,7 +536,8 @@ class _CartSnackRow extends StatelessWidget {
                           ),
                         ),
                         if (isDrink)
-                          GestureDetector(
+                          PressableScale(
+                            scale: 0.92,
                             onTap: disabled
                                 ? null
                                 : () => homeBloc.add(ToggleSugarFree(snack.id)),
@@ -396,7 +594,9 @@ class _CartSnackRow extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               if (disabled)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
                   child: Text(
                     'Qty: $quantity',
                     style: context.text.bodyMedium?.copyWith(
@@ -409,37 +609,47 @@ class _CartSnackRow extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      onPressed: () => homeBloc.add(DecrementSnack(snack.id)),
-                      icon: Icon(
-                        quantity == 1
-                            ? Icons.delete_outline_rounded
-                            : Icons.remove_circle_outline_rounded,
-                        color:
-                            quantity == 1 ? palette.danger : palette.textSecondary,
-                      ),
-                      tooltip:
-                          quantity == 1 ? 'Remove item' : 'Decrease quantity',
-                    ),
-                    Text(
-                      '$quantity',
-                      style: context.text.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    PressableScale(
+                      scale: 0.85,
+                      onTap: () => homeBloc.add(DecrementSnack(snack.id)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0),
+                        child: Icon(
+                          quantity == 1
+                              ? Icons.delete_outline_rounded
+                              : Icons.remove_circle_outline_rounded,
+                          color: quantity == 1
+                              ? palette.danger
+                              : palette.textSecondary,
+                          size: 24,
+                        ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => homeBloc.add(IncrementSnack(snack.id)),
-                      icon: Icon(
-                        Icons.add_circle_outline_rounded,
-                        color: palette.brand,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: Text(
+                        '$quantity',
+                        style: context.text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      tooltip: 'Increase quantity',
+                    ),
+                    PressableScale(
+                      scale: 0.85,
+                      onTap: () => homeBloc.add(IncrementSnack(snack.id)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0),
+                        child: Icon(
+                          Icons.add_circle_outline_rounded,
+                          color: palette.brand,
+                          size: 24,
+                        ),
+                      ),
                     ),
                   ],
                 ),
             ],
           ),
-
         ],
       ),
     );

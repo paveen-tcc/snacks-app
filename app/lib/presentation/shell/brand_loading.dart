@@ -5,7 +5,7 @@ import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/app_logo.dart';
 
-/// Branded loading screen shown while the home data loads.
+/// Clean branded loading screen with plain white background.
 class BrandLoading extends StatelessWidget {
   const BrandLoading({super.key});
 
@@ -23,7 +23,10 @@ class BrandLoading extends StatelessWidget {
 
     Widget title = Text(
       'TCC Pantry',
-      style: context.text.displayMedium?.copyWith(color: palette.textPrimary),
+      style: context.text.displayMedium?.copyWith(
+        color: palette.textPrimary,
+        fontWeight: FontWeight.w700,
+      ),
     );
 
     Widget tagline = Text(

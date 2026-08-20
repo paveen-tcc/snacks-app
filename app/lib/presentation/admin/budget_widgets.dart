@@ -8,6 +8,7 @@ import '../../core/di/locator.dart';
 import '../../core/formatters/rupees.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/microsoft_avatar.dart';
 import '../../data/models/budget_models.dart';
 import '../../data/repositories/admin_repository.dart';
 
@@ -610,19 +611,10 @@ class UserSpendingRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                CircleAvatar(
+                MicrosoftAvatar(
+                  displayName: user.username,
+                  userPrincipalName: user.email,
                   radius: 16,
-                  backgroundColor: palette.brand.withValues(alpha: 0.14),
-                  child: Text(
-                    user.username.isNotEmpty
-                        ? user.username[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      color: palette.brand,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -747,19 +739,10 @@ class _UserSpendingDetailSheet extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              MicrosoftAvatar(
+                displayName: user.username,
+                userPrincipalName: user.email,
                 radius: 24,
-                backgroundColor: palette.brand.withValues(alpha: 0.16),
-                child: Text(
-                  user.username.isNotEmpty
-                      ? user.username[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                    color: palette.brand,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 20,
-                  ),
-                ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(

@@ -163,19 +163,7 @@ final RegExp _sugarFreePattern = RegExp(
 bool isSugarFreeItem(String name) => _sugarFreePattern.hasMatch(name);
 
 List<String> buildCategoryOptions(List<LocalSnack> snacks) {
-  final categories =
-      snacks
-          .map((snack) => displaySnackCategory(snack.category))
-          .toSet()
-          .toList()
-        ..sort((a, b) {
-          final rankCompare = snackCategoryRank(
-            a,
-          ).compareTo(snackCategoryRank(b));
-          if (rankCompare != 0) return rankCompare;
-          return a.toLowerCase().compareTo(b.toLowerCase());
-        });
-  return ['All', ...categories];
+  return buildSnackCategoryOptions(snacks.map((snack) => snack.category));
 }
 
 /// Whether a [LocalSnack] belongs to the "Drinks" category.

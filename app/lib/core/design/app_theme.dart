@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_accent.dart';
 import 'app_colors.dart';
 import 'app_effects.dart';
 import 'app_tokens.dart';
@@ -18,6 +19,10 @@ class AppTheme {
 
   static ThemeData light = _build(AppPalette.light);
   static ThemeData dark = _build(AppPalette.dark);
+
+  static ThemeData buildTheme(Brightness brightness, AppAccent accent) {
+    return _build(AppPalette.create(brightness: brightness, accent: accent));
+  }
 
   static ThemeData _build(AppPalette p) {
     final scheme = p.toColorScheme();
@@ -74,10 +79,10 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: p.surfaceMuted,
+        fillColor: p.surface,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
-          vertical: AppSpacing.lg,
+          vertical: AppSpacing.md,
         ),
         hintStyle: textTheme.bodyMedium?.copyWith(color: p.textTertiary),
         border: const OutlineInputBorder(
@@ -86,11 +91,14 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppRadii.rMd,
-          borderSide: BorderSide(color: p.border),
+          borderSide: BorderSide(
+            color: p.isDark ? p.border : const Color(0xFFE8E8E8),
+            width: 1.0,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadii.rMd,
-          borderSide: BorderSide(color: p.brand, width: 2),
+          borderSide: BorderSide(color: p.brand, width: 1.8),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadii.rMd,

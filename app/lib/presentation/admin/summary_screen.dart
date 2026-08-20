@@ -145,44 +145,76 @@ class _SummaryScreenState extends State<SummaryScreen> {
               children: [
                 _buildNotOrderedSection(context),
                 const SizedBox(height: AppSpacing.xxl),
-                _buildSection(context, 'Snack Orders', [
-                  ...List<Map<String, dynamic>>.from(_data!['orders']).map(
-                    (o) => _buildCountRow(
-                      context,
-                      o['snackName'] as String? ?? 'Unknown',
-                      o['count'].toString(),
-                      users: List<String>.from(o['orderedBy'] ?? []),
-                    ),
-                  ),
-                  Divider(height: 1, color: context.palette.divider),
-                  _buildCountRow(
-                    context,
-                    'Total',
-                    _data!['totalOrders'].toString(),
-                    bold: true,
-                  ),
-                ]),
-                const SizedBox(height: AppSpacing.xxl),
-                _buildSection(context, 'Drink Orders', [
-                  ...List<Map<String, dynamic>>.from(_data!['drinks']).map(
-                    (d) => _buildCountRow(
-                      context,
-                      d['drinkName'] as String? ?? 'Unknown',
-                      d['count'].toString(),
-                      users: List<String>.from(d['votedBy'] ?? []),
-                    ),
-                  ),
-                  if ((_data!['drinks'] as List).isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      child: Text(
-                        'No votes yet',
-                        style: context.text.bodySmall?.copyWith(
-                          color: context.palette.textSecondary,
+                () {
+                  final orders = List<Map<String, dynamic>>.from(_data!['orders']);
+                  final totalOrders = _data!['totalOrders']?.toString() ?? '0';
+                  return _buildSection(context, 'Snack Orders', [
+                    if (orders.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Text(
+                          'No snack orders yet',
+                          style: context.text.bodySmall?.copyWith(
+                            color: context.palette.textSecondary,
+                          ),
+                        ),
+                      )
+                    else ...[
+                      ...orders.map(
+                        (o) => _buildCountRow(
+                          context,
+                          o['snackName'] as String? ?? 'Unknown',
+                          o['count'].toString(),
+                          users: List<String>.from(o['orderedBy'] ?? []),
                         ),
                       ),
-                    ),
-                ]),
+                      Divider(height: 1, color: context.palette.divider),
+                      _buildCountRow(
+                        context,
+                        'Total',
+                        totalOrders,
+                        bold: true,
+                      ),
+                    ],
+                  ]);
+                }(),
+                const SizedBox(height: AppSpacing.xxl),
+                () {
+                  final drinks = List<Map<String, dynamic>>.from(_data!['drinks']);
+                  final totalDrinks = drinks.fold<int>(
+                    0,
+                    (sum, d) => sum + ((d['count'] as num?)?.toInt() ?? 0),
+                  );
+                  return _buildSection(context, 'Drink Orders', [
+                    if (drinks.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Text(
+                          'No drink orders yet',
+                          style: context.text.bodySmall?.copyWith(
+                            color: context.palette.textSecondary,
+                          ),
+                        ),
+                      )
+                    else ...[
+                      ...drinks.map(
+                        (d) => _buildCountRow(
+                          context,
+                          d['drinkName'] as String? ?? 'Unknown',
+                          d['count'].toString(),
+                          users: List<String>.from(d['votedBy'] ?? []),
+                        ),
+                      ),
+                      Divider(height: 1, color: context.palette.divider),
+                      _buildCountRow(
+                        context,
+                        'Total',
+                        totalDrinks.toString(),
+                        bold: true,
+                      ),
+                    ],
+                  ]);
+                }(),
                 const SizedBox(height: AppSpacing.xxl),
               ],
             ),
@@ -194,6 +226,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
     if (widget.isTab) {
       return Scaffold(
+        backgroundColor: Colors.transparent,
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

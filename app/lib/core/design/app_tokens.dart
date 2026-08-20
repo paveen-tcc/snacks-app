@@ -26,10 +26,10 @@ class AppSpacing {
 class AppRadii {
   AppRadii._();
 
-  static const double sm = 10;
-  static const double md = 14;
-  static const double lg = 20;
-  static const double xl = 28;
+  static const double sm = 6;
+  static const double md = 10;
+  static const double lg = 14;
+  static const double xl = 18;
   static const double pill = 999;
 
   static const BorderRadius rSm = BorderRadius.all(Radius.circular(sm));

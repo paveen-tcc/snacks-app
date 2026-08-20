@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth/msal_service.dart';
+import '../auth/microsoft_profile_photo_service.dart';
 import '../di/locator.dart';
 import '../../config/routes.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -102,6 +103,9 @@ class ApiClient {
   /// Clear stored auth data and redirect to login.
   Future<void> _forceLogout() async {
     final authRepo = locator<AuthRepository>();
+    if (locator.isRegistered<MicrosoftProfilePhotoService>()) {
+      locator<MicrosoftProfilePhotoService>().clear();
+    }
     await authRepo.logout();
     AppRouter.router.go('/onboarding');
   }

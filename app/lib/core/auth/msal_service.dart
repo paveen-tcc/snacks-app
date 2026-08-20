@@ -1,10 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:msal_auth/msal_auth.dart';
 
+class MicrosoftGraphSession {
+  const MicrosoftGraphSession({
+    required this.accessToken,
+    required this.accountId,
+    required this.expiresOn,
+    this.username,
+  });
+
+  final String accessToken;
+  final String accountId;
+  final DateTime expiresOn;
+  final String? username;
+}
+
 class MsalService {
   static const String _clientId = 'a9bb1ec3-db6c-4192-96c6-de69296cfe66';
   static const String _tenantId = '78c58f88-8385-43c2-b475-a57dcfbbc09f';
-  static const List<String> _scopes = ['User.Read'];
+  static const List<String> _scopes = ['User.Read', 'User.ReadBasic.All'];
   static const String _androidDebugRedirectUri =
       'msauth://company.thecloud.pantry/515a9IhVXCyy57IZeaswJmLBBUA%3D';
   static const String _androidReleaseRedirectUri =
@@ -13,8 +27,9 @@ class MsalService {
   late SingleAccountPca _pca;
 
   Future<void> initialize() async {
-    final androidRedirectUri =
-        kReleaseMode ? _androidReleaseRedirectUri : _androidDebugRedirectUri;
+    final androidRedirectUri = kReleaseMode
+        ? _androidReleaseRedirectUri
+        : _androidDebugRedirectUri;
 
     _pca = await SingleAccountPca.create(
       clientId: _clientId,
@@ -53,6 +68,30 @@ class MsalService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Returns a short-lived Graph token without interrupting the current UI.
+  /// A missing consent or expired Microsoft session is treated as unavailable;
+  /// callers should keep their initials-based fallback visible.
+  Future<MicrosoftGraphSession?> acquireGraphSessionSilent() async {
+    for (final scopes in const [
+      _scopes,
+      ['User.Read'],
+    ]) {
+      try {
+        final result = await _pca.acquireTokenSilent(scopes: scopes);
+        return MicrosoftGraphSession(
+          accessToken: result.accessToken,
+          accountId: result.account.id,
+          expiresOn: result.expiresOn,
+          username: result.account.username,
+        );
+      } catch (_) {
+        // Existing sessions may not have consented to directory photos yet;
+        // User.Read still allows the Profile screen to load /me/photo.
+      }
+    }
+    return null;
   }
 
   Future<void> signOut() async {

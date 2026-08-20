@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/optimized_image.dart';
@@ -71,7 +72,7 @@ class SnackRepository {
         });
       }
     } catch (e) {
-      print('Sync failed: $e');
+      debugPrint('Sync failed: $e');
     }
   }
 
@@ -85,7 +86,7 @@ class SnackRepository {
         return settings;
       }
     } catch (e) {
-      print('Settings fetch failed: $e');
+      debugPrint('Settings fetch failed: $e');
     }
     final cached = await (_localDb.select(
       _localDb.localSettings,

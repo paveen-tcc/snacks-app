@@ -1,121 +1,153 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'optimized_image.dart';
 
-import '../design/app_theme.dart';
+import '../constants/food_assets.dart';
 import '../design/app_colors.dart';
+import '../design/app_theme.dart';
 import '../design/app_tokens.dart';
+import 'app_buttons.dart' show PressableScale;
 
-/// The Swiggy/Zomato-style veg/non-veg indicator: a bordered square with a
-/// center dot (green = veg, red = non-veg).
-class VegBadge extends StatelessWidget {
-  const VegBadge({super.key, required this.isVeg, this.size = 14});
-
-  final bool isVeg;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isVeg ? context.palette.veg : context.palette.nonVeg;
-    return Semantics(
-      label: isVeg ? 'Vegetarian' : 'Non-vegetarian',
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          border: Border.all(color: color, width: 1.5),
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: Center(
-          child: Container(
-            width: size * 0.44,
-            height: size * 0.44,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact product tile for the content layer (snacks & drinks).
+/// Clean card displaying a snack or beverage.
+///
+/// Has a solid image container, veg/non-veg badge, name, serving size, and
+/// a bottom stepper button that smoothly animates to full width when selected.
 class FoodCard extends StatelessWidget {
   const FoodCard({
     super.key,
     required this.name,
-    required this.isVeg,
-    required this.selected,
-    this.count = 0,
-    this.emoji,
+    this.isVeg = true,
     this.servingSize,
+    this.imageUrl,
+    this.emoji,
+    this.fallbackEmoji = '🍽️',
+    this.selected = false,
+    this.count,
     this.onTap,
     this.onIncrement,
     this.onDecrement,
-    this.fallbackEmoji = '🍽️',
     this.showVegBadge = true,
   });
 
   final String name;
   final bool isVeg;
-  final bool selected;
-  final int count;
-  final String? emoji;
   final String? servingSize;
+  final String? imageUrl;
+  final String? emoji;
+  final String fallbackEmoji;
+  final bool selected;
+  final int? count;
   final VoidCallback? onTap;
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
-  final String fallbackEmoji;
   final bool showVegBadge;
 
+  int get effectiveCount => count ?? (selected ? 1 : 0);
+  bool get isSelected => effectiveCount > 0;
+
   void _handleTap() {
-    HapticFeedback.selectionClick();
-    if (count == 0) {
+    if (effectiveCount == 0) {
+      HapticFeedback.selectionClick();
       if (onIncrement != null) {
         onIncrement!();
       } else {
         onTap?.call();
       }
-    } else {
-      onTap?.call();
     }
   }
 
-  Widget _buildContent(String val, AppPalette palette) {
-    if (val.startsWith('http://') || val.startsWith('https://')) {
-      return OptimizedImage(
-        imageUrl: val,
-        width: 120,
-        height: 120,
-        memCacheWidth: 300,
-        memCacheHeight: 300,
-        borderRadius: AppRadii.rMd - const BorderRadius.all(Radius.circular(1)),
-        fallbackIcon: Icon(
-          Icons.fastfood_rounded,
-          size: 38,
-          color: palette.textSecondary,
+  Widget _buildContent(String effectiveEmoji, AppPalette palette) {
+    // 1. Check for local bundled transparent PNG asset first
+    final localAsset = resolveLocalFoodAsset(name) ??
+        (imageUrl != null && imageUrl!.trim().startsWith('assets/')
+            ? imageUrl!.trim()
+            : null);
+
+    if (localAsset != null) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Image.asset(
+          localAsset,
+          fit: BoxFit.contain,
+          cacheWidth: 360,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (context, error, stackTrace) => Icon(
+            Icons.fastfood_rounded,
+            size: 34,
+            color: const Color(0xFF9A9AA0).withValues(alpha: 0.6),
+          ),
         ),
       );
     }
-    return Text(
-      val,
-      style: const TextStyle(fontSize: 38),
-      maxLines: 1,
+
+    // 2. Check if we have a valid image URL either from imageUrl or passed as emoji
+    String? validUrl;
+    if (imageUrl != null && imageUrl!.trim().startsWith('http')) {
+      validUrl = imageUrl!.trim();
+    } else if (effectiveEmoji.trim().startsWith('http')) {
+      validUrl = effectiveEmoji.trim();
+    }
+
+    if (validUrl != null) {
+      return ClipRRect(
+        borderRadius: AppRadii.rMd,
+        child: CachedNetworkImage(
+          imageUrl: validUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          placeholder: (context, url) => Container(
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.fastfood_rounded,
+              size: 34,
+              color: const Color(0xFF9A9AA0).withValues(alpha: 0.6),
+            ),
+          ),
+          errorWidget: (context, url, error) => Container(
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.fastfood_rounded,
+              size: 34,
+              color: const Color(0xFF9A9AA0).withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 3. If it is a clean short emoji, render the emoji
+    if (effectiveEmoji.isNotEmpty &&
+        !effectiveEmoji.startsWith('http') &&
+        effectiveEmoji.length <= 4) {
+      return Text(
+        effectiveEmoji,
+        style: const TextStyle(fontSize: 38),
+      );
+    }
+
+    // 4. Fallback: Default clean centered icon
+    return Container(
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.fastfood_rounded,
+        size: 36,
+        color: const Color(0xFF9A9AA0).withValues(alpha: 0.7),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final isDark = palette.isDark;
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final effectiveCount = count > 0 ? count : (selected ? 1 : 0);
-    final isSelected = effectiveCount > 0;
-
-    // Filter out "drink" / "drinks" from servingSize
-    final hasValidServingSize = servingSize != null &&
-        servingSize!.trim().isNotEmpty &&
-        servingSize!.trim().toLowerCase() != 'drink' &&
-        servingSize!.trim().toLowerCase() != 'drinks';
+    final hasValidServingSize =
+        servingSize != null &&
+        servingSize!.isNotEmpty &&
+        servingSize != '1' &&
+        servingSize != '1 serving';
 
     return Semantics(
       button: true,
@@ -137,38 +169,83 @@ class FoodCard extends StatelessWidget {
             children: [
               AspectRatio(
                 aspectRatio: 1,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(
-                      child: AnimatedContainer(
-                        duration: reduceMotion ? Duration.zero : AppMotion.base,
-                        curve: AppMotion.standard,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? palette.brand.withValues(alpha: 0.08)
-                              : palette.surfaceMuted,
-                          borderRadius: AppRadii.rMd,
-                          border: Border.all(
-                            color: isSelected ? palette.brand : palette.border,
-                            width: isSelected ? 1.5 : 1,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = constraints.maxWidth;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: AnimatedContainer(
+                            duration:
+                                reduceMotion ? Duration.zero : AppMotion.base,
+                            curve: AppMotion.standard,
+                            decoration: BoxDecoration(
+                              // Clean white background with soft blue circular gradient light
+                              color: isDark ? palette.surface : Colors.white,
+                              gradient: isSelected
+                                  ? RadialGradient(
+                                      center: const Alignment(0, 0.05),
+                                      radius: 0.85,
+                                      colors: isDark
+                                          ? [
+                                              palette.brand.withValues(alpha: 0.25),
+                                              palette.surface,
+                                            ]
+                                          : [
+                                              palette.brand.withValues(alpha: 0.14),
+                                              const Color(0xFFF2F7FD),
+                                              Colors.white,
+                                            ],
+                                      stops: isDark ? const [0.0, 1.0] : const [0.0, 0.6, 1.0],
+                                    )
+                                  : RadialGradient(
+                                      center: const Alignment(0, 0.05),
+                                      radius: 0.82,
+                                      colors: palette.cardGlowGradient,
+                                      stops: isDark ? const [0.0, 0.55, 1.0] : const [0.0, 0.55, 1.0],
+                                    ),
+                              borderRadius: AppRadii.rMd,
+                              border: Border.all(
+                                color: isSelected
+                                    ? palette.brand
+                                    : (isDark
+                                        ? palette.border
+                                        : const Color(0xFFE5ECF6)),
+                                width: isSelected ? 1.5 : 1.0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF003874).withValues(
+                                    alpha: isDark ? 0.2 : 0.04,
+                                  ),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child:
+                                _buildContent(emoji ?? fallbackEmoji, palette),
                           ),
                         ),
-                        alignment: Alignment.center,
-                        child: _buildContent(emoji ?? fallbackEmoji, palette),
-                      ),
-                    ),
-                    Positioned(
-                      right: 4,
-                      bottom: -8,
-                      child: _AddStepperButton(
-                        count: effectiveCount,
-                        onIncrement: onIncrement ?? onTap,
-                        onDecrement: onDecrement,
-                        reduceMotion: reduceMotion,
-                      ),
-                    ),
-                  ],
+                        // Smoothly animated stepper position and width
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeOutCubic,
+                          left: isSelected ? 4 : cardWidth - 62,
+                          right: 4,
+                          bottom: -8,
+                          child: _AddStepperButton(
+                            count: effectiveCount,
+                            onIncrement: onIncrement ?? onTap,
+                            onDecrement: onDecrement,
+                            reduceMotion: reduceMotion,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: AppSpacing.sm + 2),
@@ -227,99 +304,100 @@ class _AddStepperButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-
-    if (count == 0) {
-      return GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onIncrement?.call();
-        },
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: reduceMotion ? Duration.zero : AppMotion.base,
-          curve: AppMotion.standard,
-          height: 28,
-          constraints: const BoxConstraints(minWidth: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: palette.brand,
-              width: 1.4,
-            ),
-            boxShadow: context.shadows.sm,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'ADD',
-            style: TextStyle(
-              color: palette.brand,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-      );
-    }
+    final isDark = palette.isDark;
+    final isSelected = count > 0;
 
     return AnimatedContainer(
-      duration: reduceMotion ? Duration.zero : AppMotion.base,
-      curve: AppMotion.standard,
-      height: 28,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      height: 30,
       decoration: BoxDecoration(
-        color: palette.brand,
+        // Solid fill at all times so there is zero transparent flicker during expansion
+        color: isSelected
+            ? palette.brand
+            : (isDark ? palette.surface : Colors.white),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: palette.brand, width: 1.4),
+        border: Border.all(
+          color: isSelected
+              ? palette.brand
+              : (isDark ? palette.border : const Color(0xFFE2E8F0)),
+          width: 1.0,
+        ),
         boxShadow: context.shadows.sm,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onDecrement?.call();
-            },
-            behavior: HitTestBehavior.opaque,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Icon(
-                Icons.remove_rounded,
-                size: 15,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              '$count',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onIncrement?.call();
-            },
-            behavior: HitTestBehavior.opaque,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Icon(
-                Icons.add_rounded,
-                size: 15,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(5),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: isSelected
+              ? Row(
+                  key: const ValueKey('stepper_active'),
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    PressableScale(
+                      scale: 0.85,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onDecrement?.call();
+                      },
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Icon(
+                          Icons.remove_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    PressableScale(
+                      scale: 0.85,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onIncrement?.call();
+                      },
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Icon(
+                          Icons.add_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : PressableScale(
+                  key: const ValueKey('stepper_idle'),
+                  scale: 0.90,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    onIncrement?.call();
+                  },
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                    child: Text(
+                      'ADD',
+                      style: TextStyle(
+                        color: palette.brand,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ),
+        ),
       ),
     );
   }
@@ -330,15 +408,18 @@ class SnackCard extends FoodCard {
   const SnackCard({
     super.key,
     required super.name,
-    required super.isVeg,
-    required super.selected,
-    super.count,
-    super.emoji,
+    super.isVeg = true,
     super.servingSize,
+    super.imageUrl,
+    super.emoji,
+    super.fallbackEmoji = '🍿',
+    super.selected = false,
+    super.count,
     super.onTap,
     super.onIncrement,
     super.onDecrement,
-  }) : super(fallbackEmoji: '🍽️');
+    super.showVegBadge = true,
+  });
 }
 
 /// Drink variant of [FoodCard].
@@ -346,13 +427,79 @@ class DrinkCard extends FoodCard {
   const DrinkCard({
     super.key,
     required super.name,
-    required super.selected,
     super.isVeg = true,
-    super.count,
-    super.emoji,
     super.servingSize,
+    super.imageUrl,
+    super.emoji,
+    super.fallbackEmoji = '🥤',
+    super.selected = false,
+    super.count,
     super.onTap,
     super.onIncrement,
     super.onDecrement,
-  }) : super(fallbackEmoji: '🥤', showVegBadge: false);
+    super.showVegBadge = true,
+  });
+}
+
+/// Veg badge with official green dot in green square.
+class VegBadge extends StatelessWidget {
+  const VegBadge({
+    super.key,
+    required this.isVeg,
+    this.size = 14,
+    this.color,
+  });
+
+  final bool isVeg;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? (isVeg ? context.palette.veg : context.palette.nonVeg);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: effectiveColor, width: 1.2),
+      ),
+      alignment: Alignment.center,
+      child: isVeg
+          ? Container(
+              width: size * 0.44,
+              height: size * 0.44,
+              decoration: BoxDecoration(
+                color: effectiveColor,
+                shape: BoxShape.circle,
+              ),
+            )
+          : CustomPaint(
+              size: Size(size * 0.5, size * 0.5),
+              painter: _TrianglePainter(color: effectiveColor),
+            ),
+    );
+  }
+}
+
+class _TrianglePainter extends CustomPainter {
+  const _TrianglePainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrianglePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

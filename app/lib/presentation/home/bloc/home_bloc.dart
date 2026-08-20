@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/local/app_database.dart';
 import '../../../data/repositories/snack_repository.dart';
@@ -437,7 +438,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           errorNonce: latest.errorNonce + 1,
         ),
       );
-      print(e);
+      debugPrint('Submit order error: $e');
     }
   }
 

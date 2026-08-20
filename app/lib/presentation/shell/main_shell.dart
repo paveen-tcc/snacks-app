@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,16 +17,12 @@ import '../home/cart.dart';
 import '../home/drink_tab.dart';
 import '../home/food_tab.dart';
 import '../home/home_helpers.dart';
-import '../home/widgets/status_banner.dart';
 import '../orders/orders_tab.dart';
 import '../profile/profile_screen.dart';
 import 'brand_loading.dart';
 import 'glass_bottom_nav.dart';
 
-/// The app shell: greeting bar + countdown banner (only visible at the top of
-/// the list) + Food/Drink/Orders tabs + glass bottom nav. The greeting and
-/// countdown hide on any scroll and only show at top; the bottom nav hides on
-/// scroll-down and returns on scroll-up; the per-tab search + filter tabs are always visible.
+/// The app shell: countdown banner + Food/Drink/Orders/Profile tabs + glass bottom nav.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -36,8 +33,14 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late final HomeBloc _homeBloc;
   final ValueNotifier<bool> _navVisible = ValueNotifier(true);
-  final ValueNotifier<bool> _greetingVisible = ValueNotifier(true);
-  final Map<int, double> _tabScrollOffsets = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0};
+  final Map<int, double> _tabScrollOffsets = {
+    0: 0,
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+    5: 0,
+  };
   int _index = 0;
   String _username = '';
   bool _isAdmin = false;
@@ -70,6 +73,11 @@ class _MainShellState extends State<MainShell> {
         selectedIcon: Icons.account_balance_wallet,
         label: 'Budget',
       ),
+    const NavDestinationData(
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+      label: 'Profile',
+    ),
   ];
 
   @override
@@ -92,7 +100,7 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _username = prefs.getString('username') ?? '';
       _isAdmin = prefs.getBool('is_admin') ?? false;
-      final maxIndex = _isAdmin ? 4 : 2;
+      final maxIndex = _isAdmin ? 5 : 3;
       if (_index > maxIndex) {
         _index = 0;
       }
@@ -103,7 +111,6 @@ class _MainShellState extends State<MainShell> {
   void dispose() {
     _homeBloc.close();
     _navVisible.dispose();
-    _greetingVisible.dispose();
     super.dispose();
   }
 
@@ -113,11 +120,7 @@ class _MainShellState extends State<MainShell> {
     final atTop = n.metrics.pixels <= 8;
     if (atTop) {
       _navVisible.value = true;
-      if (_index == 0 || _index == 1) {
-        _greetingVisible.value = true;
-      }
     } else {
-      _greetingVisible.value = false;
       if (n.direction == ScrollDirection.reverse) {
         _navVisible.value = false;
       } else if (n.direction == ScrollDirection.forward) {
@@ -129,25 +132,10 @@ class _MainShellState extends State<MainShell> {
 
   void _selectTab(int i) {
     if (i == _index) return;
-    final isTargetTabAtTop = (_tabScrollOffsets[i] ?? 0) <= 8;
     setState(() {
       _index = i;
       _navVisible.value = true;
-      _greetingVisible.value = (i == 0 || i == 1) && isTargetTabAtTop;
     });
-  }
-
-  Future<void> _openProfile() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProfileScreen(
-          username: _username,
-          isAdmin: _isAdmin,
-          homeBloc: _homeBloc,
-        ),
-      ),
-    );
-    if (mounted) _refreshViewer();
   }
 
   @override
@@ -173,188 +161,148 @@ class _MainShellState extends State<MainShell> {
               body: Center(child: Text('Something went wrong')),
             );
           }
-          if (state is! HomeLoaded) return const BrandLoading();
-          return _buildShell(context);
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 550),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: state is! HomeLoaded
+                ? const BrandLoading(key: ValueKey('brand_loading'))
+                : KeyedSubtree(
+                    key: const ValueKey('main_shell_content'),
+                    child: _buildShell(context),
+                  ),
+          );
         },
       ),
     );
   }
 
   Widget _buildShell(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      behavior: HitTestBehavior.translucent,
-      child: Scaffold(
-        extendBody: true, // body scrolls under the glass nav so the blur shows
-        body: SafeArea(
-          bottom: false,
-          child: Column(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final palette = context.palette;
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      stops: const [0.0, 0.40, 1.0],
+      colors: palette.cardGlowGradient,
+    );
+
+    final isFirstTwoPages = _index <= 1;
+    final overlayStyle = isFirstTwoPages
+        ? const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarBrightness: Brightness.dark, // iOS: white text & icons
+            statusBarIconBrightness: Brightness.light, // Android: white text & icons
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.light,
+          )
+        : (isDark
+            ? const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarBrightness: Brightness.dark, // iOS: white text & icons
+                statusBarIconBrightness: Brightness.light, // Android: white text & icons
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarIconBrightness: Brightness.light,
+              )
+            : const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarBrightness: Brightness.light, // iOS: dark text & icons
+                statusBarIconBrightness: Brightness.dark, // Android: dark text & icons
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarIconBrightness: Brightness.dark,
+              ));
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeInOutCubic,
+          decoration: BoxDecoration(gradient: gradient),
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+          extendBody:
+              true, // body scrolls under the glass nav so the blur shows
+          body: Stack(
             children: [
-              if (_index == 0 || _index == 1)
-                _Hideable(
-                  visible: _greetingVisible,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _GreetingBar(
+              NotificationListener<UserScrollNotification>(
+                onNotification: _onScroll,
+                child: IndexedStack(
+                  index: _index,
+                  children: [
+                    const FoodTab(),
+                    const DrinkTab(),
+                    SafeArea(
+                      bottom: false,
+                      child: OrdersTab(isActive: _index == 2),
+                    ),
+                    if (_isAdmin)
+                      SafeArea(
+                        bottom: false,
+                        child: SummaryScreen(
+                          isTab: true,
+                          isActive: _index == 3,
+                        ),
+                      ),
+                    if (_isAdmin)
+                      SafeArea(
+                        bottom: false,
+                        child: BudgetScreen(isActive: _index == 4),
+                      ),
+                    SafeArea(
+                      bottom: false,
+                      child: ProfileScreen(
                         username: _username,
-                        onProfileTap: _openProfile,
+                        isAdmin: _isAdmin,
+                        homeBloc: _homeBloc,
                       ),
-                      BlocBuilder<HomeBloc, HomeState>(
-                        builder: (context, state) {
-                          if (state is! HomeLoaded ||
-                              state.isShutdown ||
-                              isOrderingClosed(state)) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.page,
-                              0,
-                              AppSpacing.page,
-                              AppSpacing.xs,
-                            ),
-                            child: HomeStatusBanner(state: state),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              Expanded(
-                child: NotificationListener<UserScrollNotification>(
-                  onNotification: _onScroll,
-                  child: IndexedStack(
-                    index: _index,
-                    children: [
-                      const FoodTab(),
-                      const DrinkTab(),
-                      OrdersTab(isActive: _index == 2),
-                      if (_isAdmin)
-                        SummaryScreen(isTab: true, isActive: _index == 3),
-                      if (_isAdmin) BudgetScreen(isActive: _index == 4),
-                    ],
+              ),
+              // Ambient bottom fade effect
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 90,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.0, 0.45, 1.0],
+                        colors: [
+                          (isDark ? palette.background : Colors.white)
+                              .withValues(alpha: 0.0),
+                          (isDark ? palette.background : Colors.white)
+                              .withValues(alpha: 0.65),
+                          (isDark ? palette.background : Colors.white)
+                              .withValues(alpha: 0.98),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-        ),
-        bottomNavigationBar: _BottomChrome(
-          navVisible: _navVisible,
-          showCart: _index == 0 || _index == 1,
-          homeBloc: _homeBloc,
-          nav: GlassBottomNav(
-            currentIndex: _index,
-            onTap: _selectTab,
-            destinations: _destinations,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Slides and collapses [child] vertically when [visible] is false.
-class _Hideable extends StatelessWidget {
-  const _Hideable({required this.visible, required this.child});
-  final ValueListenable<bool> visible;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final duration = reduceMotion ? Duration.zero : AppMotion.slow;
-    return ValueListenableBuilder<bool>(
-      valueListenable: visible,
-      builder: (context, isVisible, child) => AnimatedSize(
-        duration: duration,
-        curve: AppMotion.emphasized,
-        alignment: Alignment.topCenter,
-        child: AnimatedSwitcher(
-          duration: duration,
-          switchInCurve: AppMotion.emphasized,
-          switchOutCurve: AppMotion.emphasized,
-          transitionBuilder: (switchChild, animation) {
-            final position = Tween<Offset>(
-              begin: const Offset(0, -0.28),
-              end: Offset.zero,
-            ).animate(animation);
-            return ClipRect(
-              child: SlideTransition(
-                position: position,
-                child: FadeTransition(opacity: animation, child: switchChild),
-              ),
-            );
-          },
-          child: isVisible
-              ? KeyedSubtree(key: const ValueKey('visible'), child: child!)
-              : const SizedBox(
-                  key: ValueKey('hidden'),
-                  width: double.infinity,
-                  height: 0,
-                ),
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _GreetingBar extends StatelessWidget {
-  const _GreetingBar({required this.username, required this.onProfileTap});
-
-  final String username;
-  final VoidCallback onProfileTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final initial = username.isNotEmpty ? username[0].toUpperCase() : '🙂';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.page,
-        2,
-        AppSpacing.page,
-        AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hello, ${username.isNotEmpty ? username : 'there'}',
-                  style: context.text.headlineSmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+          bottomNavigationBar: _BottomChrome(
+            navVisible: _navVisible,
+            showCart: _index == 0 || _index == 1,
+            homeBloc: _homeBloc,
+            nav: GlassBottomNav(
+              currentIndex: _index,
+              onTap: _selectTab,
+              destinations: _destinations,
+            ),
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Semantics(
-            button: true,
-            label: 'Profile and settings',
-            child: InkWell(
-              onTap: onProfileTap,
-              borderRadius: AppRadii.rPill,
-              child: CircleAvatar(
-                radius: 22,
-                backgroundColor: palette.brand.withValues(alpha: 0.14),
-                child: Text(
-                  initial,
-                  style: context.text.titleMedium?.copyWith(
-                    color: palette.brand,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -415,6 +363,7 @@ class _BottomChrome extends StatelessWidget {
               },
             ),
           AnimatedSize(
+            key: const ValueKey('bottom-nav-motion-slot'),
             duration: duration,
             curve: AppMotion.emphasized,
             alignment: Alignment.bottomCenter,

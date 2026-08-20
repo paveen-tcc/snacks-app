@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/design/app_theme.dart';
 import '../../../core/design/app_tokens.dart';
+import '../../../core/widgets/food_card.dart' show VegBadge;
 
 /// Pinned row holding an inline search field and an optional trailing toggle
 /// (the veg filter on the Food tab, the sugar-free filter on the Drink tab).
@@ -113,49 +115,119 @@ class _SearchVegRowState extends State<SearchVegRow> {
           ),
           if (showToggle) ...[
             const SizedBox(width: AppSpacing.md),
-            Semantics(
-              button: true,
-              toggled: widget.toggleValue,
+            VegToggleSwitch(
+              value: widget.toggleValue,
+              onChanged: widget.onToggleChanged!,
               label: widget.toggleLabel,
-              child: GestureDetector(
-                onTap: () => widget.onToggleChanged!(!widget.toggleValue),
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      widget.toggleLabel!,
-                      style: context.text.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        fontSize: 10,
-                        color: widget.toggleValue
-                            ? (widget.toggleActiveColor ?? palette.veg)
-                            : palette.textSecondary,
+              activeColor: widget.toggleActiveColor,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A custom, premium toggle switch designed in the style of official Indian
+/// food apps (Swiggy / Zomato), featuring the iconic Veg badge on the sliding thumb knob.
+class VegToggleSwitch extends StatelessWidget {
+  const VegToggleSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.label,
+    this.activeColor,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final String? label;
+  final Color? activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final vegColor = activeColor ?? palette.veg;
+    final isDark = palette.isDark;
+
+    return Semantics(
+      button: true,
+      toggled: value,
+      label: label ?? (value ? 'Vegetarian only' : 'All snacks'),
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(!value);
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (label != null) ...[
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: (context.text.labelSmall ?? const TextStyle()).copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  fontSize: 10,
+                  color: value ? vegColor : palette.textSecondary,
+                ),
+                child: Text(label!),
+              ),
+              const SizedBox(height: 3),
+            ],
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOutCubic,
+              width: 44,
+              height: 24,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                color: value
+                    ? vegColor.withValues(alpha: 0.12)
+                    : palette.surfaceMuted,
+                border: Border.all(
+                  color: value
+                      ? vegColor
+                      : palette.textTertiary.withValues(alpha: 0.35),
+                  width: 1.4,
+                ),
+              ),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOutCubic,
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? palette.surfaceElevated
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(3.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    SizedBox(
-                      height: 24,
-                      child: FittedBox(
-                        fit: BoxFit.contain,
-                        child: Switch.adaptive(
-                          value: widget.toggleValue,
-                          activeTrackColor:
-                              widget.toggleActiveColor ?? palette.veg,
-                          onChanged: widget.onToggleChanged,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: VegBadge(
+                    isVeg: true,
+                    size: 13,
+                    color: value
+                        ? vegColor
+                        : palette.textTertiary.withValues(alpha: 0.45),
+                  ),
                 ),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }

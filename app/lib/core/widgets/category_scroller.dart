@@ -22,9 +22,9 @@ class CategoryItem {
   final String? emoji;
 }
 
-/// A horizontally scrolling row of category tabs with icons and a full-width
-/// continuous orange baseline indicator (Blinkit / Zepto style).
-class CategoryScroller extends StatelessWidget {
+/// A horizontally scrolling row of category tabs with icons and a continuous
+/// sliding arched baseline indicator that fluidly glides between selected tabs.
+class CategoryScroller extends StatefulWidget {
   const CategoryScroller({
     super.key,
     required this.items,
@@ -39,10 +39,80 @@ class CategoryScroller extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
+  State<CategoryScroller> createState() => _CategoryScrollerState();
+}
+
+class _CategoryScrollerState extends State<CategoryScroller> {
+  final Map<String, GlobalKey> _itemKeys = {};
+  final GlobalKey _rowKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
+  double _indicatorLeft = 0.0;
+  double _indicatorWidth = 80.0;
+  bool _hasMeasured = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final item in widget.items) {
+      _itemKeys[item.key] = GlobalKey();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateIndicator(animateScroll: false));
+  }
+
+  @override
+  void didUpdateWidget(covariant CategoryScroller oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    for (final item in widget.items) {
+      _itemKeys.putIfAbsent(item.key, () => GlobalKey());
+    }
+    if (oldWidget.selectedKey != widget.selectedKey || oldWidget.items != widget.items) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateIndicator(animateScroll: true));
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _updateIndicator({bool animateScroll = true}) {
+    final chipKey = _itemKeys[widget.selectedKey];
+    if (chipKey?.currentContext == null || _rowKey.currentContext == null) return;
+
+    final chipBox = chipKey!.currentContext!.findRenderObject() as RenderBox?;
+    final rowBox = _rowKey.currentContext!.findRenderObject() as RenderBox?;
+    if (chipBox == null || rowBox == null) return;
+
+    final localOffset = rowBox.globalToLocal(chipBox.localToGlobal(Offset.zero));
+    final width = chipBox.size.width;
+    final left = localOffset.dx;
+
+    setState(() {
+      _indicatorLeft = left;
+      _indicatorWidth = width;
+      _hasMeasured = true;
+    });
+
+    if (animateScroll && _scrollController.hasClients) {
+      final parentBox = context.findRenderObject() as RenderBox?;
+      final viewportWidth = parentBox?.size.width ?? 360.0;
+      final targetScroll = (left - (viewportWidth / 2) + (width / 2))
+          .clamp(0.0, _scrollController.position.maxScrollExtent);
+      _scrollController.animateTo(
+        targetScroll,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+
     return SizedBox(
-      height: 60,
+      height: 56,
       width: double.infinity,
       child: Stack(
         alignment: Alignment.bottomCenter,
@@ -57,25 +127,58 @@ class CategoryScroller extends StatelessWidget {
               color: palette.brand,
             ),
           ),
-          // Scrollable category tabs
-          ListView.builder(
+
+          // Scrollable category tabs with sliding arched indicator
+          SingleChildScrollView(
+            controller: _scrollController,
             scrollDirection: Axis.horizontal,
-            padding: padding,
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return CategoryChip(
-                label: item.label,
-                icon: item.icon,
-                selectedIcon: item.selectedIcon,
-                emoji: item.emoji,
-                selected: item.key == selectedKey,
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onSelected(item.key);
-                },
-              );
-            },
+            padding: widget.padding,
+            physics: const BouncingScrollPhysics(),
+            child: Stack(
+              children: [
+                // Gliding Arched Indicator underneath
+                if (_hasMeasured)
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeInOutCubic,
+                    left: _indicatorLeft,
+                    bottom: 0,
+                    width: _indicatorWidth,
+                    height: 56,
+                    child: CustomPaint(
+                      painter: _CurvedTabIndicatorPainter(
+                        activeColor: palette.brand,
+                        backgroundColor: palette.surface,
+                      ),
+                    ),
+                  ),
+
+                // Category Chips Row
+                Row(
+                  key: _rowKey,
+                  children: [
+                    for (var i = 0; i < widget.items.length; i++) ...[
+                      () {
+                        final item = widget.items[i];
+                        final isSelected = item.key == widget.selectedKey;
+                        return CategoryChip(
+                          key: _itemKeys[item.key],
+                          label: item.label,
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          emoji: item.emoji,
+                          selected: isSelected,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            widget.onSelected(item.key);
+                          },
+                        );
+                      }(),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -109,72 +212,62 @@ class CategoryChip extends StatelessWidget {
 
     return PressableScale(
       onTap: onTap,
-      child: SizedBox(
-        height: 60,
-        child: CustomPaint(
-          painter: _CurvedTabIndicatorPainter(
-            selected: selected,
-            activeColor: activeColor,
-            backgroundColor: palette.surface,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedScale(
-                  scale: selected ? 1.1 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOutCubic,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: icon != null || selectedIcon != null
-                        ? Icon(
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedScale(
+              scale: selected ? 1.08 : 1.0,
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: icon != null || selectedIcon != null
+                    ? Icon(
+                        selected
+                            ? (selectedIcon ?? icon ?? Icons.restaurant_rounded)
+                            : (icon ?? selectedIcon ?? Icons.restaurant_outlined),
+                        key: ValueKey('${label}_$selected'),
+                        size: selected ? 20 : 18,
+                        fill: selected ? 1.0 : 0.0,
+                        color: selected ? activeColor : inactiveColor,
+                      )
+                    : (emoji != null
+                        ? Text(
+                            emoji!,
+                            key: ValueKey('${label}_emoji'),
+                            style: const TextStyle(fontSize: 16),
+                          )
+                        : Icon(
                             selected
-                                ? (selectedIcon ?? icon ?? Icons.restaurant_rounded)
-                                : (icon ?? selectedIcon ?? Icons.restaurant_outlined),
+                                ? Icons.restaurant_rounded
+                                : Icons.restaurant_outlined,
                             key: ValueKey('${label}_$selected'),
-                            size: 22,
+                            size: selected ? 20 : 18,
                             fill: selected ? 1.0 : 0.0,
                             color: selected ? activeColor : inactiveColor,
-                          )
-                        : (emoji != null
-                            ? Text(
-                                emoji!,
-                                key: ValueKey('${label}_emoji'),
-                                style: const TextStyle(fontSize: 18),
-                              )
-                            : Icon(
-                                selected
-                                    ? Icons.restaurant_rounded
-                                    : Icons.restaurant_outlined,
-                                key: ValueKey('${label}_$selected'),
-                                size: 22,
-                                fill: selected ? 1.0 : 0.0,
-                                color: selected ? activeColor : inactiveColor,
-                              )),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 200),
-                  style: context.text.labelSmall!.copyWith(
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? activeColor : palette.textSecondary,
-                    fontSize: 11,
-                    letterSpacing: 0.1,
-                  ),
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 5),
-              ],
+                          )),
+              ),
             ),
-          ),
+            const SizedBox(height: 2),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 240),
+              style: context.text.labelSmall!.copyWith(
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? activeColor : palette.textSecondary,
+                fontSize: 11.5,
+                letterSpacing: 0.1,
+              ),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -183,36 +276,32 @@ class CategoryChip extends StatelessWidget {
 
 class _CurvedTabIndicatorPainter extends CustomPainter {
   const _CurvedTabIndicatorPainter({
-    required this.selected,
     required this.activeColor,
     required this.backgroundColor,
   });
 
-  final bool selected;
   final Color activeColor;
   final Color backgroundColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (!selected) return;
-
     final y = size.height - 1.0;
-    const r = 6.0;
+    const r = 5.0;
     const pad = 2.0;
     final left = pad;
     final right = size.width - pad;
-    final topY = y - 5.0;
+    final topY = y - 4.5;
 
     // Mask out the straight baseline under the arched notch
     final maskPaint = Paint()
       ..color = backgroundColor
-      ..strokeWidth = 3.5
+      ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke;
     canvas.drawLine(Offset(left + 1.0, y), Offset(right - 1.0, y), maskPaint);
 
     final activePaint = Paint()
       ..color = activeColor
-      ..strokeWidth = 2.5
+      ..strokeWidth = 2.4
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
@@ -243,8 +332,7 @@ class _CurvedTabIndicatorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CurvedTabIndicatorPainter oldDelegate) {
-    return oldDelegate.selected != selected ||
-        oldDelegate.activeColor != activeColor ||
+    return oldDelegate.activeColor != activeColor ||
         oldDelegate.backgroundColor != backgroundColor;
   }
 }

@@ -7,16 +7,15 @@ import '../../core/constants/snack_categories.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/app_card.dart';
-import '../../core/widgets/category_scroller.dart';
 import '../../core/widgets/food_card.dart';
 import '../../core/widgets/illustrations.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
 import 'widgets/closed_window_view.dart';
-import 'widgets/search_veg_row.dart';
+import 'widgets/home_blue_header.dart';
 
-/// Food tab — always-visible search + veg row, status banner, category chips,
-/// and the snack list. Drinks now live in their own tab.
+/// Food tab — continuous top blue header matching Figma (Search, Veg, Categories,
+/// Hero Banner with live timer and 3D team visual), followed by the snacks grid.
 class FoodTab extends StatefulWidget {
   const FoodTab({super.key});
 
@@ -67,116 +66,94 @@ class _FoodTabState extends State<FoodTab> {
         return GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
           behavior: HitTestBehavior.translucent,
-          child: Column(
-            children: [
-              SearchVegRow(
-                query: _query,
-                onQueryChanged: (q) => setState(() => _query = q),
-                toggleLabel: 'VEG',
-                toggleValue: isVegMode,
-                onToggleChanged: (v) => bloc.add(ChangeFilter(v ? 'Veg' : 'All')),
-                toggleActiveColor: context.palette.veg,
-                hint: 'Search snacks',
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: CategoryScroller(
-                  items: _categoryItems(categories),
-                  selectedKey: category,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.page,
-                  ),
-                  onSelected: (k) => setState(() => _category = k),
-                ),
-              ),
-              Expanded(
-                child: RefreshIndicator.adaptive(
-                  onRefresh: () async {
-                    bloc.add(RefreshHome());
-                    await Future.delayed(const Duration(milliseconds: 600));
-                  },
-                  child: CustomScrollView(
-                    key: const PageStorageKey('food_tab_scroll'),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    slivers: [
-                      if (snacks.isEmpty)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.page,
-                            AppSpacing.sm,
-                            AppSpacing.page,
-                            0,
-                          ),
-                          sliver: SliverToBoxAdapter(
-                            child: _EmptyResults(query: query),
-                          ),
-                        ),
-                      if (snacks.isNotEmpty)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.page,
-                            AppSpacing.xs,
-                            AppSpacing.page,
-                            AppSpacing.x5 + AppSpacing.x5 + AppSpacing.lg,
-                          ),
-                          sliver: SliverGrid(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                  mainAxisExtent: 198,
-                                ),
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final s = snacks[index];
-                              final count = state.selectedSnackIds
-                                  .where((id) => id == s.id)
-                                  .length;
-                              return SnackCard(
-                                name: s.name,
-                                isVeg: s.isVeg,
-                                emoji: s.emoji,
-                                servingSize: s.servingSize ?? '1 Unit',
-                                selected: count > 0,
-                                count: count,
-                                onTap: () => bloc.add(IncrementSnack(s.id)),
-                                onIncrement: () => bloc.add(IncrementSnack(s.id)),
-                                onDecrement: () => bloc.add(DecrementSnack(s.id)),
-                              );
-                            }, childCount: snacks.length),
-                          ),
-                        ),
-                    ],
+          child: RefreshIndicator.adaptive(
+            onRefresh: () async {
+              bloc.add(RefreshHome());
+              await Future.delayed(const Duration(milliseconds: 600));
+            },
+            child: CustomScrollView(
+              key: const PageStorageKey('food_tab_scroll'),
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                // 1. Pinned Sticky Search & Category Header (Morphs to Frosted White Glass on scroll)
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: HomeStickyHeaderDelegate(
+                    query: _query,
+                    onQueryChanged: (q) => setState(() => _query = q),
+                    isVegMode: isVegMode,
+                    onVegChanged: (v) =>
+                        bloc.add(ChangeFilter(v ? 'Veg' : 'All')),
+                    categories: categories,
+                    selectedCategory: category,
+                    onCategorySelected: (c) => setState(() => _category = c),
+                    topPadding: MediaQuery.of(context).padding.top,
                   ),
                 ),
-              ),
-            ],
+
+                // 2. Scrollable Blue Hero Banner (Timer, Grab a Bite, Floating Props, Characters)
+                SliverToBoxAdapter(
+                  child: HomeHeroBanner(
+                    state: state,
+                  ),
+                ),
+                if (snacks.isEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.page,
+                      AppSpacing.lg,
+                      AppSpacing.page,
+                      0,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _EmptyResults(query: query),
+                    ),
+                  ),
+                if (snacks.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.page,
+                      AppSpacing.md,
+                      AppSpacing.page,
+                      AppSpacing.x5 + AppSpacing.x5 + AppSpacing.lg,
+                    ),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            mainAxisExtent: 198,
+                          ),
+                      delegate: SliverChildBuilderDelegate((
+                        context,
+                        index,
+                      ) {
+                        final s = snacks[index];
+                        final count = state.selectedSnackIds
+                            .where((id) => id == s.id)
+                            .length;
+                        return SnackCard(
+                          name: s.name,
+                          isVeg: s.isVeg,
+                          emoji: s.emoji,
+                          servingSize: s.servingSize ?? '1 Unit',
+                          selected: count > 0,
+                          count: count,
+                          onTap: () => bloc.add(IncrementSnack(s.id)),
+                          onIncrement: () => bloc.add(IncrementSnack(s.id)),
+                          onDecrement: () => bloc.add(DecrementSnack(s.id)),
+                        );
+                      }, childCount: snacks.length),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
     );
-  }
-
-  List<CategoryItem> _categoryItems(List<String> categories) {
-    return [
-      for (final c in categories) ...[
-        () {
-          final pair = snackCategoryIconPair(c);
-          return CategoryItem(
-            key: c,
-            label: c,
-            icon: pair.unselected,
-            selectedIcon: pair.selected,
-            emoji: c == 'All' ? '🍽️' : snackCategoryIcon(c),
-          );
-        }(),
-      ],
-    ];
   }
 }
 

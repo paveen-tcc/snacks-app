@@ -43,114 +43,128 @@ class ClosedOrderWindowView extends StatelessWidget {
         context.read<HomeBloc>().add(RefreshHome());
         await Future.delayed(const Duration(milliseconds: 600));
       },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.page,
-          AppSpacing.md,
-          AppSpacing.page,
-          120,
-        ),
-        children: [
-          // Single-line closed status banner
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              color: palette.surfaceMuted,
-              borderRadius: AppRadii.rMd,
-              border: Border.all(color: palette.border),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.timer_off_rounded,
-                  color: palette.textSecondary,
-                  size: 18,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'Order window closed today at $closeTime',
-                    style: context.text.bodyMedium?.copyWith(
-                      color: palette.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    AppSpacing.md,
+                    AppSpacing.page,
+                    100,
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Your Selection Card
-          AppCard(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your selection',
-                  style: context.text.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Divider(height: 1, color: palette.divider),
-                const SizedBox(height: AppSpacing.xs),
-                if (uniqueItems.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                    child: Center(
-                      child: Text(
-                        'No snacks or drinks ordered for today',
-                        style: context.text.bodySmall?.copyWith(
-                          color: palette.textSecondary,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Single-line closed status banner
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: 12,
                         ),
-                      ),
-                    ),
-                  )
-                else
-                  for (final item in uniqueItems)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          VegBadge(isVeg: item.isVeg, size: 14),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${counts[item.id]} x ',
-                            style: context.text.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: palette.textPrimary,
-                              fontSize: 13,
+                        decoration: BoxDecoration(
+                          color: palette.surfaceMuted,
+                          borderRadius: AppRadii.rMd,
+                          border: Border.all(color: palette.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.timer_off_rounded,
+                              color: palette.textSecondary,
+                              size: 18,
                             ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              displaySnackCategory(item.category).toLowerCase() ==
-                                      'drinks'
-                                  ? drinkDisplayName(
-                                      item.name,
-                                      state.sugarFreePrefs[item.id] ?? false,
-                                    )
-                                  : item.name,
-                              style: context.text.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: palette.textPrimary,
-                                fontSize: 13,
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Order window closed today at $closeTime',
+                                style: context.text.bodyMedium?.copyWith(
+                                  color: palette.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-              ],
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // Your Selection Card
+                      AppCard(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Your selection',
+                              style: context.text.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Divider(height: 1, color: palette.divider),
+                            const SizedBox(height: AppSpacing.xs),
+                            if (uniqueItems.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                                child: Center(
+                                  child: Text(
+                                    'No snacks or drinks ordered for today',
+                                    style: context.text.bodySmall?.copyWith(
+                                      color: palette.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              for (final item in uniqueItems)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 5),
+                                  child: Row(
+                                    children: [
+                                      VegBadge(isVeg: item.isVeg, size: 14),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${counts[item.id]} x ',
+                                        style: context.text.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: palette.textPrimary,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          displaySnackCategory(item.category).toLowerCase() ==
+                                                  'drinks'
+                                              ? drinkDisplayName(
+                                                  item.name,
+                                                  state.sugarFreePrefs[item.id] ?? false,
+                                                )
+                                              : item.name,
+                                          style: context.text.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                            color: palette.textPrimary,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

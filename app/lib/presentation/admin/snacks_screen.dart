@@ -4,9 +4,10 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/constants/food_assets.dart';
 import '../../core/constants/snack_categories.dart';
 import '../../core/di/locator.dart';
 import '../../core/formatters/rupees.dart';
@@ -17,11 +18,43 @@ import '../../core/design/glass.dart';
 import '../../core/widgets/glass_app_bar.dart';
 import '../../core/widgets/app_buttons.dart';
 import '../../core/widgets/app_card.dart';
+import '../../core/widgets/category_scroller.dart';
 import '../../core/widgets/food_card.dart' show VegBadge;
 import '../../core/widgets/skeleton.dart';
 import '../../core/widgets/optimized_image.dart';
 import '../../data/repositories/admin_repository.dart';
+import '../home/widgets/dispenser/drink_dispenser_models.dart';
 import 'bulk_snack_parser.dart';
+
+@visibleForTesting
+bool isAdminDrinkItem(Map<String, dynamic> item) =>
+    normalizeSnackCategory(item['category'] as String?) == 'drinks';
+
+@visibleForTesting
+List<Map<String, dynamic>> filterAdminMenuItems(
+  Iterable<Map<String, dynamic>> items, {
+  required bool drinksTab,
+  required String query,
+  String category = 'All',
+  DrinkFormat? drinkFormat,
+}) {
+  final normalizedQuery = query.trim().toLowerCase();
+  return items.where((item) {
+    if (isAdminDrinkItem(item) != drinksTab) return false;
+    final name = item['name'] as String? ?? '';
+    if (normalizedQuery.isNotEmpty &&
+        !name.toLowerCase().contains(normalizedQuery)) {
+      return false;
+    }
+    if (drinksTab) {
+      return drinkFormat == null ||
+          DrinkPresentation.fromName(name).format == drinkFormat;
+    }
+    return category == 'All' ||
+        normalizeSnackCategory(item['category'] as String?) ==
+            category.toLowerCase();
+  }).toList();
+}
 
 class AdminSnacksScreen extends StatefulWidget {
   const AdminSnacksScreen({super.key});
@@ -30,16 +63,40 @@ class AdminSnacksScreen extends StatefulWidget {
   State<AdminSnacksScreen> createState() => _AdminSnacksScreenState();
 }
 
-class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
+class _AdminSnacksScreenState extends State<AdminSnacksScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   bool _loading = true;
   List<Map<String, dynamic>> _snacks = [];
-  final Map<String, bool> _expandedCategories = {};
+  String _snackQuery = '';
+  String _drinkQuery = '';
+  String _snackCategory = 'All';
+  DrinkFormat? _drinkFormat;
+  int _activeTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_handleTabChanged);
     _load();
   }
+
+  @override
+  void dispose() {
+    _tabController
+      ..removeListener(_handleTabChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleTabChanged() {
+    if (mounted && _activeTabIndex != _tabController.index) {
+      setState(() => _activeTabIndex = _tabController.index);
+    }
+  }
+
+  bool get _showingDrinks => _activeTabIndex == 1;
 
   Future<void> _load() async {
     try {
@@ -174,9 +231,11 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     }
   }
 
-  List<MapEntry<String, List<Map<String, dynamic>>>> _groupSnacksByCategory() {
+  List<MapEntry<String, List<Map<String, dynamic>>>> _groupSnacksByCategory(
+    Iterable<Map<String, dynamic>> snacks,
+  ) {
     final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final snack in _snacks) {
+    for (final snack in snacks) {
       final category = displaySnackCategory(snack['category'] as String?);
       grouped.putIfAbsent(category, () => []).add(snack);
     }
@@ -205,13 +264,87 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     return entries;
   }
 
-  bool _isCategoryExpanded(String category, int index) {
-    return _expandedCategories[category] ?? index == 0;
+  List<MapEntry<String, List<Map<String, dynamic>>>> _groupDrinksByFormat(
+    Iterable<Map<String, dynamic>> drinks,
+  ) {
+    final grouped = <DrinkFormat, List<Map<String, dynamic>>>{};
+    for (final drink in drinks) {
+      final name = drink['name'] as String? ?? '';
+      final format = DrinkPresentation.fromName(name).format;
+      grouped.putIfAbsent(format, () => []).add(drink);
+    }
+
+    return DrinkFormat.values.where(grouped.containsKey).map((format) {
+      final values = grouped[format]!;
+      _sortMenuItems(values);
+      return MapEntry(drinkFormatLabel(format), values);
+    }).toList();
   }
 
-  // Input styling now comes from the global theme (inputDecorationTheme).
-  InputDecoration _notionInput(String label, {String? hint}) {
-    return InputDecoration(labelText: label, hintText: hint);
+  void _sortMenuItems(List<Map<String, dynamic>> items) {
+    items.sort((a, b) {
+      final aOrder = (a['sortOrder'] as num?)?.toInt() ?? 0;
+      final bOrder = (b['sortOrder'] as num?)?.toInt() ?? 0;
+      final orderComparison = aOrder.compareTo(bOrder);
+      if (orderComparison != 0) return orderComparison;
+      final aName = (a['name'] as String? ?? '').toLowerCase();
+      final bName = (b['name'] as String? ?? '').toLowerCase();
+      return aName.compareTo(bName);
+    });
+  }
+
+  List<String> _foodCategoryOptions() {
+    return buildSnackCategoryOptions(
+      _snacks
+          .where((item) => !isAdminDrinkItem(item))
+          .map((item) => item['category'] as String?),
+    );
+  }
+
+  List<Map<String, dynamic>> _visibleItems() {
+    final categories = _foodCategoryOptions();
+    final selectedCategory = categories.contains(_snackCategory)
+        ? _snackCategory
+        : 'All';
+    return filterAdminMenuItems(
+      _snacks,
+      drinksTab: _showingDrinks,
+      query: _showingDrinks ? _drinkQuery : _snackQuery,
+      category: selectedCategory,
+      drinkFormat: _showingDrinks ? _drinkFormat : null,
+    );
+  }
+
+  List<MapEntry<String, List<Map<String, dynamic>>>> _visibleGroups() {
+    final visible = _visibleItems();
+    return _showingDrinks
+        ? _groupDrinksByFormat(visible)
+        : _groupSnacksByCategory(visible);
+  }
+
+  InputDecoration _sheetInput(BuildContext context, {String? hint}) {
+    final palette = context.palette;
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: palette.surface,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: AppRadii.rMd,
+        borderSide: BorderSide(color: palette.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadii.rMd,
+        borderSide: BorderSide(color: palette.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadii.rMd,
+        borderSide: BorderSide(color: palette.brand, width: 1.6),
+      ),
+    );
   }
 
   /// Build a unique, case-insensitive list of categories from DB + predefined.
@@ -243,7 +376,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     return input; // no match, keep as-is
   }
 
-  void _showSnackForm({Map<String, dynamic>? existing}) {
+  void _showSnackForm({
+    Map<String, dynamic>? existing,
+    String? defaultCategory,
+  }) {
     final nameCtrl = TextEditingController(text: existing?['name'] ?? '');
     final emojiCtrl = TextEditingController(text: existing?['emoji'] ?? '');
     final sizeCtrl = TextEditingController(
@@ -259,7 +395,10 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
 
     final categories = _buildCategoryList();
     const customOption = 'Custom...';
-    final existingCategory = (existing?['category'] as String? ?? '').trim();
+    final existingCategory =
+        (existing?['category'] as String? ?? defaultCategory ?? '').trim();
+    final isDrinkForm = existingCategory.toLowerCase() == 'drinks';
+    final itemLabel = isDrinkForm ? 'Drink' : 'Snack';
 
     // Determine initial dropdown value
     String? selectedCategory;
@@ -284,12 +423,13 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
     showGlassBottomSheet(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
+        builder: (ctx, setModalState) => SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.only(
-            left: AppSpacing.xxl,
-            right: AppSpacing.xxl,
+            left: AppSpacing.page,
+            right: AppSpacing.page,
             top: AppSpacing.sm,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xxl,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + AppSpacing.xxl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -298,80 +438,250 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
                 icon: existing == null
                     ? Icons.add_circle_outline_rounded
                     : Icons.edit_outlined,
-                title: existing == null ? 'Add Snack' : 'Edit Snack',
+                title: existing == null ? 'Add $itemLabel' : 'Edit $itemLabel',
                 subtitle: existing == null
                     ? 'Add a new item to the menu'
                     : 'Update snack details',
+                onClose: () => Navigator.pop(ctx),
               ),
               const SizedBox(height: AppSpacing.xl),
-              TextField(
-                controller: nameCtrl,
-                decoration: _notionInput('Name *'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emojiCtrl,
-                decoration: _notionInput(
-                  'Image URL',
-                  hint: 'https://images.unsplash.com/...',
+              _SheetFormField(
+                label: 'Name',
+                isRequired: true,
+                child: TextField(
+                  controller: nameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: _sheetInput(ctx, hint: 'Enter the snack name'),
                 ),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: selectedCategory,
-                decoration: _notionInput('Category'),
-                isExpanded: true,
-                items: [
-                  ...categories.map(
-                    (c) => DropdownMenuItem(value: c, child: Text(c)),
+              const SizedBox(height: AppSpacing.lg),
+              _SheetFormField(
+                label: 'Image URL',
+                child: TextField(
+                  controller: emojiCtrl,
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  decoration: _sheetInput(
+                    ctx,
+                    hint: 'https://images.unsplash.com/...',
                   ),
-                  const DropdownMenuItem(
-                    value: customOption,
-                    child: Text('Custom...'),
-                  ),
-                ],
-                onChanged: (value) {
-                  setModalState(() {
-                    selectedCategory = value;
-                    showCustomField = value == customOption;
-                    if (!showCustomField) {
-                      customCategoryCtrl.clear();
-                    }
-                  });
-                },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _SheetFormField(
+                label: 'Category',
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Theme(
+                      data: Theme.of(ctx).copyWith(
+                        hoverColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        splashColor: ctx.palette.brand.withValues(alpha: 0.08),
+                      ),
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Select category',
+                        constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth,
+                          maxWidth: constraints.maxWidth,
+                          maxHeight: 260,
+                        ),
+                        color: ctx.palette.surfaceElevated,
+                        elevation: 4,
+                        shadowColor: Colors.black.withValues(alpha: 0.12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadii.rLg,
+                          side: BorderSide(color: ctx.palette.border),
+                        ),
+                        position: PopupMenuPosition.under,
+                        onSelected: (value) {
+                          setModalState(() {
+                            selectedCategory = value;
+                            showCustomField = value == customOption;
+                            if (!showCustomField) {
+                              customCategoryCtrl.clear();
+                            }
+                          });
+                        },
+                        itemBuilder: (context) => [
+                          ...categories.map((c) {
+                            final isSelected = c == selectedCategory;
+                            return PopupMenuItem<String>(
+                              value: c,
+                              height: 40,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? ctx.palette.brand.withValues(alpha: 0.10)
+                                      : Colors.transparent,
+                                  borderRadius: AppRadii.rMd,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        c,
+                                        style: TextStyle(
+                                          fontWeight: isSelected
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: isSelected
+                                              ? ctx.palette.brand
+                                              : ctx.palette.textPrimary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Icon(
+                                        Icons.check_rounded,
+                                        size: 18,
+                                        color: ctx.palette.brand,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                          PopupMenuItem<String>(
+                            value: customOption,
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selectedCategory == customOption
+                                    ? ctx.palette.brand.withValues(alpha: 0.10)
+                                    : Colors.transparent,
+                                borderRadius: AppRadii.rMd,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Custom...',
+                                      style: TextStyle(
+                                        fontWeight: selectedCategory == customOption
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: selectedCategory == customOption
+                                            ? ctx.palette.brand
+                                            : ctx.palette.textPrimary,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  if (selectedCategory == customOption)
+                                    Icon(
+                                      Icons.check_rounded,
+                                      size: 18,
+                                      color: ctx.palette.brand,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ctx.palette.surface,
+                            borderRadius: AppRadii.rLg,
+                            border: Border.all(color: ctx.palette.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  selectedCategory == customOption
+                                      ? 'Custom...'
+                                      : (selectedCategory ?? 'Select a category'),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: selectedCategory != null
+                                        ? FontWeight.w500
+                                        : FontWeight.normal,
+                                    color: selectedCategory != null
+                                        ? ctx.palette.textPrimary
+                                        : ctx.palette.textTertiary,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: ctx.palette.textSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
               if (showCustomField) ...[
-                const SizedBox(height: 12),
-                TextField(
-                  controller: customCategoryCtrl,
-                  decoration: _notionInput(
-                    'Custom category',
-                    hint: 'e.g. Wraps',
+                const SizedBox(height: AppSpacing.lg),
+                _SheetFormField(
+                  label: 'Custom category',
+                  child: TextField(
+                    controller: customCategoryCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _sheetInput(ctx, hint: 'e.g. Wraps'),
                   ),
                 ),
               ],
-
-              const SizedBox(height: 12),
-              TextField(
-                controller: sizeCtrl,
-                decoration: _notionInput('Serving size', hint: 'e.g. 2 Pcs'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: shareCountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: _notionInput(
-                  'Share count',
-                  hint: '1 = individual, 2 = serves 2 people',
+              const SizedBox(height: AppSpacing.lg),
+              _SheetFormField(
+                label: 'Serving size',
+                child: TextField(
+                  controller: sizeCtrl,
+                  decoration: _sheetInput(ctx, hint: 'e.g. 2 Pcs'),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: _notionInput('Price (₹)', hint: 'e.g. 25'),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _SheetFormField(
+                      label: 'Share count',
+                      child: TextField(
+                        controller: shareCountCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: _sheetInput(ctx),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _SheetFormField(
+                      label: 'Price (₹)',
+                      child: TextField(
+                        controller: priceCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: _sheetInput(ctx),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.lg),
               Builder(
                 builder: (context) {
                   final palette = context.palette;
@@ -410,7 +720,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
               ),
               const SizedBox(height: AppSpacing.xl),
               PrimaryButton(
-                label: existing == null ? 'Add Snack' : 'Save Changes',
+                label: existing == null ? 'Add $itemLabel' : 'Save Changes',
                 onPressed: () async {
                   if (nameCtrl.text.trim().isEmpty) return;
                   final shareCount = int.tryParse(shareCountCtrl.text.trim());
@@ -531,7 +841,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
               controller: bulkCtrl,
               minLines: 8,
               maxLines: 12,
-              decoration: _notionInput('Paste rows here'),
+              decoration: _sheetInput(ctx, hint: 'Paste rows here'),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -559,6 +869,7 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final addLabel = _showingDrinks ? 'Add drink' : 'Add snack';
     return Scaffold(
       appBar: GlassAppBar(
         title: 'Manage Snacks',
@@ -569,123 +880,208 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
             onPressed: _showBulkUploadSheet,
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(key: Key('manage-menu-tab-snacks'), text: 'Snacks'),
+            Tab(key: Key('manage-menu-tab-drinks'), text: 'Drinks'),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showSnackForm(),
+        onPressed: () =>
+            _showSnackForm(defaultCategory: _showingDrinks ? 'Drinks' : null),
         backgroundColor: palette.brand,
         foregroundColor: palette.onBrand,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Add snack'),
+        label: Text(addLabel),
       ),
       body: _loading
           ? ListView(
               padding: const EdgeInsets.all(AppSpacing.page),
               children: const [FoodListSkeleton(count: 6)],
             )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.page,
-                AppSpacing.lg,
-                AppSpacing.page,
-                AppSpacing.x5 + AppSpacing.x4,
-              ),
+          : Column(
               children: [
-                for (final entry
-                    in _groupSnacksByCategory().asMap().entries) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Column(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              _expandedCategories[entry.value.key] =
-                                  !_isCategoryExpanded(
-                                    entry.value.key,
-                                    entry.key,
-                                  );
-                            });
-                          },
-                          borderRadius: AppRadii.rMd,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.md,
-                              vertical: AppSpacing.md,
-                            ),
-                            decoration: BoxDecoration(
-                              color: palette.surface,
-                              borderRadius: AppRadii.rMd,
-                              border: Border.all(color: palette.border),
-                              boxShadow: context.shadows.sm,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    entry.value.key,
-                                    style: context.text.titleMedium,
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: palette.brand.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    borderRadius: AppRadii.rPill,
-                                  ),
-                                  child: Text(
-                                    '${entry.value.value.length}',
-                                    style: context.text.labelMedium?.copyWith(
-                                      color: palette.brand,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Icon(
-                                  _isCategoryExpanded(
-                                        entry.value.key,
-                                        entry.key,
-                                      )
-                                      ? Icons.keyboard_arrow_up_rounded
-                                      : Icons.keyboard_arrow_down_rounded,
-                                  color: palette.textSecondary,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        AnimatedCrossFade(
-                          firstChild: const SizedBox.shrink(),
-                          secondChild: Padding(
-                            padding: const EdgeInsets.only(top: AppSpacing.sm),
-                            child: Column(
-                              children: [
-                                for (final snack in entry.value.value)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AppSpacing.sm,
-                                    ),
-                                    child: _buildSnackListTile(snack),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          crossFadeState:
-                              _isCategoryExpanded(entry.value.key, entry.key)
-                              ? CrossFadeState.showSecond
-                              : CrossFadeState.showFirst,
-                          duration: AppMotion.base,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                _buildFilterControls(),
+                Expanded(child: _buildGroupedList()),
               ],
             ),
+    );
+  }
+
+  Widget _buildFilterControls() {
+    final categories = _foodCategoryOptions();
+    final selectedCategory = categories.contains(_snackCategory)
+        ? _snackCategory
+        : 'All';
+    final query = _showingDrinks ? _drinkQuery : _snackQuery;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.lg,
+            AppSpacing.page,
+            AppSpacing.sm,
+          ),
+          child: _AdminMenuSearchField(
+            key: ValueKey(_showingDrinks ? 'drink-search' : 'snack-search'),
+            query: query,
+            hint: _showingDrinks ? 'Search drinks' : 'Search snacks',
+            onChanged: (value) {
+              setState(() {
+                if (_showingDrinks) {
+                  _drinkQuery = value;
+                } else {
+                  _snackQuery = value;
+                }
+              });
+            },
+          ),
+        ),
+        CategoryScroller(
+          items: _showingDrinks
+              ? _drinkFilterItems()
+              : _foodFilterItems(categories),
+          selectedKey: _showingDrinks
+              ? (_drinkFormat?.name ?? 'all')
+              : selectedCategory,
+          onSelected: (key) {
+            setState(() {
+              if (_showingDrinks) {
+                _drinkFormat = key == 'all'
+                    ? null
+                    : DrinkFormat.values.byName(key);
+              } else {
+                _snackCategory = key;
+              }
+            });
+          },
+        ),
+        const SizedBox(height: AppSpacing.md),
+      ],
+    );
+  }
+
+  List<CategoryItem> _foodFilterItems(List<String> categories) {
+    return categories.map((category) {
+      final icons = snackCategoryIconPair(category);
+      return CategoryItem(
+        key: category,
+        label: category,
+        icon: icons.unselected,
+        selectedIcon: icons.selected,
+      );
+    }).toList();
+  }
+
+  List<CategoryItem> _drinkFilterItems() {
+    final allIcons = snackCategoryIconPair('All');
+    return [
+      CategoryItem(
+        key: 'all',
+        label: 'All',
+        icon: allIcons.unselected,
+        selectedIcon: allIcons.selected,
+      ),
+      for (final format in DrinkFormat.values)
+        CategoryItem(
+          key: format.name,
+          label: drinkFormatLabel(format),
+          icon: drinkFormatIcon(format),
+          selectedIcon: drinkFormatIcon(format),
+        ),
+    ];
+  }
+
+  Widget _buildGroupedList() {
+    final groups = _visibleGroups();
+    if (groups.isEmpty) {
+      final query = _showingDrinks ? _drinkQuery.trim() : _snackQuery.trim();
+      return _AdminMenuEmptyState(
+        title: _showingDrinks ? 'No drinks found' : 'No snacks found',
+        subtitle: query.isEmpty
+            ? 'Try another category.'
+            : 'Nothing matches “$query”.',
+      );
+    }
+
+    return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        0,
+        AppSpacing.page,
+        AppSpacing.x5 + AppSpacing.x4,
+      ),
+      children: [
+        for (final entry in groups.asMap().entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _buildMenuGroup(
+              entry.value.key,
+              entry.value.value,
+              entry.key,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMenuGroup(
+    String label,
+    List<Map<String, dynamic>> items,
+    int index,
+  ) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xs,
+            AppSpacing.sm,
+            AppSpacing.xs,
+            AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Text(
+                label,
+                style: context.text.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: palette.brand.withValues(alpha: 0.12),
+                  borderRadius: AppRadii.rPill,
+                ),
+                child: Text(
+                  '${items.length}',
+                  style: context.text.labelSmall?.copyWith(
+                    color: palette.brand,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final item in items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _buildSnackListTile(item),
+          ),
+      ],
     );
   }
 
@@ -723,34 +1119,65 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: palette.surfaceMuted,
-                borderRadius: AppRadii.rMd,
-              ),
-              alignment: Alignment.center,
-              child:
-                  s['emoji'] != null &&
-                      (s['emoji'] as String).startsWith('http')
-                  ? OptimizedImage(
-                      imageUrl: s['emoji'] as String,
-                      width: 42,
-                      height: 42,
-                      memCacheWidth: 90,
-                      memCacheHeight: 90,
-                      borderRadius: AppRadii.rMd,
-                      fallbackIcon: Icon(
-                        Icons.fastfood_rounded,
-                        size: 20,
-                        color: palette.textSecondary,
-                      ),
-                    )
-                  : Text(
-                      s['emoji'] ?? '🍽️',
-                      style: const TextStyle(fontSize: 24),
+            Builder(
+              builder: (context) {
+                final localAsset = resolveLocalFoodAsset(s['name'] as String?);
+                return Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: palette.isDark ? palette.surface : Colors.white,
+                    gradient: RadialGradient(
+                      center: const Alignment(0, 0.05),
+                      radius: 0.85,
+                      colors: palette.cardGlowGradient,
+                      stops: palette.isDark
+                          ? const [0.0, 0.55, 1.0]
+                          : const [0.0, 0.55, 1.0],
                     ),
+                    borderRadius: AppRadii.rMd,
+                    border: Border.all(
+                      color: palette.isDark
+                          ? palette.border
+                          : const Color(0xFFE5ECF6),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: localAsset != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: Image.asset(
+                            localAsset,
+                            fit: BoxFit.contain,
+                            cacheWidth: 120,
+                            errorBuilder: (c, e, s) => Icon(
+                              Icons.fastfood_rounded,
+                              size: 20,
+                              color: palette.textSecondary,
+                            ),
+                          ),
+                        )
+                      : s['emoji'] != null &&
+                              (s['emoji'] as String).startsWith('http')
+                          ? OptimizedImage(
+                              imageUrl: s['emoji'] as String,
+                              width: 42,
+                              height: 42,
+                              memCacheWidth: 90,
+                              memCacheHeight: 90,
+                              borderRadius: AppRadii.rMd,
+                              fallbackIcon: Icon(
+                                Icons.fastfood_rounded,
+                                size: 20,
+                                color: palette.textSecondary,
+                              ),
+                            )
+                          : Text(
+                              s['emoji'] ?? '🍽️',
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                );
+              },
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -829,17 +1256,126 @@ class _AdminSnacksScreenState extends State<AdminSnacksScreen> {
   }
 }
 
-/// Compact header used inside the snack add/edit and bulk-upload glass sheets.
+class _AdminMenuSearchField extends StatefulWidget {
+  const _AdminMenuSearchField({
+    super.key,
+    required this.query,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  final String query;
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_AdminMenuSearchField> createState() => _AdminMenuSearchFieldState();
+}
+
+class _AdminMenuSearchFieldState extends State<_AdminMenuSearchField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.query);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminMenuSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != _controller.text) _controller.text = widget.query;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: TextField(
+        key: const Key('manage-menu-search'),
+        controller: _controller,
+        onChanged: (value) {
+          widget.onChanged(value);
+          setState(() {});
+        },
+        onTapOutside: (_) => FocusScope.of(context).unfocus(),
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          prefixIcon: const Icon(Icons.search_rounded, size: 21),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    _controller.clear();
+                    widget.onChanged('');
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.clear_rounded, size: 19),
+                ),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminMenuEmptyState extends StatelessWidget {
+  const _AdminMenuEmptyState({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 52,
+              color: context.palette.textTertiary,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(title, style: context.text.titleMedium),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: context.text.bodySmall?.copyWith(
+                color: context.palette.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact header used inside the snack add/edit and bulk-upload sheets.
 class _SheetHeader extends StatelessWidget {
   const _SheetHeader({
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.onClose,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -870,6 +1406,54 @@ class _SheetHeader extends StatelessWidget {
             ],
           ),
         ),
+        if (onClose != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          IconButton.filledTonal(
+            tooltip: 'Close',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded, size: 20),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SheetFormField extends StatelessWidget {
+  const _SheetFormField({
+    required this.label,
+    required this.child,
+    this.isRequired = false,
+  });
+
+  final String label;
+  final Widget child;
+  final bool isRequired;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: label),
+              if (isRequired)
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(color: palette.danger),
+                ),
+            ],
+          ),
+          style: context.text.labelMedium?.copyWith(
+            color: palette.textSecondary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        child,
       ],
     );
   }

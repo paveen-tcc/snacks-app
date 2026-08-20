@@ -113,22 +113,6 @@ class StatusBanner extends StatelessWidget {
   final StatusTone tone;
   final Widget? trailing;
 
-  Color _toneColor(BuildContext context) {
-    final p = context.palette;
-    switch (tone) {
-      case StatusTone.info:
-        return p.info;
-      case StatusTone.success:
-        return p.success;
-      case StatusTone.warning:
-        return p.warning;
-      case StatusTone.danger:
-        return p.danger;
-      case StatusTone.neutral:
-        return p.textSecondary;
-    }
-  }
-
   IconData _defaultIcon() {
     switch (tone) {
       case StatusTone.info:
@@ -146,7 +130,8 @@ class StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _toneColor(context);
+    final palette = context.palette;
+    final isDark = palette.isDark;
     final isSingleLine = subtitle == null;
 
     return Container(
@@ -155,9 +140,18 @@ class StatusBanner extends StatelessWidget {
         vertical: isSingleLine ? 10 : AppSpacing.lg,
       ),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF1E1F27), const Color(0xFF15161C)]
+              : [const Color(0xFFFFF7F2), const Color(0xFFFFFFFF)],
+        ),
         borderRadius: AppRadii.rMd,
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
+        border: Border.all(
+          color: isDark ? palette.border : const Color(0xFFEDE8E3),
+          width: 1.0,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -166,12 +160,14 @@ class StatusBanner extends StatelessWidget {
             width: isSingleLine ? 32 : 38,
             height: isSingleLine ? 32 : 38,
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.16),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFF4EDE7),
               borderRadius: AppRadii.rSm,
             ),
             child: Icon(
               icon ?? _defaultIcon(),
-              color: accent,
+              color: isDark ? Colors.white : const Color(0xFF1F2937),
               size: isSingleLine ? 18 : 20,
             ),
           ),

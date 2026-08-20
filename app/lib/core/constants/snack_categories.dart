@@ -39,16 +39,15 @@ const Map<String, String> snackCategoryIcons = {
 };
 
 class CategoryIconPair {
-  const CategoryIconPair({
-    required this.selected,
-    required this.unselected,
-  });
+  const CategoryIconPair({required this.selected, required this.unselected});
   final IconData selected;
   final IconData unselected;
 }
 
 CategoryIconPair snackCategoryIconPair(String category) {
-  final cat = displaySnackCategory(category).toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ');
+  final cat = displaySnackCategory(
+    category,
+  ).toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ');
 
   if (cat == 'all') {
     return const CategoryIconPair(
@@ -241,6 +240,17 @@ String displaySnackCategory(String? category) {
 int snackCategoryRank(String category) {
   final index = snackCategoryOrder.indexOf(category);
   return index >= 0 ? index : snackCategoryOrder.length;
+}
+
+/// Builds the canonical, data-driven category filter used by menu screens.
+List<String> buildSnackCategoryOptions(Iterable<String?> categories) {
+  final values = categories.map(displaySnackCategory).toSet().toList()
+    ..sort((a, b) {
+      final rankCompare = snackCategoryRank(a).compareTo(snackCategoryRank(b));
+      if (rankCompare != 0) return rankCompare;
+      return a.toLowerCase().compareTo(b.toLowerCase());
+    });
+  return ['All', ...values];
 }
 
 String normalizeSnackCategory(String? category) {

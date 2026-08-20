@@ -420,6 +420,7 @@ class _OrdersTabState extends State<OrdersTab> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -473,7 +474,7 @@ class _OrderSections {
   final List<Map<String, dynamic>> earlier;
 }
 
-/// A single order card showing items listed one by one.
+/// A single order card showing items listed compactly with low vertical footprint.
 class _OrderCard extends StatelessWidget {
   const _OrderCard({
     required this.item,
@@ -497,37 +498,38 @@ class _OrderCard extends StatelessWidget {
     );
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Date + Default badge on left, Reorder action on right
+          // Compact Header: Date + Default badge on left, Compact Reorder action on right
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.schedule_rounded,
-                    size: 14,
+                    size: 13,
                     color: isToday ? palette.brand : palette.textTertiary,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
                   Text(
                     dateLabel,
                     style: context.text.titleSmall?.copyWith(
                       fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
                       color: isToday ? palette.brand : palette.textPrimary,
-                      fontSize: 13,
+                      fontSize: 12.5,
                     ),
                   ),
                   if (isDefault) ...[
-                    const SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+                        horizontal: 5,
+                        vertical: 1.5,
                       ),
                       decoration: BoxDecoration(
                         color: palette.surfaceMuted,
@@ -538,7 +540,7 @@ class _OrderCard extends StatelessWidget {
                         'Default',
                         style: context.text.labelSmall?.copyWith(
                           color: palette.textTertiary,
-                          fontSize: 10,
+                          fontSize: 9.5,
                         ),
                       ),
                     ),
@@ -546,30 +548,31 @@ class _OrderCard extends StatelessWidget {
                 ],
               ),
               if (onReorder != null)
-                GhostButton(
+                _CompactReorderButton(
                   label: isReordering ? 'Reordering…' : 'Reorder',
-                  icon: Icons.replay_rounded,
+                  isLoading: isReordering,
                   onPressed: isReordering ? null : onReorder,
                 ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Divider(height: 1, color: palette.divider),
-          const SizedBox(height: AppSpacing.xs),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Divider(height: 1, color: palette.divider),
+          ),
           // Items listed one by one: [VegBadge] [quantity] x [Item Name]
           for (final line in groupedLines)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 children: [
-                  VegBadge(isVeg: line['isVeg'] as bool? ?? true, size: 14),
-                  const SizedBox(width: 8),
+                  VegBadge(isVeg: line['isVeg'] as bool? ?? true, size: 13),
+                  const SizedBox(width: 7),
                   Text(
                     '${line['quantity']} x ',
                     style: context.text.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: palette.textPrimary,
-                      fontSize: 13,
+                      fontSize: 12.5,
                     ),
                   ),
                   Expanded(
@@ -578,7 +581,7 @@ class _OrderCard extends StatelessWidget {
                       style: context.text.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
                         color: palette.textPrimary,
-                        fontSize: 13,
+                        fontSize: 12.5,
                       ),
                     ),
                   ),
@@ -586,6 +589,77 @@ class _OrderCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact tactile reorder button with low vertical height.
+class _CompactReorderButton extends StatelessWidget {
+  const _CompactReorderButton({
+    required this.label,
+    this.isLoading = false,
+    this.onPressed,
+  });
+
+  final String label;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final enabled = onPressed != null;
+
+    return PressableScale(
+      onTap: onPressed,
+      scale: 0.95,
+      child: Container(
+        height: 25,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: enabled
+              ? palette.brand.withValues(alpha: 0.08)
+              : palette.surfaceMuted,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: enabled
+                ? palette.brand.withValues(alpha: 0.35)
+                : palette.border,
+            width: 0.9,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (isLoading)
+              SizedBox(
+                width: 11,
+                height: 11,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: palette.brand,
+                ),
+              )
+            else
+              Icon(
+                Icons.replay_rounded,
+                size: 13,
+                color: enabled ? palette.brand : palette.textTertiary,
+              ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: enabled ? palette.brand : palette.textTertiary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

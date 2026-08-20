@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/design/app_accent.dart';
 import '../../core/design/app_settings.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
-import '../../core/design/glass.dart';
+import '../../core/auth/microsoft_profile_photo_service.dart';
 import '../../core/di/locator.dart';
 import '../../core/notifications/push_service.dart';
 import '../../core/widgets/app_buttons.dart';
-import '../../core/widgets/glass_app_bar.dart';
+import '../../core/widgets/microsoft_avatar.dart';
 import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../admin/budget_export_screen.dart';
@@ -130,32 +132,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _updateSetting(key, value);
   }
 
-  Future<void> _editText(String key, String label, String current) async {
-    final ctrl = TextEditingController(text: current);
-    final result = await showAdaptiveDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog.adaptive(
-        title: Text(label),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: InputDecoration(hintText: 'Enter $label'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (result != null && result != current) _updateSetting(key, result);
-  }
-
   Future<void> _signOut() async {
     final confirm = await showAdaptiveDialog<bool>(
       context: context,
@@ -180,6 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirm != true) return;
     // Stop reminders to this device for the user being signed out.
     await locator<PushService>().unregister();
+    locator<MicrosoftProfilePhotoService>().clear();
     await locator<AuthRepository>().logout();
     if (mounted) context.go('/onboarding');
   }
@@ -188,13 +165,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final advanceOn = _settings['advance_order_mode'] == true;
     return Scaffold(
-      backgroundColor: context.palette.background,
-      appBar: const GlassAppBar(title: 'Profile'),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.page),
+      backgroundColor: Colors.transparent,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ProfileHeader(username: widget.username),
-          const SizedBox(height: AppSpacing.xxl),
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Profile',
+              style: context.text.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.sm,
+                AppSpacing.page,
+                AppSpacing.x5 + AppSpacing.x4,
+              ),
+              children: [
+                _ProfileHeader(username: widget.username),
+                const SizedBox(height: AppSpacing.xxl),
 
           _Section(
             title: 'Appearance',
@@ -209,16 +205,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onChanged: AppSettings.setDarkMode,
                 ),
               ),
-              ValueListenableBuilder<bool>(
-                valueListenable: GlassCapability.reduceTransparency,
-                builder: (_, reduce, _) => _ToggleTile(
-                  icon: Icons.blur_on_rounded,
-                  title: 'Reduce transparency',
-                  subtitle: 'Disable the frosted-glass blur',
-                  value: reduce,
-                  onChanged: AppSettings.setReduceTransparency,
-                ),
-              ),
+              const Divider(height: 1),
+              const _AccentSelectorTile(),
             ],
           ),
 
@@ -277,16 +265,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _settings['advance_window_end'] ?? '22:00',
                           ),
                         ),
-                      _NavTile(
-                        icon: Icons.public_rounded,
-                        title: 'Holiday country code',
-                        subtitle: _settings['holiday_country'] ?? 'IN',
-                        onTap: () => _editText(
-                          'holiday_country',
-                          'Country code (e.g. IN, US)',
-                          _settings['holiday_country'] ?? 'IN',
-                        ),
-                      ),
                       _NavTile(
                         icon: Icons.notifications_active_rounded,
                         title: 'Send order reminder',
@@ -348,7 +326,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
-    );
+    ),
+  ],
+),
+);
   }
 
   void _push(Widget screen) {
@@ -366,18 +347,9 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-    final initial = username.isNotEmpty ? username[0].toUpperCase() : '🙂';
     return Row(
       children: [
-        CircleAvatar(
-          radius: 32,
-          backgroundColor: palette.brand.withValues(alpha: 0.14),
-          child: Text(
-            initial,
-            style: context.text.displaySmall?.copyWith(color: palette.brand),
-          ),
-        ),
+        MicrosoftAvatar(displayName: username, currentUser: true, radius: 32),
         const SizedBox(width: AppSpacing.lg),
         Expanded(
           child: Column(
@@ -393,7 +365,7 @@ class _ProfileHeader extends StatelessWidget {
               Text(
                 'Your account',
                 style: context.text.bodySmall?.copyWith(
-                  color: palette.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
             ],
@@ -522,6 +494,128 @@ class _ToggleTile extends StatelessWidget {
         style: context.text.bodySmall?.copyWith(color: palette.textSecondary),
       ),
       trailing: Switch.adaptive(value: value, onChanged: onChanged),
+    );
+  }
+}
+
+class _AccentSelectorTile extends StatelessWidget {
+  const _AccentSelectorTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return ValueListenableBuilder<AppAccent>(
+      valueListenable: AppSettings.accentColor,
+      builder: (context, activeAccent, _) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.palette_rounded,
+                    color: palette.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Accent theme',
+                          style: context.text.titleSmall,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${activeAccent.title} • ${activeAccent.subtitle}',
+                          style: context.text.bodySmall?.copyWith(
+                            color: palette.brand,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              // Single row of all 6 selectable color dots
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  for (final accent in AppAccent.values) ...[
+                    () {
+                      final isSelected = accent == activeAccent;
+                      return GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          AppSettings.setAccent(accent);
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isSelected
+                                ? accent.swatchColor.withValues(
+                                    alpha: palette.isDark ? 0.25 : 0.15,
+                                  )
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: isSelected
+                                  ? accent.swatchColor
+                                  : Colors.transparent,
+                              width: 2.2,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: accent.lightHeaderGradient,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accent.swatchColor.withValues(
+                                    alpha: isSelected ? 0.45 : 0.25,
+                                  ),
+                                  blurRadius: isSelected ? 8 : 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: isSelected
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    size: 18,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      );
+                    }(),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

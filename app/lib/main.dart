@@ -34,12 +34,9 @@ void main() async {
 
   await setupLocator();
 
-  // Restore appearance preferences (dark mode + reduce transparency).
+  // Restore the locally persisted dark-mode preference.
   final prefs = await SharedPreferences.getInstance();
-  await AppSettings.load(
-    prefs,
-    PlatformDispatcher.instance.platformBrightness,
-  );
+  await AppSettings.load(prefs, PlatformDispatcher.instance.platformBrightness);
 
   runApp(const MyApp());
 }
@@ -49,16 +46,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Rebuild when dark-mode or reduce-transparency preferences change.
+    // Rebuild when the dark-mode or accent color preference changes.
     return ListenableBuilder(
       listenable: AppSettings.listenable,
       builder: (context, _) {
+        final accent = AppSettings.accentColor.value;
         return MaterialApp.router(
           title: 'Snacks App',
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode:
-              AppSettings.darkMode.value ? ThemeMode.dark : ThemeMode.light,
+          theme: AppTheme.buildTheme(Brightness.light, accent),
+          darkTheme: AppTheme.buildTheme(Brightness.dark, accent),
+          themeMode: AppSettings.darkMode.value
+              ? ThemeMode.dark
+              : ThemeMode.light,
           routerConfig: AppRouter.router,
           debugShowCheckedModeBanner: false,
         );

@@ -11,22 +11,17 @@ import 'app_tokens.dart';
 ///
 /// Per Apple HIG + Flutter perf guidance, blur ([BackdropFilter]/`saveLayer`) is
 /// the main jank source on old GPUs, so we degrade gracefully when:
-///  - the user enabled the in-app "Reduce transparency" setting,
 ///  - the OS reports Reduce Transparency / Increase Contrast,
 ///  - running on web (BackdropFilter is heavy/inconsistent there), or
 ///  - the app forces it off (e.g. a detected low-end device).
 class GlassCapability {
   GlassCapability._();
 
-  /// Mirror of the user's "Reduce transparency" setting. Set once at startup
-  /// from local settings and updated when the toggle changes.
-  static final ValueNotifier<bool> reduceTransparency = ValueNotifier(false);
-
   /// Escape hatch for app wiring to force the solid fallback globally.
   static bool forceDisableBlur = false;
 
   static bool blurEnabled(BuildContext context) {
-    if (forceDisableBlur || reduceTransparency.value) return false;
+    if (forceDisableBlur) return false;
     if (kIsWeb) return false;
     final mq = MediaQuery.maybeOf(context);
     if (mq != null && mq.highContrast) return false;
@@ -132,11 +127,11 @@ class GlassSurface extends StatelessWidget {
   }
 }
 
-/// Shows a frosted "liquid glass" modal bottom sheet (cart, forms, dialogs).
+/// Shows the app's modal bottom sheet (cart, forms, dialogs).
 ///
-/// Uses a [GlassSurface] biased toward the theme surface colour so content stays
-/// legible, with a light barrier so the blur of the page behind reads as glass
-/// (not a muddy dark layer). Degrades to a solid surface via [GlassCapability].
+/// Bottom sheets use an opaque themed surface so dense content and form fields
+/// keep reliable contrast over every screen background. Navigation chrome can
+/// still use [GlassSurface], but modal content should not inherit page colours.
 Future<T?> showGlassBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -144,22 +139,35 @@ Future<T?> showGlassBottomSheet<T>({
   bool useSafeArea = true,
 }) {
   const radius = BorderRadius.vertical(top: Radius.circular(AppRadii.xl));
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
     useSafeArea: useSafeArea,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.22),
+    barrierColor: Colors.black.withValues(alpha: isDark ? 0.58 : 0.38),
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.92,
+    ),
     builder: (context) {
-      return GlassSurface(
-        borderRadius: radius,
-        tint: context.palette.surface,
-        blurSigma: 28,
+      final palette = context.palette;
+      return Material(
+        key: const ValueKey('app_bottom_sheet_surface'),
+        color: palette.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 24,
+        shadowColor: Colors.black.withValues(alpha: isDark ? 0.5 : 0.18),
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: palette.border),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: AppSpacing.md),
             _DragHandle(),
+            const SizedBox(height: AppSpacing.xs),
             Flexible(child: builder(context)),
           ],
         ),

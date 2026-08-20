@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../local/app_database.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 class SyncEngine {
   final ApiClient _apiClient;
@@ -19,7 +20,7 @@ class SyncEngine {
       List<ConnectivityResult> result,
     ) {
       if (!result.contains(ConnectivityResult.none)) {
-        print('⚡ Network restored, triggering sync engine...');
+        debugPrint('⚡ Network restored, triggering sync engine...');
         _syncPendingQueue();
       }
     });
@@ -33,7 +34,7 @@ class SyncEngine {
     final pendingItems = await _localDb.select(_localDb.syncQueue).get();
 
     if (pendingItems.isEmpty) return;
-    print('🔄 Processing ${pendingItems.length} queued offline actions');
+    debugPrint('🔄 Processing ${pendingItems.length} queued offline actions');
 
     for (var item in pendingItems) {
       try {
@@ -55,19 +56,19 @@ class SyncEngine {
         await (_localDb.delete(
           _localDb.syncQueue,
         )..where((t) => t.id.equals(item.id))).go();
-        print('✅ Synced queued item: ${item.targetTable}');
+        debugPrint('✅ Synced queued item: ${item.targetTable}');
       } on DioException catch (e) {
-        print('❌ Failed to sync item ${item.id}: ${e.message}');
+        debugPrint('❌ Failed to sync item ${item.id}: ${e.message}');
         // Drop 4xx errors — invalid/stale data that will never succeed
         final statusCode = e.response?.statusCode ?? 0;
         if (statusCode >= 400 && statusCode < 500) {
           await (_localDb.delete(
             _localDb.syncQueue,
           )..where((t) => t.id.equals(item.id))).go();
-          print('🗑️ Dropped stale queue item ${item.id} ($statusCode)');
+          debugPrint('🗑️ Dropped stale queue item ${item.id} ($statusCode)');
         }
       } catch (e) {
-        print('❌ Unknown sync error for item ${item.id}: $e');
+        debugPrint('❌ Unknown sync error for item ${item.id}: $e');
       }
     }
   }

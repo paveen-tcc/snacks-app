@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../design/app_theme.dart';
 import '../design/app_tokens.dart';
 import 'illustrations.dart' show FoodLoaderInline;
 
-/// Wraps a child with a tactile press-scale (skipped when Reduce Motion is on).
+/// Wraps a child with a tactile press-scale and haptic feedback (skipped when Reduce Motion is on).
 class PressableScale extends StatefulWidget {
   const PressableScale({
     super.key,
     required this.child,
     this.onTap,
-    this.scale = 0.96,
+    this.scale = 0.95,
     this.borderRadius,
+    this.enableHaptics = true,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final double scale;
   final BorderRadius? borderRadius;
+  final bool enableHaptics;
 
   @override
   State<PressableScale> createState() => _PressableScaleState();
@@ -33,16 +36,34 @@ class _PressableScaleState extends State<PressableScale> {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final target = (_down && _enabled && !reduceMotion) ? widget.scale : 1.0;
     return GestureDetector(
-      onTapDown: _enabled ? (_) => setState(() => _down = true) : null,
+      onTapDown: _enabled
+          ? (_) {
+              if (widget.enableHaptics) {
+                HapticFeedback.selectionClick();
+              }
+              setState(() => _down = true);
+            }
+          : null,
       onTapUp: _enabled ? (_) => setState(() => _down = false) : null,
       onTapCancel: _enabled ? () => setState(() => _down = false) : null,
-      onTap: widget.onTap,
+      onTap: _enabled
+          ? () {
+              if (widget.enableHaptics) {
+                HapticFeedback.lightImpact();
+              }
+              widget.onTap!();
+            }
+          : null,
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: target,
-        duration: AppMotion.fast,
-        curve: AppMotion.standard,
-        child: widget.child,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: (_down && _enabled && !reduceMotion) ? 0.88 : 1.0,
+          duration: const Duration(milliseconds: 110),
+          child: widget.child,
+        ),
       ),
     );
   }

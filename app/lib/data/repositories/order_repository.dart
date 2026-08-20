@@ -4,8 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/drift.dart' hide Column;
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 /// Thrown when the server permanently rejects an order mutation (4xx) — e.g.
 /// the ordering window has closed. Carries a user-facing [message] and is not
@@ -56,7 +57,7 @@ class OrderRepository {
         return Map<String, dynamic>.from(response.data);
       }
     } catch (e) {
-      print('Status check failed: $e');
+      debugPrint('Status check failed: $e');
     }
     // Default to open if check fails (offline-first, don't block users)
     return {'isOpen': true};
@@ -140,7 +141,7 @@ class OrderRepository {
         }
       }
     } catch (e) {
-      print('Sync order failed: $e');
+      debugPrint('Sync order failed: $e');
     }
   }
 
@@ -279,7 +280,7 @@ class OrderRepository {
               payloadJson: jsonEncode(requestData),
             ),
           );
-      print('Order queued for sync: $e');
+      debugPrint('Order queued for sync: $e');
     }
   }
 
@@ -329,7 +330,7 @@ class OrderRepository {
               payloadJson: jsonEncode({'date': today}),
             ),
           );
-      print('Order clear queued for sync: $e');
+      debugPrint('Order clear queued for sync: $e');
     }
   }
 }
