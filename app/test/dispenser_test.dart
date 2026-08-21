@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snacks_app/core/design/app_theme.dart';
 import 'package:snacks_app/data/local/app_database.dart';
 import 'package:snacks_app/presentation/home/widgets/dispenser/cold_fountain_dispenser.dart';
+import 'package:snacks_app/presentation/home/widgets/dispenser/drink_carousel.dart';
 import 'package:snacks_app/presentation/home/widgets/dispenser/drink_dispenser_models.dart';
 import 'package:snacks_app/presentation/home/widgets/dispenser/hot_barista_dispenser.dart';
 import 'package:snacks_app/presentation/home/widgets/dispenser/skeuomorphic_rocker_switch.dart';
@@ -277,4 +278,87 @@ void main() {
       expect(selectedIdx, 1);
     });
   });
+
+  group('DrinkCarousel Widget Tests', () {
+    testWidgets('Renders drink items and triggers drink selection, increment, and decrement', (tester) async {
+      int selectedIdx = 0;
+      bool sugarFree = false;
+      final List<String> selectedIds = ['1'];
+      LocalSnack? incrementedDrink;
+      LocalSnack? decrementedDrink;
+
+      const List<LocalSnack> drinks = [
+        LocalSnack(
+          id: '1',
+          name: 'Orange Juice',
+          category: 'Drinks',
+          isVeg: true,
+          isDefault: false,
+          isActive: true,
+          servingSize: '1 Glass',
+          shareCount: 1,
+          sortOrder: 0,
+        ),
+        LocalSnack(
+          id: '2',
+          name: 'Watermelon Juice',
+          category: 'Drinks',
+          isVeg: true,
+          isDefault: false,
+          isActive: true,
+          servingSize: '1 Glass',
+          shareCount: 1,
+          sortOrder: 1,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return DrinkCarousel(
+                  drinks: drinks,
+                  selectedIndex: selectedIdx,
+                  onDrinkSelected: (idx) => setState(() => selectedIdx = idx),
+                  isSugarFree: sugarFree,
+                  onSugarFreeChanged: (sf) => setState(() => sugarFree = sf),
+                  selectedSnackIds: selectedIds,
+                  onIncrement: (d) {
+                    incrementedDrink = d;
+                    setState(() => selectedIds.add(d.id));
+                  },
+                  onDecrement: (d) {
+                    decrementedDrink = d;
+                    setState(() => selectedIds.remove(d.id));
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      // Verify drink titles are rendered below capsule icons
+      expect(find.text('Orange Juice'), findsOneWidget);
+      expect(find.text('Watermelon Juice'), findsOneWidget);
+
+      // Tap on second drink capsule
+      await tester.tap(find.text('Watermelon Juice'));
+      await tester.pumpAndSettle();
+      expect(selectedIdx, 1);
+
+      // Tap ADD on selected drink
+      await tester.tap(find.text('ADD'));
+      await tester.pumpAndSettle();
+      expect(incrementedDrink?.name, 'Watermelon Juice');
+
+      // Tap remove
+      await tester.tap(find.byIcon(Icons.remove));
+      await tester.pumpAndSettle();
+      expect(decrementedDrink?.name, 'Watermelon Juice');
+    });
+  });
 }
+

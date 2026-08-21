@@ -379,6 +379,9 @@ class _HomeHeroBannerState extends State<HomeHeroBanner>
   }
 
   Duration _getRemainingDuration() {
+    if (isOrderingClosed(widget.state)) {
+      return Duration.zero;
+    }
     final now = DateTime.now();
     final targetTimeStr = widget.state.advanceOrderMode
         ? widget.state.advanceWindowEnd
@@ -398,6 +401,7 @@ class _HomeHeroBannerState extends State<HomeHeroBanner>
 
   @override
   Widget build(BuildContext context) {
+    final isClosed = isOrderingClosed(widget.state);
     final remaining = _getRemainingDuration();
     final hours = remaining.inHours;
     final minutes = remaining.inMinutes % 60;
@@ -588,46 +592,90 @@ class _HomeHeroBannerState extends State<HomeHeroBanner>
               children: [
                 const SizedBox(height: 14),
 
-                // 1. "Grab a Bite" SVG with Dynamic Themed Heart
-                Center(
-                  child: SizedBox(
-                    height: 24,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/images/home/grab_a_bite_text.svg',
-                          height: 24,
-                          fit: BoxFit.contain,
+                if (isClosed) ...[
+                  // Closed state: "Not accepting orders at the moment"
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 7,
                         ),
-                        SvgPicture.asset(
-                          'assets/images/home/grab_a_bite_heart_only.svg',
-                          height: 24,
-                          fit: BoxFit.contain,
-                          colorFilter: ColorFilter.mode(
-                            context.palette.heroHeartColor,
-                            BlendMode.srcIn,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.28),
+                            width: 1.0,
                           ),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.timer_off_rounded,
+                              size: 15,
+                              color: Colors.white.withValues(alpha: 0.95),
+                            ),
+                            const SizedBox(width: 7),
+                            const Text(
+                              'Not accepting orders at the moment',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 10),
-
-                // 2. "ORDER NOW" Badge directly from Figma SVG
-                Center(
-                  child: SvgPicture.asset(
-                    'assets/images/home/order_now.svg',
-                    height: 25,
-                    fit: BoxFit.contain,
+                ] else ...[
+                  // 1. "Grab a Bite" SVG with Dynamic Themed Heart
+                  Center(
+                    child: SizedBox(
+                      height: 24,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/images/home/grab_a_bite_text.svg',
+                            height: 24,
+                            fit: BoxFit.contain,
+                          ),
+                          SvgPicture.asset(
+                            'assets/images/home/grab_a_bite_heart_only.svg',
+                            height: 24,
+                            fit: BoxFit.contain,
+                            colorFilter: ColorFilter.mode(
+                              context.palette.heroHeartColor,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 10),
 
-                // 3. Live Countdown Clock
+                  // 2. "ORDER NOW" Badge directly from Figma SVG
+                  Center(
+                    child: SvgPicture.asset(
+                      'assets/images/home/order_now.svg',
+                      height: 25,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 14),
+
+                // 3. Countdown Clock
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

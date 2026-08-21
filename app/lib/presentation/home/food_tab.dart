@@ -11,7 +11,6 @@ import '../../core/widgets/food_card.dart';
 import '../../core/widgets/illustrations.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
-import 'widgets/closed_window_view.dart';
 import 'widgets/home_blue_header.dart';
 
 /// Food tab — continuous top blue header matching Figma (Search, Veg, Categories,
@@ -35,7 +34,7 @@ class _FoodTabState extends State<FoodTab> {
         final bloc = context.read<HomeBloc>();
 
         if (state.isShutdown) return _Shutdown(state: state);
-        if (isOrderingClosed(state)) return ClosedOrderWindowView(state: state);
+        final isClosed = isOrderingClosed(state);
 
         final isVegMode = state.filter == 'Veg';
 
@@ -141,9 +140,10 @@ class _FoodTabState extends State<FoodTab> {
                           servingSize: s.servingSize ?? '1 Unit',
                           selected: count > 0,
                           count: count,
-                          onTap: () => bloc.add(IncrementSnack(s.id)),
-                          onIncrement: () => bloc.add(IncrementSnack(s.id)),
-                          onDecrement: () => bloc.add(DecrementSnack(s.id)),
+                          disabled: isClosed,
+                          onTap: isClosed ? null : () => bloc.add(IncrementSnack(s.id)),
+                          onIncrement: isClosed ? null : () => bloc.add(IncrementSnack(s.id)),
+                          onDecrement: isClosed ? null : () => bloc.add(DecrementSnack(s.id)),
                         );
                       }, childCount: snacks.length),
                     ),

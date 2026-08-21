@@ -9,12 +9,11 @@ import '../../../../core/design/app_tokens.dart';
 import '../../../../core/widgets/category_scroller.dart';
 import '../../../../data/local/app_database.dart';
 import 'can_3d_renderer.dart';
-import 'cold_fountain_dispenser.dart';
+import 'drink_carousel.dart';
 import 'drink_dispenser_models.dart';
-import 'drink_radial_dial.dart';
-import 'hot_barista_dispenser.dart';
 import 'hot_mug_painter.dart';
 import 'shaker_cup_painter.dart';
+import 'themed_dispenser_svg.dart';
 
 /// The complete interactive 3D Drink Dispenser with balanced vertical layout,
 /// authentic top machine dispensers for Cold and Hot brews, and multi-can 3D carousel.
@@ -28,6 +27,7 @@ class DrinkDispenserStage extends StatefulWidget {
     this.selectedFormat,
     this.onFormatChanged,
     this.showTopTabs = true,
+    this.disabled = false,
   });
 
   final List<LocalSnack> allDrinks;
@@ -37,6 +37,7 @@ class DrinkDispenserStage extends StatefulWidget {
   final DrinkFormat? selectedFormat;
   final ValueChanged<DrinkFormat>? onFormatChanged;
   final bool showTopTabs;
+  final bool disabled;
 
   @override
   State<DrinkDispenserStage> createState() => _DrinkDispenserStageState();
@@ -47,6 +48,7 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
   late DrinkFormat _selectedFormat;
   int _activeDrinkIndex = 0;
   bool _isFilled = false;
+  bool _isPouring = false;
   bool _isSugarFree = false;
   double _tiltAngle = 0.0;
 
@@ -119,13 +121,12 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     setState(() {
       _activeDrinkIndex = index;
       _isFilled = true;
+      _isPouring = true;
     });
 
     // Cans/tins: smoothly animate the 3D can carousel to the selected page
     if (_selectedFormat == DrinkFormat.can) {
-      // `.page` reads `.position` internally, which throws "Too many
-      // elements" if this controller is ever transiently attached to more
-      // than one PageView — guard with `positions.length == 1` first.
+      _isPouring = false;
       if (_canPageController.positions.length == 1 && _canPageController.page?.round() != index) {
         _canPageController.animateToPage(
           index,
@@ -149,7 +150,11 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
 
     _liquidFillController.reset();
     _iceFallController.reset();
-    _liquidFillController.forward();
+    _liquidFillController.forward().then((_) {
+      if (mounted) {
+        setState(() => _isPouring = false);
+      }
+    });
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) _iceFallController.forward();
     });
@@ -204,10 +209,6 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
             subtitle: 'Chilled Drink',
           );
 
-    final currentCount = activeDrink != null
-        ? widget.selectedSnackIds.where((id) => id == activeDrink.id).length
-        : 0;
-
     final canDrinks = _getDrinksForFormat(DrinkFormat.can);
 
     final stageIndex = _selectedFormat == DrinkFormat.coldJuice
@@ -228,38 +229,25 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
-                  // TOP MACHINE DISPENSER (Cold Fountain or Hot Barista Brewer)
-                  if (_selectedFormat == DrinkFormat.coldJuice && currentFormatDrinks.isNotEmpty)
-                    ColdFountainDispenser(
-                      key: const ValueKey('cold_fountain_dispenser'),
-                      drinks: currentFormatDrinks,
-                      selectedIndex: _isFilled
-                          ? _activeDrinkIndex.clamp(0, currentFormatDrinks.length - 1)
-                          : -1,
-                      onDrinkSelected: _pourDrink,
-                      isSugarFree: _isSugarFree,
-                      onSugarFreeChanged: (sugarFree) => setState(() => _isSugarFree = sugarFree),
-                    )
-                  else if (_selectedFormat == DrinkFormat.hotBrew && currentFormatDrinks.isNotEmpty)
-                    HotBaristaDispenser(
-                      key: const ValueKey('hot_barista_dispenser'),
-                      drinks: currentFormatDrinks,
-                      selectedIndex: _isFilled
-                          ? _activeDrinkIndex.clamp(0, currentFormatDrinks.length - 1)
-                          : -1,
-                      onDrinkSelected: _pourDrink,
-                      isSugarFree: _isSugarFree,
-                      onSugarFreeChanged: (sugarFree) => setState(() => _isSugarFree = sugarFree),
+                  // TOP MACHINE DISPENSER ARTWORK (Juice.svg for Cold Juice, Coffee.svg for Hot Brew)
+                  if (_selectedFormat != DrinkFormat.can && currentFormatDrinks.isNotEmpty)
+                    ThemedDispenserSvg(
+                      format: _selectedFormat,
+                      height: 118,
+                      isPouring: _isPouring,
+                      pouringColor: presentation.primaryColor,
                     ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
 
-                  // 3. Persistent 3D Container Stage (IndexedStack ensures 3D WebGL stays warm and loaded)
+                  // 2. Persistent 3D Container Stage (IndexedStack ensures 3D WebGL stays warm and loaded)
                   SizedBox(
                     width: double.infinity,
-                    height: _selectedFormat == DrinkFormat.can ? 275 : 265,
+                    height: _selectedFormat == DrinkFormat.can
+                        ? 275
+                        : (_selectedFormat == DrinkFormat.coldJuice ? 190 : 180),
                     child: Center(
                       child: IndexedStack(
                         index: stageIndex,
@@ -269,35 +257,34 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
                           _buildColdCup(presentation, isDark),
                           // 1: Hot Brew Ceramic Mug
                           _buildHotMug(presentation, isDark),
-                          // 2: 3D Multi-Can Carousel (Kept permanently warm in memory)
+                          // 2: 3D Multi-Can Carousel (Full original size)
                           _buildCanCarousel(canDrinks, isDark),
                         ],
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
-                  // 4. Circular Selection Dial (Only for Cans / Tins)
-                  if (_selectedFormat == DrinkFormat.can && currentFormatDrinks.isNotEmpty)
-                    DrinkRadialDial(
-                      key: ValueKey('dial_${_selectedFormat.name}'),
+                  // 3. BOTTOM COMPACT CURVED DRINK SELECTOR (Side faded, names below, and centered action buttons)
+                  if (currentFormatDrinks.isNotEmpty)
+                    DrinkCarousel(
                       drinks: currentFormatDrinks,
-                      selectedIndex: _activeDrinkIndex.clamp(0, currentFormatDrinks.length - 1),
-                      onDrinkTapped: (tappedIdx) {
-                        _pourDrink(tappedIdx);
-                      },
+                      selectedIndex: _isFilled
+                          ? _activeDrinkIndex.clamp(0, currentFormatDrinks.length - 1)
+                          : -1,
+                      onDrinkSelected: _pourDrink,
+                      isSugarFree: _isSugarFree,
+                      onSugarFreeChanged: (sugarFree) =>
+                          setState(() => _isSugarFree = sugarFree),
+                      selectedSnackIds: widget.selectedSnackIds,
+                      onIncrement: widget.onIncrement,
+                      onDecrement: widget.onDecrement,
+                      format: _selectedFormat,
+                      disabled: widget.disabled,
                     ),
 
-                  const SizedBox(height: 30),
-
-                  // 5. Compact Add to Order Pill Button
-                  if (activeDrink != null)
-                    Center(
-                      child: _buildCompactStepper(palette, activeDrink, currentCount),
-                    ),
-
-                  const SizedBox(height: 110), // Bottom clearance for floating bar
+                  const SizedBox(height: 60), // Bottom clearance for floating bar
                 ],
               ),
             ),
@@ -334,7 +321,7 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
             setState(() => _tiltAngle = 0.0);
           },
           child: CustomPaint(
-            size: const Size(240, 290),
+            size: const Size(155, 190),
             painter: ShakerCupPainter(
               liquidColor: presentation.primaryColor,
               secondaryLiquidColor: presentation.secondaryColor,
@@ -370,7 +357,7 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
             : 0.0;
 
         return CustomPaint(
-          size: const Size(245, 275),
+          size: const Size(165, 180),
           painter: HotMugPainter(
             liquidColor: presentation.primaryColor,
             secondaryLiquidColor: presentation.secondaryColor,
@@ -507,108 +494,6 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
             // Cold/hot dispensers stay empty (no flavor picked, no pour) until tapped.
           }
         },
-      ),
-    );
-  }
-
-  Widget _buildCompactStepper(AppPalette palette, LocalSnack drink, int count) {
-    if (count == 0) {
-      return GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          if (!_isFilled) _pourDrink(_activeDrinkIndex);
-          widget.onIncrement(drink);
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: context.palette.headerGradient,
-            ),
-            borderRadius: BorderRadius.circular(21),
-            boxShadow: [
-              BoxShadow(
-                color: context.palette.brand.withValues(alpha: 0.35),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.add_rounded, color: Colors.white, size: 18),
-              SizedBox(width: 6),
-              Text(
-                'ADD TO ORDER',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12.5,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: context.palette.headerGradient,
-        ),
-        borderRadius: BorderRadius.circular(21),
-        boxShadow: [
-          BoxShadow(
-            color: context.palette.brand.withValues(alpha: 0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.remove_rounded, color: Colors.white, size: 18),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              widget.onDecrement(drink);
-            },
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(
-              '$count in Order',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 13.0,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              widget.onIncrement(drink);
-            },
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero,
-          ),
-        ],
       ),
     );
   }

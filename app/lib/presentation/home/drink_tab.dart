@@ -8,7 +8,6 @@ import '../../core/widgets/food_card.dart';
 import '../../core/widgets/illustrations.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
-import 'widgets/closed_window_view.dart';
 import 'widgets/dispenser/drink_dispenser_models.dart';
 import 'widgets/dispenser/drink_dispenser_stage.dart';
 import 'widgets/drinks_blue_header.dart';
@@ -35,7 +34,8 @@ class _DrinkTabState extends State<DrinkTab> {
       builder: (context, state) {
         if (state is! HomeLoaded) return const SizedBox.shrink();
         final bloc = context.read<HomeBloc>();
-        if (isOrderingClosed(state)) return ClosedOrderWindowView(state: state);
+        if (state.isShutdown) return const SizedBox.shrink();
+        final isClosed = isOrderingClosed(state);
 
         final query = _query.trim().toLowerCase();
 
@@ -90,10 +90,13 @@ class _DrinkTabState extends State<DrinkTab> {
                           onFormatChanged: (format) =>
                               setState(() => _selectedFormat = format),
                           showTopTabs: false,
-                          onIncrement: (drink) =>
-                              bloc.add(IncrementSnack(drink.id)),
-                          onDecrement: (drink) =>
-                              bloc.add(DecrementSnack(drink.id)),
+                          disabled: isClosed,
+                          onIncrement: isClosed
+                              ? (_) {}
+                              : (drink) => bloc.add(IncrementSnack(drink.id)),
+                          onDecrement: isClosed
+                              ? (_) {}
+                              : (drink) => bloc.add(DecrementSnack(drink.id)),
                         )
                       : CustomScrollView(
                           key: const PageStorageKey('drink_tab_scroll'),
@@ -153,12 +156,19 @@ class _DrinkTabState extends State<DrinkTab> {
                                           : null,
                                       selected: count > 0,
                                       count: count,
-                                      onTap: () =>
-                                          bloc.add(IncrementSnack(d.id)),
-                                      onIncrement: () =>
-                                          bloc.add(IncrementSnack(d.id)),
-                                      onDecrement: () =>
-                                          bloc.add(DecrementSnack(d.id)),
+                                      disabled: isClosed,
+                                      onTap: isClosed
+                                          ? null
+                                          : () =>
+                                              bloc.add(IncrementSnack(d.id)),
+                                      onIncrement: isClosed
+                                          ? null
+                                          : () =>
+                                              bloc.add(IncrementSnack(d.id)),
+                                      onDecrement: isClosed
+                                          ? null
+                                          : () =>
+                                              bloc.add(DecrementSnack(d.id)),
                                     );
                                   }, childCount: displayedDrinks.length),
                                 ),

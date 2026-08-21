@@ -27,6 +27,7 @@ class FoodCard extends StatelessWidget {
     this.onIncrement,
     this.onDecrement,
     this.showVegBadge = true,
+    this.disabled = false,
   });
 
   final String name;
@@ -41,11 +42,13 @@ class FoodCard extends StatelessWidget {
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
   final bool showVegBadge;
+  final bool disabled;
 
   int get effectiveCount => count ?? (selected ? 1 : 0);
   bool get isSelected => effectiveCount > 0;
 
   void _handleTap() {
+    if (disabled) return;
     if (effectiveCount == 0) {
       HapticFeedback.selectionClick();
       if (onIncrement != null) {
@@ -238,9 +241,10 @@ class FoodCard extends StatelessWidget {
                           bottom: -8,
                           child: _AddStepperButton(
                             count: effectiveCount,
-                            onIncrement: onIncrement ?? onTap,
-                            onDecrement: onDecrement,
+                            onIncrement: disabled ? null : (onIncrement ?? onTap),
+                            onDecrement: disabled ? null : onDecrement,
                             reduceMotion: reduceMotion,
+                            disabled: disabled,
                           ),
                         ),
                       ],
@@ -259,7 +263,9 @@ class FoodCard extends StatelessWidget {
               Text(
                 name,
                 style: context.text.labelMedium?.copyWith(
-                  color: palette.textPrimary,
+                  color: disabled
+                      ? palette.textSecondary
+                      : palette.textPrimary,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
                   fontSize: 13,
@@ -294,12 +300,14 @@ class _AddStepperButton extends StatelessWidget {
     this.onIncrement,
     this.onDecrement,
     required this.reduceMotion,
+    this.disabled = false,
   });
 
   final int count;
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
   final bool reduceMotion;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -307,23 +315,37 @@ class _AddStepperButton extends StatelessWidget {
     final isDark = palette.isDark;
     final isSelected = count > 0;
 
+    final backgroundColor = disabled
+        ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
+        : (isSelected
+            ? palette.brand
+            : (isDark ? palette.surface : Colors.white));
+
+    final borderColor = disabled
+        ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))
+        : (isSelected
+            ? palette.brand
+            : (isDark ? palette.border : const Color(0xFFE2E8F0)));
+
+    final textColor = disabled
+        ? (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))
+        : (isSelected
+            ? Colors.white
+            : palette.brand);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
       height: 30,
       decoration: BoxDecoration(
         // Solid fill at all times so there is zero transparent flicker during expansion
-        color: isSelected
-            ? palette.brand
-            : (isDark ? palette.surface : Colors.white),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isSelected
-              ? palette.brand
-              : (isDark ? palette.border : const Color(0xFFE2E8F0)),
+          color: borderColor,
           width: 1.0,
         ),
-        boxShadow: context.shadows.sm,
+        boxShadow: disabled ? null : context.shadows.sm,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(5),
@@ -334,69 +356,106 @@ class _AddStepperButton extends StatelessWidget {
                   key: const ValueKey('stepper_active'),
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    PressableScale(
-                      scale: 0.85,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        onDecrement?.call();
-                      },
-                      child: const Padding(
+                    if (!disabled)
+                      PressableScale(
+                        scale: 0.85,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onDecrement?.call();
+                        },
+                        child: const Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          child: Icon(
+                            Icons.remove_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    else
+                      Padding(
                         padding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         child: Icon(
                           Icons.remove_rounded,
                           size: 16,
-                          color: Colors.white,
+                          color: textColor,
                         ),
                       ),
-                    ),
                     Text(
                       '$count',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: disabled ? textColor : Colors.white,
                         fontWeight: FontWeight.w800,
                         fontSize: 12.5,
                       ),
                     ),
-                    PressableScale(
-                      scale: 0.85,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        onIncrement?.call();
-                      },
-                      child: const Padding(
+                    if (!disabled)
+                      PressableScale(
+                        scale: 0.85,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onIncrement?.call();
+                        },
+                        child: const Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          child: Icon(
+                            Icons.add_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    else
+                      Padding(
                         padding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         child: Icon(
                           Icons.add_rounded,
                           size: 16,
-                          color: Colors.white,
+                          color: textColor,
                         ),
                       ),
-                    ),
                   ],
                 )
-              : PressableScale(
-                  key: const ValueKey('stepper_idle'),
-                  scale: 0.90,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    onIncrement?.call();
-                  },
-                  child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 11),
-                    child: Text(
-                      'ADD',
-                      style: TextStyle(
-                        color: palette.brand,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                        letterSpacing: 0.4,
+              : (disabled
+                  ? Container(
+                      key: const ValueKey('stepper_disabled'),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 11),
+                      child: Text(
+                        'ADD',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                    ),
-                  ),
-                ),
+                    )
+                  : PressableScale(
+                      key: const ValueKey('stepper_idle'),
+                      scale: 0.90,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        onIncrement?.call();
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 11),
+                        child: Text(
+                          'ADD',
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    )),
         ),
       ),
     );
@@ -419,6 +478,7 @@ class SnackCard extends FoodCard {
     super.onIncrement,
     super.onDecrement,
     super.showVegBadge = true,
+    super.disabled = false,
   });
 }
 
@@ -438,6 +498,7 @@ class DrinkCard extends FoodCard {
     super.onIncrement,
     super.onDecrement,
     super.showVegBadge = true,
+    super.disabled = false,
   });
 }
 

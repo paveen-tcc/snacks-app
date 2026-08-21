@@ -339,13 +339,21 @@ class _BottomChrome extends StatelessWidget {
               bloc: homeBloc,
               builder: (context, state) {
                 if (state is! HomeLoaded) return const SizedBox.shrink();
-                final itemCount = state.selectedSnackIds.length;
+                final isClosed = isOrderingClosed(state);
+                final effectiveCount = isClosed
+                    ? (state.confirmedSnackIds.isNotEmpty
+                        ? state.confirmedSnackIds.length
+                        : (state.todaysOrders.isNotEmpty
+                            ? state.todaysOrders.length
+                            : state.selectedSnackIds.length))
+                    : state.selectedSnackIds.length;
                 final orderPlaced = isOrderPlaced(state);
                 final hasChanges = hasOrderChanges(state);
                 final closeTime = formatOrderWindowCloseTime(state);
-                if (state.isShutdown ||
-                    isOrderingClosed(state) ||
-                    (itemCount == 0 && !hasChanges && !orderPlaced)) {
+                final hasOrder =
+                    orderPlaced || hasSavedOrder(state) || effectiveCount > 0 || hasChanges;
+
+                if (state.isShutdown || !hasOrder) {
                   return const SizedBox.shrink();
                 }
                 return AnimatedPadding(
@@ -353,10 +361,11 @@ class _BottomChrome extends StatelessWidget {
                   curve: AppMotion.emphasized,
                   padding: EdgeInsets.only(bottom: visible ? 0 : bottomInset),
                   child: CartBar(
-                    itemCount: itemCount,
-                    orderPlaced: orderPlaced,
-                    hasChanges: hasChanges,
+                    itemCount: effectiveCount,
+                    orderPlaced: orderPlaced || (isClosed && effectiveCount > 0),
+                    hasChanges: isClosed ? false : hasChanges,
                     editUntilLabel: closeTime,
+                    isClosed: isClosed,
                     onTap: () => showCartSheet(context, homeBloc),
                   ),
                 );

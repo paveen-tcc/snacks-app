@@ -25,6 +25,7 @@ class CartBar extends StatefulWidget {
     this.orderPlaced = false,
     this.hasChanges = false,
     this.editUntilLabel,
+    this.isClosed = false,
   });
 
   final int itemCount;
@@ -32,6 +33,7 @@ class CartBar extends StatefulWidget {
   final bool orderPlaced;
   final bool hasChanges;
   final String? editUntilLabel;
+  final bool isClosed;
 
   @override
   State<CartBar> createState() => _CartBarState();
@@ -89,20 +91,27 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
     final palette = context.palette;
     final orderPlaced = widget.orderPlaced;
     final hasChanges = widget.hasChanges;
+    final isClosed = widget.isClosed;
     final itemCount = widget.itemCount;
 
-    final title = orderPlaced
-        ? 'Order placed'
-        : hasChanges
-        ? 'Review changes'
-        : 'View Cart';
-    final subtitle = orderPlaced
-        ? 'Tap to edit your order until ${widget.editUntilLabel ?? 'the window closes'}'
-        : hasChanges
-        ? 'Confirm to update order'
-        : itemCount == 1
-        ? '1 item selected'
-        : '$itemCount items selected';
+    final isConfirmedOrder = orderPlaced || (isClosed && itemCount > 0);
+
+    final title = isClosed
+        ? 'Today\'s order'
+        : (orderPlaced
+            ? 'Order placed'
+            : hasChanges
+            ? 'Review changes'
+            : 'View Cart');
+    final subtitle = isClosed
+        ? 'Window closed • Tap to view order'
+        : (orderPlaced
+            ? 'Tap to edit your order until ${widget.editUntilLabel ?? 'the window closes'}'
+            : hasChanges
+            ? 'Confirm to update order'
+            : itemCount == 1
+            ? '1 item selected'
+            : '$itemCount items selected');
 
     return AnimatedBuilder(
       animation: _morphController,
@@ -137,10 +146,10 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: orderPlaced
+                    color: isConfirmedOrder
                         ? null
                         : (palette.isDark ? palette.surface : Colors.white),
-                    gradient: orderPlaced
+                    gradient: isConfirmedOrder
                         ? LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -149,7 +158,7 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                         : null,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: orderPlaced
+                      color: isConfirmedOrder
                           ? Colors.white.withValues(alpha: 0.35)
                           : (palette.isDark
                               ? palette.border
@@ -159,7 +168,7 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                     boxShadow: [
                       BoxShadow(
                         color: palette.brand.withValues(
-                          alpha: orderPlaced ? 0.35 : 0.12,
+                          alpha: isConfirmedOrder ? 0.35 : 0.12,
                         ),
                         blurRadius: 18,
                         offset: const Offset(0, 6),
@@ -177,17 +186,17 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                           height: 40,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: orderPlaced
+                            gradient: isConfirmedOrder
                                 ? null
                                 : LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: palette.headerGradient,
                                   ),
-                            color: orderPlaced
+                            color: isConfirmedOrder
                                 ? Colors.white.withValues(alpha: 0.22)
                                 : null,
-                            boxShadow: orderPlaced
+                            boxShadow: isConfirmedOrder
                                 ? null
                                 : [
                                     BoxShadow(
@@ -231,11 +240,12 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: orderPlaced
+                                          color: isConfirmedOrder
                                               ? Colors.white
                                               : palette.textPrimary,
-                                          fontSize: 14.5,
+                                          fontSize: 14.0,
                                           fontWeight: FontWeight.w700,
+                                          height: 1.15,
                                         ),
                                       ),
                                       const SizedBox(height: 1),
@@ -244,13 +254,14 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: orderPlaced
+                                          color: isConfirmedOrder
                                               ? Colors.white.withValues(
                                                   alpha: 0.85,
                                                 )
                                               : palette.textSecondary,
-                                          fontSize: 11.5,
+                                          fontSize: 11.0,
                                           fontWeight: FontWeight.w500,
+                                          height: 1.15,
                                         ),
                                       ),
                                     ],
@@ -258,7 +269,7 @@ class _CartBarState extends State<CartBar> with SingleTickerProviderStateMixin {
                                 ),
                                 Icon(
                                   Icons.keyboard_arrow_up_rounded,
-                                  color: orderPlaced
+                                  color: isConfirmedOrder
                                       ? Colors.white
                                       : palette.brand,
                                   size: 26,
@@ -290,17 +301,44 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
           builder: (context, state) {
             if (state is! HomeLoaded) return const SizedBox.shrink();
 
+            final isClosed = isOrderingClosed(state);
+            final orderPlaced = isOrderPlaced(state);
+            final hasChanges = hasOrderChanges(state);
+            final closeTime = formatOrderWindowCloseTime(state);
+
+            // Determine which items to display in the cart
+            final List<String> effectiveIds = isClosed
+                ? (state.confirmedSnackIds.isNotEmpty
+                    ? state.confirmedSnackIds
+                    : (state.todaysOrders.isNotEmpty
+                        ? state.todaysOrders.map((o) => o.snackId).toList()
+                        : state.selectedSnackIds))
+                : state.selectedSnackIds;
+
             final Map<String, int> snackCounts = {};
-            for (final id in state.selectedSnackIds) {
+            for (final id in effectiveIds) {
               snackCounts[id] = (snackCounts[id] ?? 0) + 1;
             }
             final uniqueSnacks = state.snacks
                 .where((s) => snackCounts.containsKey(s.id))
                 .toList();
-            final itemCount = state.selectedSnackIds.length;
-            final orderPlaced = isOrderPlaced(state);
-            final hasChanges = hasOrderChanges(state);
-            final closeTime = formatOrderWindowCloseTime(state);
+            final itemCount = effectiveIds.length;
+
+            final sheetTitle = isClosed
+                ? (hasSavedOrder(state) || orderPlaced || uniqueSnacks.isNotEmpty
+                    ? 'Your Order'
+                    : 'Order Window Closed')
+                : (orderPlaced ? 'Your Order' : 'Your Cart');
+
+            final sheetSubtitle = isClosed
+                ? 'Order window closed today at $closeTime.'
+                : (orderPlaced
+                    ? 'Order placed. You can edit it until $closeTime.'
+                    : hasChanges
+                    ? 'Review and confirm your changes.'
+                    : itemCount == 1
+                    ? '1 item selected'
+                    : '$itemCount items selected');
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -318,16 +356,10 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Your Cart', style: context.text.titleLarge),
+                            Text(sheetTitle, style: context.text.titleLarge),
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              orderPlaced
-                                  ? 'Order placed. You can edit it until $closeTime.'
-                                  : hasChanges
-                                  ? 'Review and confirm your changes.'
-                                  : itemCount == 1
-                                  ? '1 item selected'
-                                  : '$itemCount items selected',
+                              sheetSubtitle,
                               style: context.text.bodySmall?.copyWith(
                                 color: context.palette.textSecondary,
                               ),
@@ -348,24 +380,37 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (final snack in uniqueSnacks) ...[
-                            _CartSnackRow(
-                              snack: snack,
-                              quantity: snackCounts[snack.id] ?? 1,
-                              homeBloc: homeBloc,
-                              disabled: isOrderingClosed(state),
-                              isSugarFree:
-                                  state.sugarFreePrefs[snack.id] ?? false,
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
+                          if (uniqueSnacks.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                              child: Center(
+                                child: Text(
+                                  'No items in your order for today',
+                                  style: context.text.bodyMedium?.copyWith(
+                                    color: context.palette.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            for (final snack in uniqueSnacks) ...[
+                              _CartSnackRow(
+                                snack: snack,
+                                quantity: snackCounts[snack.id] ?? 1,
+                                homeBloc: homeBloc,
+                                disabled: isClosed,
+                                isSugarFree:
+                                    state.sugarFreePrefs[snack.id] ?? false,
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                            ],
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   PrimaryButton(
-                    label: orderPlaced
+                    label: isClosed || orderPlaced
                         ? 'Done'
                         : hasSavedOrder(state)
                         ? 'Confirm Changes'
@@ -374,7 +419,7 @@ void showCartSheet(BuildContext context, HomeBloc homeBloc) {
                     onPressed: () {
                       HapticFeedback.heavyImpact();
                       Navigator.of(sheetContext).pop();
-                      if (!orderPlaced) homeBloc.add(SubmitOrder());
+                      if (!isClosed && !orderPlaced) homeBloc.add(SubmitOrder());
                     },
                   ),
                 ],
