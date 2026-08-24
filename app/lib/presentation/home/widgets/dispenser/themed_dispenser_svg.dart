@@ -201,25 +201,23 @@ class _ThemedDispenserSvgState extends State<ThemedDispenserSvg> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
       height: widget.height,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
-        child: _svgString != null
-            ? SvgPicture.string(
-                _svgString!,
-                fit: BoxFit.cover,
-                alignment: Alignment.bottomCenter,
-              )
-            : SvgPicture.asset(
-                widget.format == DrinkFormat.hotBrew
-                    ? 'assets/Coffee.svg'
-                    : 'assets/Juice.svg',
-                fit: BoxFit.cover,
-                alignment: Alignment.bottomCenter,
-              ),
-      ),
+      alignment: Alignment.center,
+      child: _svgString != null
+          ? SvgPicture.string(
+              _svgString!,
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+            )
+          : SvgPicture.asset(
+              widget.format == DrinkFormat.hotBrew
+                  ? 'assets/Coffee.svg'
+                  : 'assets/Juice.svg',
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+            ),
     );
   }
 }

@@ -5,17 +5,19 @@ import '../../core/constants/snack_categories.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/widgets/food_card.dart';
-import '../../core/widgets/illustrations.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
 import 'widgets/dispenser/drink_dispenser_models.dart';
 import 'widgets/dispenser/drink_dispenser_stage.dart';
 import 'widgets/drinks_blue_header.dart';
+import 'widgets/shutdown_view.dart';
 
 /// Drink tab — 3D Interactive Drink Dispenser with Royal Blue Top Header,
 /// with toggle support to switch to a simplified Grid View (off/3D by default).
 class DrinkTab extends StatefulWidget {
-  const DrinkTab({super.key});
+  const DrinkTab({super.key, this.isActive = true});
+
+  final bool isActive;
 
   @override
   State<DrinkTab> createState() => _DrinkTabState();
@@ -34,8 +36,18 @@ class _DrinkTabState extends State<DrinkTab> {
       builder: (context, state) {
         if (state is! HomeLoaded) return const SizedBox.shrink();
         final bloc = context.read<HomeBloc>();
-        if (state.isShutdown) return const SizedBox.shrink();
+        if (state.isShutdown) return ShutdownView(state: state);
         final isClosed = isOrderingClosed(state);
+        final hasBottomCart =
+            state.selectedSnackIds.isNotEmpty ||
+            state.confirmedSnackIds.isNotEmpty ||
+            state.todaysOrders.isNotEmpty;
+        final bottomClearance =
+            AppSpacing.x5 +
+            AppSpacing.x5 +
+            AppSpacing.lg +
+            MediaQuery.paddingOf(context).bottom +
+            (hasBottomCart ? 64 : 0);
 
         final query = _query.trim().toLowerCase();
 
@@ -57,7 +69,8 @@ class _DrinkTabState extends State<DrinkTab> {
                 return DrinkPresentation.fromSnack(d).format == _selectedFormat;
               }).toList();
 
-        final showDispenser = !_isGridView && query.isEmpty && allDrinks.isNotEmpty;
+        final showDispenser =
+            !_isGridView && query.isEmpty && allDrinks.isNotEmpty;
 
         return GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
@@ -69,23 +82,27 @@ class _DrinkTabState extends State<DrinkTab> {
                 query: _query,
                 onQueryChanged: (q) => setState(() => _query = q),
                 selectedFormat: _selectedFormat,
-                onFormatChanged: (format) => setState(() => _selectedFormat = format),
+                onFormatChanged: (format) =>
+                    setState(() => _selectedFormat = format),
                 topPadding: topPadding,
                 isGridView: _isGridView,
-                onGridViewChanged: (isGrid) => setState(() => _isGridView = isGrid),
+                onGridViewChanged: (isGrid) =>
+                    setState(() => _isGridView = isGrid),
               ),
 
               // Dispenser / Simplified Grid View
               Expanded(
                 child: RefreshIndicator.adaptive(
                   onRefresh: () async {
-                    bloc.add(RefreshHome());
-                    await Future.delayed(const Duration(milliseconds: 600));
+                    await refreshHomeAndWait(bloc);
                   },
                   child: showDispenser
                       ? DrinkDispenserStage(
                           allDrinks: allDrinks,
                           selectedSnackIds: state.selectedSnackIds,
+                          sugarFreePrefs: state.sugarFreePrefs,
+                          hasBottomCart: hasBottomCart,
+                          isActive: widget.isActive,
                           selectedFormat: _selectedFormat,
                           onFormatChanged: (format) =>
                               setState(() => _selectedFormat = format),
@@ -97,6 +114,9 @@ class _DrinkTabState extends State<DrinkTab> {
                           onDecrement: isClosed
                               ? (_) {}
                               : (drink) => bloc.add(DecrementSnack(drink.id)),
+                          onToggleSugarFree: isClosed
+                              ? (_) {}
+                              : (drink) => bloc.add(ToggleSugarFree(drink.id)),
                         )
                       : CustomScrollView(
                           key: const PageStorageKey('drink_tab_scroll'),
@@ -105,16 +125,21 @@ class _DrinkTabState extends State<DrinkTab> {
                               ScrollViewKeyboardDismissBehavior.onDrag,
                           slivers: [
                             if (state.snacks.isEmpty)
-                              const SliverToBoxAdapter(
-                                child: Center(child: FoodLoader(size: 28)),
+                              SliverPadding(
+                                padding: EdgeInsets.only(
+                                  bottom: bottomClearance,
+                                ),
+                                sliver: const SliverToBoxAdapter(
+                                  child: _EmptyDrinks(query: ''),
+                                ),
                               )
                             else if (displayedDrinks.isEmpty)
                               SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(
+                                padding: EdgeInsets.fromLTRB(
                                   AppSpacing.page,
                                   AppSpacing.sm,
                                   AppSpacing.page,
-                                  0,
+                                  bottomClearance,
                                 ),
                                 sliver: SliverToBoxAdapter(
                                   child: _EmptyDrinks(query: query),
@@ -122,55 +147,79 @@ class _DrinkTabState extends State<DrinkTab> {
                               )
                             else
                               SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(
+                                padding: EdgeInsets.fromLTRB(
                                   AppSpacing.page,
                                   AppSpacing.sm,
                                   AppSpacing.page,
-                                  AppSpacing.x5 + AppSpacing.x5 + AppSpacing.lg,
+                                  bottomClearance,
                                 ),
-                                sliver: SliverGrid(
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing: 10,
-                                    mainAxisExtent: 198,
-                                  ),
-                                  delegate: SliverChildBuilderDelegate((
-                                    context,
-                                    index,
-                                  ) {
-                                    final d = displayedDrinks[index];
-                                    final count = state.selectedSnackIds
-                                        .where((id) => id == d.id)
-                                        .length;
-                                    return DrinkCard(
-                                      name: d.name,
-                                      emoji: d.emoji,
-                                      servingSize: (d.servingSize != null &&
-                                              d.servingSize!.toLowerCase() !=
-                                                  '1' &&
-                                              d.servingSize!.toLowerCase() !=
-                                                  '1 serving')
-                                          ? d.servingSize
-                                          : null,
-                                      selected: count > 0,
-                                      count: count,
-                                      disabled: isClosed,
-                                      onTap: isClosed
-                                          ? null
-                                          : () =>
-                                              bloc.add(IncrementSnack(d.id)),
-                                      onIncrement: isClosed
-                                          ? null
-                                          : () =>
-                                              bloc.add(IncrementSnack(d.id)),
-                                      onDecrement: isClosed
-                                          ? null
-                                          : () =>
-                                              bloc.add(DecrementSnack(d.id)),
+                                sliver: SliverLayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final textScale = MediaQuery.textScalerOf(
+                                      context,
+                                    ).scale(1).clamp(1.0, 2.0);
+                                    final columns =
+                                        (constraints.crossAxisExtent / 105)
+                                            .floor()
+                                            .clamp(3, 8);
+                                    final cardWidth =
+                                        (constraints.crossAxisExtent -
+                                            (columns - 1) * 10) /
+                                        columns;
+                                    return SliverGrid(
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: columns,
+                                            crossAxisSpacing: 10,
+                                            mainAxisSpacing: 12,
+                                            mainAxisExtent:
+                                                cardWidth +
+                                                86 +
+                                                ((textScale - 1) * 34),
+                                          ),
+                                      delegate: SliverChildBuilderDelegate((
+                                        context,
+                                        index,
+                                      ) {
+                                        final d = displayedDrinks[index];
+                                        final count = state.selectedSnackIds
+                                            .where((id) => id == d.id)
+                                            .length;
+                                        return DrinkCard(
+                                          name: d.name,
+                                          emoji: d.emoji,
+                                          servingSize:
+                                              (d.servingSize != null &&
+                                                  d.servingSize!
+                                                          .toLowerCase() !=
+                                                      '1' &&
+                                                  d.servingSize!
+                                                          .toLowerCase() !=
+                                                      '1 serving')
+                                              ? d.servingSize
+                                              : null,
+                                          selected: count > 0,
+                                          count: count,
+                                          disabled: isClosed,
+                                          onTap: isClosed
+                                              ? null
+                                              : () => bloc.add(
+                                                  IncrementSnack(d.id),
+                                                ),
+                                          onIncrement: isClosed
+                                              ? null
+                                              : () => bloc.add(
+                                                  IncrementSnack(d.id),
+                                                ),
+                                          onDecrement: isClosed
+                                              ? null
+                                              : () => bloc.add(
+                                                  DecrementSnack(d.id),
+                                                ),
+                                        );
+                                      }, childCount: displayedDrinks.length),
                                     );
-                                  }, childCount: displayedDrinks.length),
+                                  },
                                 ),
                               ),
                           ],

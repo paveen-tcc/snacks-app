@@ -33,14 +33,12 @@ class _PressableScaleState extends State<PressableScale> {
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final target = (_down && _enabled && !reduceMotion) ? widget.scale : 1.0;
     return GestureDetector(
       onTapDown: _enabled
           ? (_) {
-              if (widget.enableHaptics) {
-                HapticFeedback.selectionClick();
-              }
               setState(() => _down = true);
             }
           : null,
@@ -49,7 +47,7 @@ class _PressableScaleState extends State<PressableScale> {
       onTap: _enabled
           ? () {
               if (widget.enableHaptics) {
-                HapticFeedback.lightImpact();
+                HapticFeedback.selectionClick();
               }
               widget.onTap!();
             }
@@ -111,7 +109,10 @@ class PrimaryButton extends StatelessWidget {
     return PressableScale(
       onTap: (loading || onPressed == null) ? null : onPressed,
       child: AbsorbPointer(
-        child: SizedBox(width: fullWidth ? double.infinity : null, child: button),
+        child: SizedBox(
+          width: fullWidth ? double.infinity : null,
+          child: button,
+        ),
       ),
     );
   }
@@ -151,7 +152,10 @@ class SecondaryButton extends StatelessWidget {
     return PressableScale(
       onTap: onPressed,
       child: AbsorbPointer(
-        child: SizedBox(width: fullWidth ? double.infinity : null, child: button),
+        child: SizedBox(
+          width: fullWidth ? double.infinity : null,
+          child: button,
+        ),
       ),
     );
   }

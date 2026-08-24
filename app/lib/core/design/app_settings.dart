@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_accent.dart';
+import 'glass.dart';
 
 /// App-level user preferences that affect theming/appearance.
 ///
@@ -12,16 +13,21 @@ class AppSettings {
 
   static const _kDarkMode = 'dark_mode';
   static const _kAccentColor = 'accent_color_id';
+  static const _kReduceTransparency = 'reduce_transparency';
 
   /// Simple on/off dark mode (ignores the system setting, per user request).
   static final ValueNotifier<bool> darkMode = ValueNotifier(false);
 
   /// Active accent theme color.
-  static final ValueNotifier<AppAccent> accentColor =
-      ValueNotifier(AppAccent.sapphire);
+  static final ValueNotifier<AppAccent> accentColor = ValueNotifier(
+    AppAccent.sapphire,
+  );
 
-  static Listenable get listenable =>
-      Listenable.merge([darkMode, accentColor]);
+  static Listenable get listenable => Listenable.merge([
+    darkMode,
+    accentColor,
+    GlassCapability.reduceTransparency,
+  ]);
 
   /// Load persisted prefs. Defaults dark mode to the current platform
   /// brightness on first launch so the initial look matches the OS.
@@ -29,6 +35,8 @@ class AppSettings {
     darkMode.value = prefs.getBool(_kDarkMode) ?? (platform == Brightness.dark);
     final accentId = prefs.getString(_kAccentColor);
     accentColor.value = AppAccent.fromId(accentId);
+    GlassCapability.reduceTransparency.value =
+        prefs.getBool(_kReduceTransparency) ?? false;
   }
 
   static Future<void> setDarkMode(bool value) async {
@@ -41,5 +49,11 @@ class AppSettings {
     accentColor.value = accent;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kAccentColor, accent.id);
+  }
+
+  static Future<void> setReduceTransparency(bool value) async {
+    GlassCapability.reduceTransparency.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kReduceTransparency, value);
   }
 }

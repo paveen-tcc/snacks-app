@@ -59,7 +59,7 @@ class _DrinksBlueHeaderState extends State<DrinksBlueHeader> {
     ),
     HeaderTabItem<DrinkFormat>(
       value: DrinkFormat.can,
-      label: 'Tins & Cans',
+      label: 'Tins',
       selectedIcon: Symbols.sports_bar_rounded,
       unselectedIcon: Symbols.sports_bar_rounded,
     ),
@@ -118,7 +118,9 @@ class _DrinksBlueHeaderState extends State<DrinksBlueHeader> {
 
               // 1. Search Bar + View Toggle (3D / Grid)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.page,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -227,83 +229,96 @@ class _DrinksBlueHeaderState extends State<DrinksBlueHeader> {
 }
 
 class _ViewToggleCard extends StatelessWidget {
-  const _ViewToggleCard({
-    required this.isGrid,
-    required this.onChanged,
-  });
+  const _ViewToggleCard({required this.isGrid, required this.onChanged});
 
   final bool isGrid;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            isGrid ? 'GRID' : '3D',
-            style: const TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-              color: Color(0xFF1C1C1E),
-            ),
-          ),
-          const SizedBox(height: 2),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onChanged(!isGrid);
-            },
-            behavior: HitTestBehavior.opaque,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeInOut,
-              width: 38,
-              height: 20,
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: isGrid ? context.palette.brand : const Color(0xFFE2E8F0),
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return Semantics(
+      button: true,
+      toggled: isGrid,
+      label: isGrid ? 'Grid view enabled' : 'Interactive 3D view enabled',
+      hint: 'Double tap to switch views',
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(!isGrid);
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 52, minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-              alignment: isGrid ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 3,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  isGrid ? Icons.grid_view_rounded : Icons.view_in_ar_rounded,
-                  size: 10,
-                  color: isGrid ? context.palette.brand : const Color(0xFF64748B),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isGrid ? 'GRID' : '3D',
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: Color(0xFF1C1C1E),
                 ),
               ),
-            ),
+              const SizedBox(height: 2),
+              AnimatedContainer(
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                curve: Curves.easeInOut,
+                width: 38,
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: isGrid
+                      ? context.palette.brand
+                      : const Color(0xFFE2E8F0),
+                ),
+                alignment: isGrid
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x33000000),
+                        blurRadius: 3,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    isGrid ? Icons.grid_view_rounded : Icons.view_in_ar_rounded,
+                    size: 10,
+                    color: isGrid
+                        ? context.palette.brand
+                        : const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

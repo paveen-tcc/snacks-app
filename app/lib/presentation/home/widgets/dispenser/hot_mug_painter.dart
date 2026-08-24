@@ -46,8 +46,8 @@ class HotMugPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: isDark
-            ? [const Color(0xFF383844), const Color(0xFF22222A)]
-            : [const Color(0xFFE6E6EE), const Color(0xFFC6C6D2)],
+            ? [const Color(0xFF475569), const Color(0xFF334155), const Color(0xFF1E293B)]
+            : [const Color(0xFFFFFFFF), const Color(0xFFE2E8F0), const Color(0xFFCBD5E1)],
       ).createShader(Rect.fromLTWH(mugRight - 10, mugTop + 14, 48, 60))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 14
@@ -94,18 +94,25 @@ class HotMugPainter extends CustomPainter {
       end: Alignment.centerRight,
       colors: isDark
           ? [
-              const Color(0xFF2A2A36),
-              const Color(0xFF3A3A48),
-              const Color(0xFF1E1E28),
+              const Color(0xFF334155),
+              const Color(0xFF475569),
+              const Color(0xFF1E293B),
             ]
           : [
-              const Color(0xFFE2E2EA),
+              const Color(0xFFF8FAFC),
               const Color(0xFFFFFFFF),
-              const Color(0xFFD2D2DC),
+              const Color(0xFFE2E8F0),
             ],
     ).createShader(Rect.fromLTWH(mugLeft, mugTop, mugWidth, mugBottom - mugTop));
 
     canvas.drawPath(mugPath, Paint()..shader = ceramicShader);
+
+    // Ceramic Gloss Bevel Outline
+    final mugOutline = Paint()
+      ..color = (isDark ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1)).withValues(alpha: isDark ? 0.35 : 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    canvas.drawPath(mugPath, mugOutline);
 
     // 4. Liquid Inside the Mug Opening
     final rimRect = Rect.fromCenter(

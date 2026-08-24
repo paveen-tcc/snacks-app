@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { snacks, appSettings, holidays, shutdownDays, users, orders } from '../db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and, inArray } from 'drizzle-orm';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import type { AuthContext } from '../middleware/auth';
 import { isFcmConfigured } from '../lib/fcm';
 import { runManualOrderReminder } from '../scheduled';
+import { synchronizeDate } from '../lib/budget';
+import { getOrderWindow, officeDateString } from '../lib/orderWindow';
 
 const adminRoutes = new Hono<AuthContext>();
 
@@ -461,7 +463,14 @@ adminRoutes.post('/order-reminder', async (c) => {
 adminRoutes.get('/summary', async (c) => {
     try {
         const db = c.get('db');
-        const today = new Date().toISOString().split('T')[0];
+        const queryDate = c.req.query('date');
+        let selectedDate = queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)
+            ? queryDate
+            : null;
+        if (!selectedDate) {
+            const window = await getOrderWindow(db);
+            selectedDate = officeDateString(window.offsetMinutes, 0);
+        }
 
         const orderCounts = await db
             .select({
@@ -469,23 +478,26 @@ adminRoutes.get('/summary', async (c) => {
                 snackNameSnapshot: orders.snackNameSnapshot,
                 snackName: sql<string>`coalesce(${orders.snackNameSnapshot}, ${snacks.name}, 'Unknown')`,
                 snackEmoji: sql<string>`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
-                snackCategory: snacks.category,
+                snackCategory: sql<string>`coalesce(${orders.snackCategorySnapshot}, ${snacks.category})`,
+                snackPriceRupees: sql<number>`coalesce(${orders.snackPriceRupeesSnapshot}, ${snacks.priceRupees}, 0)`.mapWith(Number),
                 selectedCount: sql<number>`count(*)`.mapWith(Number),
                 shareCount: sql<number>`coalesce(max(${snacks.shareCount}), 1)`.mapWith(Number),
             })
             .from(orders)
             .leftJoin(snacks, eq(orders.snackId, snacks.id))
-            .where(sql`${orders.date} = ${today}`)
+            .where(sql`${orders.date} = ${selectedDate}`)
             .groupBy(
                 orders.snackId,
                 orders.snackNameSnapshot,
                 sql`coalesce(${orders.snackNameSnapshot}, ${snacks.name}, 'Unknown')`,
                 sql`coalesce(${snacks.emoji}, ${orders.snackEmojiSnapshot}, '🍽️')`,
-                snacks.category
+                sql`coalesce(${orders.snackCategorySnapshot}, ${snacks.category})`,
+                sql`coalesce(${orders.snackPriceRupeesSnapshot}, ${snacks.priceRupees}, 0)`
             );
 
-        const todayOrders = await db
+        const dateOrders = await db
             .select({
+                id: orders.id,
                 snackId: orders.snackId,
                 snackNameSnapshot: orders.snackNameSnapshot,
                 userId: orders.userId,
@@ -493,17 +505,21 @@ adminRoutes.get('/summary', async (c) => {
             })
             .from(orders)
             .innerJoin(users, eq(orders.userId, users.id))
-            .where(sql`${orders.date} = ${today}`);
+            .where(sql`${orders.date} = ${selectedDate}`);
 
         const allUsers = await db
-            .select({ id: users.id, username: users.username })
-            .from(users);
+            .select({ id: users.id, username: users.username, email: users.email })
+            .from(users)
+            .orderBy(users.username);
 
-        const orderedUserIds = new Set(todayOrders.map((o) => o.userId));
+        const orderedUserIds = new Set(dateOrders.map((o) => o.userId));
         const notOrdered = allUsers
             .filter((u) => !orderedUserIds.has(u.id))
             .map((u) => u.username)
             .sort((a, b) => a.localeCompare(b));
+        const notOrderedUsers = allUsers
+            .filter((u) => !orderedUserIds.has(u.id))
+            .map((u) => ({ id: u.id, username: u.username }));
 
         const foodItems: any[] = [];
         const drinkItems: any[] = [];
@@ -513,36 +529,201 @@ adminRoutes.get('/summary', async (c) => {
             const count = Math.ceil(item.selectedCount / Math.max(item.shareCount, 1));
             // Match by both snackId AND snapshot name to correctly separate
             // sugar-free vs regular drinks with the same snackId.
-            const usersList = todayOrders
+            const matchingOrders = dateOrders
                 .filter((o) => o.snackId === item.snackId &&
-                    o.snackNameSnapshot === item.snackNameSnapshot)
-                .map((o) => o.username);
+                    o.snackNameSnapshot === item.snackNameSnapshot);
+            const usersList = matchingOrders.map((o) => o.username);
+            const usersDetails = matchingOrders.map((o) => ({
+                id: o.userId,
+                username: o.username,
+                orderId: o.id,
+            }));
 
             if (item.snackCategory && item.snackCategory.toLowerCase() === 'drinks') {
                 drinkItems.push({
                     drinkId: item.snackId,
                     drinkName: item.snackName,
                     drinkEmoji: item.snackEmoji,
+                    priceRupees: item.snackPriceRupees,
                     count,
                     votedBy: usersList,
+                    users: usersDetails,
                 });
             } else {
                 foodItems.push({
                     snackId: item.snackId,
                     snackName: item.snackName,
                     snackEmoji: item.snackEmoji,
+                    priceRupees: item.snackPriceRupees,
                     count,
                     orderedBy: usersList,
+                    users: usersDetails,
                 });
                 totalOrders += count;
             }
         }
 
-        return c.json({ date: today, orders: foodItems, drinks: drinkItems, totalOrders, notOrdered }, 200);
+        return c.json({
+            date: selectedDate,
+            orders: foodItems,
+            drinks: drinkItems,
+            totalOrders,
+            notOrdered,
+            notOrderedUsers,
+            allUsers: allUsers.map((u) => ({ id: u.id, username: u.username })),
+        }, 200);
     } catch (err: any) {
         if (err instanceof Error && err.message.includes('shareCount')) {
             return c.json({ error: err.message }, 400);
         }
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.post('/summary/reassign-item', async (c) => {
+    try {
+        const db = c.get('db');
+        const { date, fromSnackId, fromSnackName, toSnackId, isSugarFree, userIds } = await c.req.json();
+
+        if (!date || !toSnackId) {
+            return c.json({ error: 'date and toSnackId are required' }, 400);
+        }
+
+        const [toSnack] = await db
+            .select()
+            .from(snacks)
+            .where(eq(snacks.id, toSnackId))
+            .limit(1);
+
+        if (!toSnack) {
+            return c.json({ error: 'Target snack not found in catalog' }, 404);
+        }
+
+        const snapshotName = isSugarFree
+            ? `${toSnack.name} (Sugar Free)`
+            : toSnack.name;
+
+        const conditions = [
+            eq(orders.date, date),
+            fromSnackId ? eq(orders.snackId, fromSnackId) : undefined,
+            fromSnackName ? eq(orders.snackNameSnapshot, fromSnackName) : undefined,
+            userIds && Array.isArray(userIds) && userIds.length > 0
+                ? inArray(orders.userId, userIds)
+                : undefined,
+        ].filter((cond): cond is NonNullable<typeof cond> => cond !== undefined);
+
+        const query = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+        const updated = await db.update(orders)
+            .set({
+                snackId: toSnack.id,
+                snackNameSnapshot: snapshotName,
+                snackEmojiSnapshot: toSnack.emoji,
+                snackPriceRupeesSnapshot: toSnack.priceRupees,
+                snackShareCountSnapshot: toSnack.shareCount,
+                snackCategorySnapshot: toSnack.category,
+                updatedAt: new Date(),
+            })
+            .where(query)
+            .returning({ id: orders.id });
+
+        // Synchronize budget ledger for this date
+        await synchronizeDate(db, date);
+
+        return c.json({ success: true, count: updated.length }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.post('/summary/user-order', async (c) => {
+    try {
+        const db = c.get('db');
+        const { userId, date, snackIds, sugarFreeSnackIds } = await c.req.json();
+
+        if (!userId || !date) {
+            return c.json({ error: 'userId and date are required' }, 400);
+        }
+
+        const rawSnackIds = (Array.isArray(snackIds) ? snackIds : [])
+            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+        const sugarFreeSet = new Set<string>(
+            Array.isArray(sugarFreeSnackIds) ? sugarFreeSnackIds.filter(
+                (v): v is string => typeof v === 'string'
+            ) : []
+        );
+
+        await db.delete(orders)
+            .where(and(eq(orders.userId, userId), eq(orders.date, date)));
+
+        if (rawSnackIds.length > 0) {
+            const uniqueSnackIds = Array.from(new Set(rawSnackIds));
+            const selectedSnacks = await db.select()
+                .from(snacks)
+                .where(inArray(snacks.id, uniqueSnackIds));
+
+            const snackMap = new Map(selectedSnacks.map((s) => [s.id, s]));
+
+            await db.insert(orders).values(
+                rawSnackIds.map((sId) => {
+                    const snack = snackMap.get(sId);
+                    if (!snack) {
+                        throw new Error(`Snack ${sId} not found in catalog`);
+                    }
+                    const isSugarFree = sugarFreeSet.has(sId);
+                    const snapshotName = isSugarFree
+                        ? `${snack.name} (Sugar Free)`
+                        : snack.name;
+                    return {
+                        userId,
+                        date,
+                        snackId: sId,
+                        snackNameSnapshot: snapshotName,
+                        snackEmojiSnapshot: snack.emoji,
+                        snackPriceRupeesSnapshot: snack.priceRupees,
+                        snackShareCountSnapshot: snack.shareCount,
+                        snackCategorySnapshot: snack.category,
+                        updatedAt: new Date(),
+                    };
+                })
+            );
+        }
+
+        // Synchronize budget ledger for this date
+        await synchronizeDate(db, date);
+
+        return c.json({ success: true }, 200);
+    } catch (err: any) {
+        return c.json({ error: err.message }, 500);
+    }
+});
+
+adminRoutes.delete('/summary/user-order', async (c) => {
+    try {
+        const db = c.get('db');
+        const { userId, date, snackId, orderId } = await c.req.json();
+
+        if (!userId || !date) {
+            return c.json({ error: 'userId and date are required' }, 400);
+        }
+
+        const conditions = [
+            eq(orders.userId, userId),
+            eq(orders.date, date),
+            orderId ? eq(orders.id, orderId) : undefined,
+            snackId ? eq(orders.snackId, snackId) : undefined,
+        ].filter((cond): cond is NonNullable<typeof cond> => cond !== undefined);
+
+        const query = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+        await db.delete(orders).where(query);
+
+        // Synchronize budget ledger for this date
+        await synchronizeDate(db, date);
+
+        return c.json({ success: true }, 200);
+    } catch (err: any) {
         return c.json({ error: err.message }, 500);
     }
 });

@@ -1,7 +1,4 @@
 PODS:
-  - audioplayers_darwin (0.0.1):
-    - Flutter
-    - FlutterMacOS
   - connectivity_plus (0.0.1):
     - FlutterMacOS
   - file_picker (0.0.1):
@@ -92,7 +89,6 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
-  - audioplayers_darwin (from `Flutter/ephemeral/.symlinks/plugins/audioplayers_darwin/darwin`)
   - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
   - firebase_core (from `Flutter/ephemeral/.symlinks/plugins/firebase_core/macos`)
@@ -118,8 +114,6 @@ SPEC REPOS:
     - PromisesObjC
 
 EXTERNAL SOURCES:
-  audioplayers_darwin:
-    :path: Flutter/ephemeral/.symlinks/plugins/audioplayers_darwin/darwin
   connectivity_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
   file_picker:
@@ -142,7 +136,6 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/webview_flutter_wkwebview/darwin
 
 SPEC CHECKSUMS:
-  audioplayers_darwin: 835ced6edd4c9fc8ebb0a7cc9e294a91d99917d5
   connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
   Firebase: d99ac19b909cd2c548339c2241ecd0d1599ab02e

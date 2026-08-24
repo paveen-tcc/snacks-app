@@ -26,7 +26,8 @@ class SkeuomorphicRockerSwitch extends StatefulWidget {
   final double height;
 
   @override
-  State<SkeuomorphicRockerSwitch> createState() => _SkeuomorphicRockerSwitchState();
+  State<SkeuomorphicRockerSwitch> createState() =>
+      _SkeuomorphicRockerSwitchState();
 }
 
 class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
@@ -60,7 +61,11 @@ class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
   void didUpdateWidget(covariant SkeuomorphicRockerSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isSugarFree != widget.isSugarFree) {
-      if (widget.isSugarFree) {
+      final reduceMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      if (reduceMotion) {
+        _rockController.value = widget.isSugarFree ? 1 : 0;
+      } else if (widget.isSugarFree) {
         _rockController.forward();
       } else {
         _rockController.reverse();
@@ -75,8 +80,7 @@ class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
   }
 
   void _toggle() {
-    HapticFeedback.heavyImpact();
-    SystemSound.play(SystemSoundType.click);
+    HapticFeedback.selectionClick();
     widget.onChanged(!widget.isSugarFree);
   }
 
@@ -84,105 +88,110 @@ class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
   Widget build(BuildContext context) {
     final isSugarOn = !widget.isSugarFree;
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) {
-        setState(() => _isPressed = false);
-        _toggle();
-      },
-      onTapCancel: () => setState(() => _isPressed = false),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedBuilder(
-        animation: _tiltAnimation,
-        builder: (context, child) {
-          final t = _tiltAnimation.value; // 0.0 (Sugar) -> 1.0 (No Sugar)
-          // Perspective tilt angle in radians (-0.22 to +0.22)
-          final tiltAngle = (t - 0.5) * 0.44;
+    return Semantics(
+      button: true,
+      toggled: widget.isSugarFree,
+      label: 'Sugar-free drink',
+      hint: widget.isSugarFree
+          ? 'Double tap to add regular sugar'
+          : 'Double tap to remove sugar',
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          _toggle();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedBuilder(
+          animation: _tiltAnimation,
+          builder: (context, child) {
+            final t = _tiltAnimation.value; // 0.0 (Sugar) -> 1.0 (No Sugar)
+            // Perspective tilt angle in radians (-0.22 to +0.22)
+            final tiltAngle = (t - 0.5) * 0.44;
 
-          return Container(
-            width: widget.width,
-            height: widget.height,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            decoration: BoxDecoration(
-              // Outer dark stainless / chassis bezel plate
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1F2126),
-                  Color(0xFF141518),
-                  Color(0xFF0D0E10),
+            return Container(
+              width: widget.width,
+              height: widget.height,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                // Outer dark stainless / chassis bezel plate
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1F2126),
+                    Color(0xFF141518),
+                    Color(0xFF0D0E10),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: const Color(0xFF2E3138), width: 1.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.70),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    blurRadius: 1,
+                    offset: const Offset(0, -1),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: const Color(0xFF2E3138),
-                width: 1.0,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.70),
-                  blurRadius: 6,
-                  offset: const Offset(0, 3),
-                ),
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  blurRadius: 1,
-                  offset: const Offset(0, -1),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // 1. Fixed printed bezel label — always reads "SUGAR", never swaps
-                _buildPrintedLabel('SUGAR', isActive: isSugarOn),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 1. Fixed printed bezel label — always reads "SUGAR", never swaps
+                  _buildPrintedLabel('SUGAR', isActive: isSugarOn),
 
-                const SizedBox(height: 2),
+                  const SizedBox(height: 2),
 
-                // 2. 3D Rocker Switch Button (icon only — the printed labels
-                // either side of it tell you which state is active)
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF090A0C),
-                      borderRadius: BorderRadius.circular(6),
-                      // Deep recessed inner cavity shadow
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.90),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
+                  // 2. 3D Rocker Switch Button (icon only — the printed labels
+                  // either side of it tell you which state is active)
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF090A0C),
+                        borderRadius: BorderRadius.circular(6),
+                        // Deep recessed inner cavity shadow
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.90),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            blurRadius: 0,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: const Color(0xFF181A1E),
+                          width: 1.0,
                         ),
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          blurRadius: 0,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: const Color(0xFF181A1E),
-                        width: 1.0,
                       ),
+                      padding: const EdgeInsets.all(2.5),
+                      child: _buildRockerPaddle(tiltAngle, isSugarOn, t),
                     ),
-                    padding: const EdgeInsets.all(2.5),
-                    child: _buildRockerPaddle(tiltAngle, isSugarOn, t),
                   ),
-                ),
 
-                const SizedBox(height: 2),
+                  const SizedBox(height: 2),
 
-                // 3. Fixed printed bezel label — always reads "0 SUGAR", never swaps
-                _buildPrintedLabel('0 SUGAR', isActive: !isSugarOn),
+                  // 3. Fixed printed bezel label — always reads "0 SUGAR", never swaps
+                  _buildPrintedLabel('0 SUGAR', isActive: !isSugarOn),
 
-                const SizedBox(height: 3),
+                  const SizedBox(height: 3),
 
-                // 4. Rectangular Translucent Jewel Indicator Lamp
-                _buildJewelIndicatorLamp(isSugarOn),
-              ],
-            ),
-          );
-        },
+                  // 4. Rectangular Translucent Jewel Indicator Lamp
+                  _buildJewelIndicatorLamp(isSugarOn),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -201,88 +210,89 @@ class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
           ..setEntry(3, 2, 0.003) // 3D perspective depth
           ..rotateX(-tiltAngle), // Rock on X-axis
         child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          // Heavy industrial matte plastic texture
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: const [0.0, 0.45, 0.55, 1.0],
-            colors: isSugarOn
-                ? [
-                    const Color(0xFF22242A), // Top slightly raised
-                    const Color(0xFF191B20),
-                    const Color(0xFF2E313A), // Bottom pushed out catching light
-                    const Color(0xFF383C46),
-                  ]
-                : [
-                    const Color(0xFF383C46), // Top pushed out catching light
-                    const Color(0xFF2E313A),
-                    const Color(0xFF191B20),
-                    const Color(0xFF22242A), // Bottom slightly recessed
-                  ],
-          ),
-          border: Border.all(
-            color: const Color(0xFF33363E),
-            width: 0.8,
-          ),
-          boxShadow: [
-            // Cast shadow from the raised edge of the rocker
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.85),
-              blurRadius: 3,
-              offset: isSugarOn ? const Offset(0, 2) : const Offset(0, -2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            // Heavy industrial matte plastic texture
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0.0, 0.45, 0.55, 1.0],
+              colors: isSugarOn
+                  ? [
+                      const Color(0xFF22242A), // Top slightly raised
+                      const Color(0xFF191B20),
+                      const Color(
+                        0xFF2E313A,
+                      ), // Bottom pushed out catching light
+                      const Color(0xFF383C46),
+                    ]
+                  : [
+                      const Color(0xFF383C46), // Top pushed out catching light
+                      const Color(0xFF2E313A),
+                      const Color(0xFF191B20),
+                      const Color(0xFF22242A), // Bottom slightly recessed
+                    ],
             ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Top edge specular bevel line
-            Positioned(
-              top: 1,
-              left: 3,
-              right: 3,
-              height: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: topLightAlpha),
-                  borderRadius: BorderRadius.circular(1),
+            border: Border.all(color: const Color(0xFF33363E), width: 0.8),
+            boxShadow: [
+              // Cast shadow from the raised edge of the rocker
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.85),
+                blurRadius: 3,
+                offset: isSugarOn ? const Offset(0, 2) : const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Top edge specular bevel line
+              Positioned(
+                top: 1,
+                left: 3,
+                right: 3,
+                height: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: topLightAlpha),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
                 ),
               ),
-            ),
 
-            // Bottom edge specular bevel line
-            Positioned(
-              bottom: 1,
-              left: 3,
-              right: 3,
-              height: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: bottomLightAlpha),
-                  borderRadius: BorderRadius.circular(1),
+              // Bottom edge specular bevel line
+              Positioned(
+                bottom: 1,
+                left: 3,
+                right: 3,
+                height: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: bottomLightAlpha),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
                 ),
               ),
-            ),
 
-            // Center Engraved Sugar-Cube Icon — a fixed mechanical glyph, not
-            // text, since real rocker switches never relabel themselves. When
-            // sugar is off, a "no" slash crosses out the cube.
-            CustomPaint(
-              size: const Size(20, 20),
-              painter: _SugarSymbolPainter(
-                color: Colors.white.withValues(alpha: isSugarOn ? 0.90 : 0.55),
-                showNoSugarSlash: !isSugarOn,
-                hasGlow: isSugarOn,
+              // Center Engraved Sugar-Cube Icon — a fixed mechanical glyph, not
+              // text, since real rocker switches never relabel themselves. When
+              // sugar is off, a "no" slash crosses out the cube.
+              CustomPaint(
+                size: const Size(20, 20),
+                painter: _SugarSymbolPainter(
+                  color: Colors.white.withValues(
+                    alpha: isSugarOn ? 0.90 : 0.55,
+                  ),
+                  showNoSugarSlash: !isSugarOn,
+                  hasGlow: isSugarOn,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// A fixed, non-swapping printed bezel label (as on a real dispenser plate).
   /// Only its brightness changes to show which side is currently active.
@@ -302,8 +312,12 @@ class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
   Widget _buildJewelIndicatorLamp(bool isSugarOn) {
     // When Sugar is ON, bright glowing ruby red lens (exactly like the reference photo)
     // When Sugar is OFF, cool mint green or darkened lens
-    final lensColor = isSugarOn ? const Color(0xFFFF2222) : const Color(0xFF00E676);
-    final coreColor = isSugarOn ? const Color(0xFFFF8A80) : const Color(0xFFB9F6CA);
+    final lensColor = isSugarOn
+        ? const Color(0xFFFF2222)
+        : const Color(0xFF00E676);
+    final coreColor = isSugarOn
+        ? const Color(0xFFFF8A80)
+        : const Color(0xFFB9F6CA);
 
     return Container(
       width: 26,
@@ -311,16 +325,9 @@ class _SkeuomorphicRockerSwitchState extends State<SkeuomorphicRockerSwitch>
       decoration: BoxDecoration(
         color: const Color(0xFF08080A),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: const Color(0xFF22242A),
-          width: 0.8,
-        ),
+        border: Border.all(color: const Color(0xFF22242A), width: 0.8),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 2,
-            offset: Offset(0, 1),
-          ),
+          BoxShadow(color: Colors.black54, blurRadius: 2, offset: Offset(0, 1)),
         ],
       ),
       padding: const EdgeInsets.all(1.2),
@@ -449,7 +456,11 @@ class _SugarSymbolPainter extends CustomPainter {
       ..close();
     canvas.drawPath(topFace, paint);
 
-    canvas.drawLine(Offset(right, bottom), Offset(right + skew, bottom - skew * 0.85), paint);
+    canvas.drawLine(
+      Offset(right, bottom),
+      Offset(right + skew, bottom - skew * 0.85),
+      paint,
+    );
     canvas.drawLine(
       Offset(right + skew, top - skew * 0.85),
       Offset(right + skew, bottom - skew * 0.85),

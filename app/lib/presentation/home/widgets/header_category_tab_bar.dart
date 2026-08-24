@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../core/design/app_theme.dart';
 import '../../../core/design/app_tokens.dart';
@@ -57,8 +56,9 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
     for (final item in widget.items) {
       _itemKeys[item.value] = GlobalKey();
     }
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _updateIndicator(animateScroll: false));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateIndicator(animateScroll: false),
+    );
   }
 
   @override
@@ -69,8 +69,9 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
     }
     if (oldWidget.selectedValue != widget.selectedValue ||
         oldWidget.items != widget.items) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _updateIndicator(animateScroll: true));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _updateIndicator(animateScroll: true),
+      );
     }
   }
 
@@ -90,8 +91,9 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
     final rowBox = _rowKey.currentContext!.findRenderObject() as RenderBox?;
     if (chipBox == null || rowBox == null) return;
 
-    final localOffset =
-        rowBox.globalToLocal(chipBox.localToGlobal(Offset.zero));
+    final localOffset = rowBox.globalToLocal(
+      chipBox.localToGlobal(Offset.zero),
+    );
     final width = chipBox.size.width;
     final left = localOffset.dx;
 
@@ -104,22 +106,37 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
     if (animateScroll && _scrollController.hasClients) {
       final parentBox = context.findRenderObject() as RenderBox?;
       final viewportWidth = parentBox?.size.width ?? 360.0;
-      final targetScroll = (left - (viewportWidth / 2) + (width / 2))
-          .clamp(0.0, _scrollController.position.maxScrollExtent);
-      _scrollController.animateTo(
-        targetScroll,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
+      final targetScroll = (left - (viewportWidth / 2) + (width / 2)).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
       );
+      final reduceMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      if (reduceMotion) {
+        _scrollController.jumpTo(targetScroll);
+      } else {
+        _scrollController.animateTo(
+          targetScroll,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isScrolled = widget.isScrolled;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
+    final barHeight = 56.0 + ((textScale - 1) * 20);
+    final duration = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 280);
 
     return SizedBox(
-      height: 56,
+      height: barHeight,
       width: double.infinity,
       child: Stack(
         alignment: Alignment.bottomCenter,
@@ -147,12 +164,12 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
                 // Gliding Arched Indicator Bridge
                 if (_hasMeasured)
                   AnimatedPositioned(
-                    duration: const Duration(milliseconds: 280),
+                    duration: duration,
                     curve: Curves.easeInOutCubic,
                     left: _indicatorLeft,
                     bottom: 0,
                     width: _indicatorWidth,
-                    height: 56,
+                    height: barHeight,
                     child: CustomPaint(
                       painter: _HeaderArchedIndicatorPainter(
                         activeColor: isScrolled
@@ -160,8 +177,8 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
                             : Colors.white,
                         bgColor: isScrolled
                             ? (Theme.of(context).brightness == Brightness.dark
-                                ? context.palette.surface
-                                : Colors.white)
+                                  ? context.palette.surface
+                                  : Colors.white)
                             : context.palette.headerGradient.last,
                       ),
                     ),
@@ -178,49 +195,62 @@ class _HeaderCategoryTabBarState<T> extends State<HeaderCategoryTabBar<T>> {
                             ? item.selectedIcon
                             : item.unselectedIcon;
 
-                        return PressableScale(
+                        return Semantics(
                           key: _itemKeys[item.value],
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            widget.onChanged(item.value);
-                          },
-                          child: Container(
-                            height: 56,
-                            padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
-                            alignment: Alignment.center,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  icon,
-                                  size: isSelected ? 20 : 18,
-                                  color: isSelected
-                                      ? (isScrolled
-                                          ? context.palette.brand
-                                          : Colors.white)
-                                      : (isScrolled
-                                          ? const Color(0xFF64748B)
-                                          : Colors.white.withValues(alpha: 0.72)),
+                          button: true,
+                          selected: isSelected,
+                          label: item.label,
+                          child: ExcludeSemantics(
+                            child: PressableScale(
+                              onTap: () => widget.onChanged(item.value),
+                              child: Container(
+                                height: barHeight,
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  2,
+                                  14,
+                                  8,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    color: isSelected
-                                        ? (isScrolled
-                                            ? context.palette.brand
-                                            : Colors.white)
-                                        : (isScrolled
-                                            ? const Color(0xFF64748B)
-                                            : Colors.white.withValues(alpha: 0.72)),
-                                  ),
+                                alignment: Alignment.center,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      icon,
+                                      size: isSelected ? 20 : 18,
+                                      color: isSelected
+                                          ? (isScrolled
+                                                ? context.palette.brand
+                                                : Colors.white)
+                                          : (isScrolled
+                                                ? const Color(0xFF64748B)
+                                                : Colors.white.withValues(
+                                                    alpha: 0.72,
+                                                  )),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      item.label,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: isSelected
+                                            ? (isScrolled
+                                                  ? context.palette.brand
+                                                  : Colors.white)
+                                            : (isScrolled
+                                                  ? const Color(0xFF64748B)
+                                                  : Colors.white.withValues(
+                                                      alpha: 0.72,
+                                                    )),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         );

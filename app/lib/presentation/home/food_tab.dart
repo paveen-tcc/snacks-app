@@ -1,22 +1,22 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/constants/snack_categories.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
-import '../../core/widgets/app_card.dart';
 import '../../core/widgets/food_card.dart';
 import '../../core/widgets/illustrations.dart';
 import 'bloc/home_bloc.dart';
 import 'home_helpers.dart';
 import 'widgets/home_blue_header.dart';
+import 'widgets/shutdown_view.dart';
 
 /// Food tab — continuous top blue header matching Figma (Search, Veg, Categories,
 /// Hero Banner with live timer and 3D team visual), followed by the snacks grid.
 class FoodTab extends StatefulWidget {
-  const FoodTab({super.key});
+  const FoodTab({super.key, this.isActive = true});
+
+  final bool isActive;
 
   @override
   State<FoodTab> createState() => _FoodTabState();
@@ -33,8 +33,18 @@ class _FoodTabState extends State<FoodTab> {
         if (state is! HomeLoaded) return const SizedBox.shrink();
         final bloc = context.read<HomeBloc>();
 
-        if (state.isShutdown) return _Shutdown(state: state);
+        if (state.isShutdown) return ShutdownView(state: state);
         final isClosed = isOrderingClosed(state);
+        final hasBottomCart =
+            state.selectedSnackIds.isNotEmpty ||
+            state.confirmedSnackIds.isNotEmpty ||
+            state.todaysOrders.isNotEmpty;
+        final bottomClearance =
+            AppSpacing.x5 +
+            AppSpacing.x5 +
+            AppSpacing.lg +
+            MediaQuery.paddingOf(context).bottom +
+            (hasBottomCart ? 64 : 0);
 
         final isVegMode = state.filter == 'Veg';
 
@@ -49,14 +59,15 @@ class _FoodTabState extends State<FoodTab> {
 
         final query = _query.trim().toLowerCase();
         final snacks = state.snacks.where((s) {
-          if (displaySnackCategory(s.category).toLowerCase() == 'drinks') return false;
+          if (displaySnackCategory(s.category).toLowerCase() == 'drinks') {
+            return false;
+          }
           if (isVegMode && s.isVeg != true) return false;
           if (category != 'All' &&
               displaySnackCategory(s.category) != category) {
             return false;
           }
-          if (query.isNotEmpty &&
-              !s.name.toLowerCase().contains(query)) {
+          if (query.isNotEmpty && !s.name.toLowerCase().contains(query)) {
             return false;
           }
           return true;
@@ -67,8 +78,7 @@ class _FoodTabState extends State<FoodTab> {
           behavior: HitTestBehavior.translucent,
           child: RefreshIndicator.adaptive(
             onRefresh: () async {
-              bloc.add(RefreshHome());
-              await Future.delayed(const Duration(milliseconds: 600));
+              await refreshHomeAndWait(bloc);
             },
             child: CustomScrollView(
               key: const PageStorageKey('food_tab_scroll'),
@@ -88,6 +98,9 @@ class _FoodTabState extends State<FoodTab> {
                     selectedCategory: category,
                     onCategorySelected: (c) => setState(() => _category = c),
                     topPadding: MediaQuery.of(context).padding.top,
+                    textScale: MediaQuery.textScalerOf(
+                      context,
+                    ).scale(1).clamp(1.0, 2.0),
                   ),
                 ),
 
@@ -95,15 +108,16 @@ class _FoodTabState extends State<FoodTab> {
                 SliverToBoxAdapter(
                   child: HomeHeroBanner(
                     state: state,
+                    isActive: widget.isActive,
                   ),
                 ),
                 if (snacks.isEmpty)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(
+                    padding: EdgeInsets.fromLTRB(
                       AppSpacing.page,
                       AppSpacing.lg,
                       AppSpacing.page,
-                      0,
+                      bottomClearance,
                     ),
                     sliver: SliverToBoxAdapter(
                       child: _EmptyResults(query: query),
@@ -111,41 +125,61 @@ class _FoodTabState extends State<FoodTab> {
                   ),
                 if (snacks.isNotEmpty)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(
+                    padding: EdgeInsets.fromLTRB(
                       AppSpacing.page,
                       AppSpacing.md,
                       AppSpacing.page,
-                      AppSpacing.x5 + AppSpacing.x5 + AppSpacing.lg,
+                      bottomClearance,
                     ),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            mainAxisExtent: 198,
-                          ),
-                      delegate: SliverChildBuilderDelegate((
-                        context,
-                        index,
-                      ) {
-                        final s = snacks[index];
-                        final count = state.selectedSnackIds
-                            .where((id) => id == s.id)
-                            .length;
-                        return SnackCard(
-                          name: s.name,
-                          isVeg: s.isVeg,
-                          emoji: s.emoji,
-                          servingSize: s.servingSize ?? '1 Unit',
-                          selected: count > 0,
-                          count: count,
-                          disabled: isClosed,
-                          onTap: isClosed ? null : () => bloc.add(IncrementSnack(s.id)),
-                          onIncrement: isClosed ? null : () => bloc.add(IncrementSnack(s.id)),
-                          onDecrement: isClosed ? null : () => bloc.add(DecrementSnack(s.id)),
+                    sliver: SliverLayoutBuilder(
+                      builder: (context, constraints) {
+                        final textScale = MediaQuery.textScalerOf(
+                          context,
+                        ).scale(1).clamp(1.0, 2.0);
+                        final columns = (constraints.crossAxisExtent / 105)
+                            .floor()
+                            .clamp(3, 8);
+                        final cardWidth =
+                            (constraints.crossAxisExtent - (columns - 1) * 10) /
+                            columns;
+                        return SliverGrid(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 12,
+                                mainAxisExtent:
+                                    cardWidth + 86 + ((textScale - 1) * 34),
+                              ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final s = snacks[index];
+                            final count = state.selectedSnackIds
+                                .where((id) => id == s.id)
+                                .length;
+                            return SnackCard(
+                              name: s.name,
+                              isVeg: s.isVeg,
+                              emoji: s.emoji,
+                              servingSize: s.servingSize ?? '1 Unit',
+                              selected: count > 0,
+                              count: count,
+                              disabled: isClosed,
+                              onTap: isClosed
+                                  ? null
+                                  : () => bloc.add(IncrementSnack(s.id)),
+                              onIncrement: isClosed
+                                  ? null
+                                  : () => bloc.add(IncrementSnack(s.id)),
+                              onDecrement: isClosed
+                                  ? null
+                                  : () => bloc.add(DecrementSnack(s.id)),
+                            );
+                          }, childCount: snacks.length),
                         );
-                      }, childCount: snacks.length),
+                      },
                     ),
                   ),
               ],
@@ -156,8 +190,6 @@ class _FoodTabState extends State<FoodTab> {
     );
   }
 }
-
-
 
 class _EmptyResults extends StatelessWidget {
   const _EmptyResults({required this.query});
@@ -175,49 +207,6 @@ class _EmptyResults extends StatelessWidget {
             Text(
               query.isEmpty ? 'No snacks here' : 'No snacks match "$query"',
               style: context.text.titleSmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Shutdown extends StatelessWidget {
-  const _Shutdown({required this.state});
-  final HomeLoaded state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.x3),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ShutdownIllustration(width: 220),
-            const SizedBox(height: AppSpacing.xxl),
-            Text(
-              state.shutdownType == 'holiday'
-                  ? 'Happy Holiday!'
-                  : 'No Orders Today',
-              style: context.text.titleLarge,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              state.shutdownReason ?? 'The kitchen is taking a break today',
-              style: context.text.bodyMedium?.copyWith(
-                color: context.palette.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-            StatusBanner(
-              tone: StatusTone.info,
-              icon: state.shutdownType == 'holiday'
-                  ? Icons.celebration_rounded
-                  : Icons.info_outline_rounded,
-              title: 'Orders will resume on the next working day',
             ),
           ],
         ),

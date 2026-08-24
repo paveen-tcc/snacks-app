@@ -15,15 +15,18 @@ import 'hot_mug_painter.dart';
 import 'shaker_cup_painter.dart';
 import 'themed_dispenser_svg.dart';
 
-/// The complete interactive 3D Drink Dispenser with balanced vertical layout,
-/// authentic top machine dispensers for Cold and Hot brews, and multi-can 3D carousel.
+/// The interactive drink dispenser with cold, hot, and single-can previews.
 class DrinkDispenserStage extends StatefulWidget {
   const DrinkDispenserStage({
     super.key,
     required this.allDrinks,
     required this.selectedSnackIds,
+    required this.sugarFreePrefs,
+    this.hasBottomCart = false,
     required this.onIncrement,
     required this.onDecrement,
+    required this.onToggleSugarFree,
+    required this.isActive,
     this.selectedFormat,
     this.onFormatChanged,
     this.showTopTabs = true,
@@ -32,8 +35,12 @@ class DrinkDispenserStage extends StatefulWidget {
 
   final List<LocalSnack> allDrinks;
   final List<String> selectedSnackIds;
+  final Map<String, bool> sugarFreePrefs;
+  final bool hasBottomCart;
   final ValueChanged<LocalSnack> onIncrement;
   final ValueChanged<LocalSnack> onDecrement;
+  final ValueChanged<LocalSnack> onToggleSugarFree;
+  final bool isActive;
   final DrinkFormat? selectedFormat;
   final ValueChanged<DrinkFormat>? onFormatChanged;
   final bool showTopTabs;
@@ -49,8 +56,8 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
   int _activeDrinkIndex = 0;
   bool _isFilled = false;
   bool _isPouring = false;
-  bool _isSugarFree = false;
   double _tiltAngle = 0.0;
+  bool _reduceMotion = false;
 
   // Animation Controllers
   late final AnimationController _liquidFillController;
@@ -67,6 +74,11 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
       _initFormatAndIndex();
     }
 
+    _canPageController = PageController(
+      viewportFraction: 0.58,
+      initialPage: _activeDrinkIndex,
+    );
+
     _liquidFillController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 850),
@@ -75,7 +87,7 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     _waveLoopController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
-    )..repeat();
+    );
 
     _iceFallController = AnimationController(
       vsync: this,
@@ -85,7 +97,7 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     _steamLoopController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2800),
-    )..repeat();
+    );
 
     _initFormatAndIndex();
     _activeDrinkIndex = 0;
@@ -93,10 +105,29 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     // cold/hot dispensers start empty until the user taps a flavor.
     _isFilled = _selectedFormat == DrinkFormat.can;
     _liquidFillController.value = 0.0;
-    _canPageController = PageController(
-      initialPage: 0,
-      viewportFraction: 0.48,
-    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    _syncLoopAnimations();
+  }
+
+  void _syncLoopAnimations() {
+    final animate = widget.isActive && !_reduceMotion;
+    final animateWave = animate && _selectedFormat == DrinkFormat.coldJuice;
+    final animateSteam = animate && _selectedFormat == DrinkFormat.hotBrew;
+    if (animateWave && !_waveLoopController.isAnimating) {
+      _waveLoopController.repeat();
+    } else if (!animateWave && _waveLoopController.isAnimating) {
+      _waveLoopController.stop();
+    }
+    if (animateSteam && !_steamLoopController.isAnimating) {
+      _steamLoopController.repeat();
+    } else if (!animateSteam && _steamLoopController.isAnimating) {
+      _steamLoopController.stop();
+    }
   }
 
   void _initFormatAndIndex() {
@@ -127,25 +158,25 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     // Cans/tins: smoothly animate the 3D can carousel to the selected page
     if (_selectedFormat == DrinkFormat.can) {
       _isPouring = false;
-      if (_canPageController.positions.length == 1 && _canPageController.page?.round() != index) {
+      if (_canPageController.hasClients) {
         _canPageController.animateToPage(
           index,
-          duration: const Duration(milliseconds: 320),
+          duration: const Duration(milliseconds: 360),
           curve: Curves.easeOutCubic,
         );
       }
       return;
     }
 
-    // Acoustic pouring sound and multi-stage fluid feedback (only for poured drinks)
-    SystemSound.play(SystemSoundType.click);
+    // One intentional feedback event; repeated haptics can feel noisy and cost
+    // battery on long selection sessions.
     HapticFeedback.mediumImpact();
-    for (int i = 1; i <= 5; i++) {
-      Future.delayed(Duration(milliseconds: i * 120), () {
-        if (mounted && _isFilled && _selectedFormat != DrinkFormat.can) {
-          HapticFeedback.selectionClick();
-        }
-      });
+
+    if (_reduceMotion) {
+      _liquidFillController.value = 1;
+      _iceFallController.value = 1;
+      setState(() => _isPouring = false);
+      return;
     }
 
     _liquidFillController.reset();
@@ -175,12 +206,21 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     super.didUpdateWidget(oldWidget);
     if (widget.selectedFormat != null &&
         widget.selectedFormat != _selectedFormat) {
-      setState(() {
-        _selectedFormat = widget.selectedFormat!;
-        _activeDrinkIndex = 0;
-        _isFilled = _selectedFormat == DrinkFormat.can;
-        _liquidFillController.value = 0.0;
-      });
+      _selectedFormat = widget.selectedFormat!;
+      _activeDrinkIndex = 0;
+      _isFilled = _selectedFormat == DrinkFormat.can;
+      _liquidFillController.value = 0.0;
+      if (_selectedFormat == DrinkFormat.can) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_canPageController.hasClients) {
+            _canPageController.jumpToPage(0);
+          }
+        });
+      }
+      _syncLoopAnimations();
+    }
+    if (oldWidget.isActive != widget.isActive) {
+      _syncLoopAnimations();
     }
   }
 
@@ -195,8 +235,14 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     // dispensers stay unselected — an empty glass — until a flavor is tapped.
     final hasSelection = _selectedFormat == DrinkFormat.can || _isFilled;
     final activeDrink = hasDrinks && hasSelection
-        ? currentFormatDrinks[_activeDrinkIndex.clamp(0, currentFormatDrinks.length - 1)]
+        ? currentFormatDrinks[_activeDrinkIndex.clamp(
+            0,
+            currentFormatDrinks.length - 1,
+          )]
         : null;
+    final isSugarFree = activeDrink == null
+        ? false
+        : widget.sugarFreePrefs[activeDrink.id] ?? false;
 
     final presentation = activeDrink != null
         ? DrinkPresentation.fromSnack(activeDrink)
@@ -225,14 +271,16 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.page,
+                vertical: AppSpacing.xs,
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 8),
-
                   // TOP MACHINE DISPENSER ARTWORK (Juice.svg for Cold Juice, Coffee.svg for Hot Brew)
-                  if (_selectedFormat != DrinkFormat.can && currentFormatDrinks.isNotEmpty)
+                  if (_selectedFormat != DrinkFormat.can &&
+                      currentFormatDrinks.isNotEmpty)
                     ThemedDispenserSvg(
                       format: _selectedFormat,
                       height: 118,
@@ -242,22 +290,25 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
 
                   const SizedBox(height: 8),
 
-                  // 2. Persistent 3D Container Stage (IndexedStack ensures 3D WebGL stays warm and loaded)
+                  // 2. Preview stage. The inactive 3D platform view is removed
+                  // so it cannot consume GPU resources behind another format.
                   SizedBox(
                     width: double.infinity,
                     height: _selectedFormat == DrinkFormat.can
                         ? 275
-                        : (_selectedFormat == DrinkFormat.coldJuice ? 190 : 180),
+                        : (_selectedFormat == DrinkFormat.coldJuice
+                              ? 190
+                              : 180),
                     child: Center(
                       child: IndexedStack(
                         index: stageIndex,
                         alignment: Alignment.center,
                         children: [
                           // 0: Cold Juice Shaker Cup
-                          _buildColdCup(presentation, isDark),
+                          _buildColdCup(presentation, isDark, isSugarFree),
                           // 1: Hot Brew Ceramic Mug
-                          _buildHotMug(presentation, isDark),
-                          // 2: 3D Multi-Can Carousel (Full original size)
+                          _buildHotMug(presentation, isDark, isSugarFree),
+                          // 2: 3D Multi-Can Carousel (Swipeable with side cans visible)
                           _buildCanCarousel(canDrinks, isDark),
                         ],
                       ),
@@ -271,12 +322,18 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
                     DrinkCarousel(
                       drinks: currentFormatDrinks,
                       selectedIndex: _isFilled
-                          ? _activeDrinkIndex.clamp(0, currentFormatDrinks.length - 1)
+                          ? _activeDrinkIndex.clamp(
+                              0,
+                              currentFormatDrinks.length - 1,
+                            )
                           : -1,
                       onDrinkSelected: _pourDrink,
-                      isSugarFree: _isSugarFree,
-                      onSugarFreeChanged: (sugarFree) =>
-                          setState(() => _isSugarFree = sugarFree),
+                      isSugarFree: isSugarFree,
+                      onSugarFreeChanged: (_) {
+                        if (activeDrink != null) {
+                          widget.onToggleSugarFree(activeDrink);
+                        }
+                      },
                       selectedSnackIds: widget.selectedSnackIds,
                       onIncrement: widget.onIncrement,
                       onDecrement: widget.onDecrement,
@@ -284,7 +341,12 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
                       disabled: widget.disabled,
                     ),
 
-                  const SizedBox(height: 60), // Bottom clearance for floating bar
+                  SizedBox(
+                    height:
+                        72 +
+                        MediaQuery.paddingOf(context).bottom +
+                        (widget.hasBottomCart ? 64 : 0),
+                  ),
                 ],
               ),
             ),
@@ -294,7 +356,11 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     );
   }
 
-  Widget _buildColdCup(DrinkPresentation presentation, bool isDark) {
+  Widget _buildColdCup(
+    DrinkPresentation presentation,
+    bool isDark,
+    bool isSugarFree,
+  ) {
     return AnimatedBuilder(
       animation: Listenable.merge([
         _liquidFillController,
@@ -314,26 +380,29 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
         return GestureDetector(
           onHorizontalDragUpdate: (details) {
             setState(() {
-              _tiltAngle = (_tiltAngle + (details.primaryDelta ?? 0) * 0.008).clamp(-0.40, 0.40);
+              _tiltAngle = (_tiltAngle + (details.primaryDelta ?? 0) * 0.008)
+                  .clamp(-0.40, 0.40);
             });
           },
           onHorizontalDragEnd: (_) {
             setState(() => _tiltAngle = 0.0);
           },
-          child: CustomPaint(
-            size: const Size(155, 190),
-            painter: ShakerCupPainter(
-              liquidColor: presentation.primaryColor,
-              secondaryLiquidColor: presentation.secondaryColor,
-              accentLiquidColor: presentation.accentColor,
-              fillLevel: fillVal,
-              wavePhase: waveVal,
-              streamProgress: streamVal,
-              iceProgress: iceVal,
-              hasIce: true,
-              hasSugar: !_isSugarFree,
-              isDark: isDark,
-              tiltAngle: _tiltAngle,
+          child: RepaintBoundary(
+            child: CustomPaint(
+              size: const Size(155, 190),
+              painter: ShakerCupPainter(
+                liquidColor: presentation.primaryColor,
+                secondaryLiquidColor: presentation.secondaryColor,
+                accentLiquidColor: presentation.accentColor,
+                fillLevel: fillVal,
+                wavePhase: waveVal,
+                streamProgress: streamVal,
+                iceProgress: iceVal,
+                hasIce: true,
+                hasSugar: !isSugarFree,
+                isDark: isDark,
+                tiltAngle: _tiltAngle,
+              ),
             ),
           ),
         );
@@ -341,7 +410,11 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
     );
   }
 
-  Widget _buildHotMug(DrinkPresentation presentation, bool isDark) {
+  Widget _buildHotMug(
+    DrinkPresentation presentation,
+    bool isDark,
+    bool isSugarFree,
+  ) {
     return AnimatedBuilder(
       animation: Listenable.merge([
         _liquidFillController,
@@ -356,17 +429,19 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
             ? (1.0 - fillVal).clamp(0.0, 1.0)
             : 0.0;
 
-        return CustomPaint(
-          size: const Size(165, 180),
-          painter: HotMugPainter(
-            liquidColor: presentation.primaryColor,
-            secondaryLiquidColor: presentation.secondaryColor,
-            accentLiquidColor: presentation.accentColor,
-            fillLevel: fillVal,
-            streamProgress: streamVal,
-            steamPhase: steamVal,
-            hasSugar: !_isSugarFree,
-            isDark: isDark,
+        return RepaintBoundary(
+          child: CustomPaint(
+            size: const Size(165, 180),
+            painter: HotMugPainter(
+              liquidColor: presentation.primaryColor,
+              secondaryLiquidColor: presentation.secondaryColor,
+              accentLiquidColor: presentation.accentColor,
+              fillLevel: fillVal,
+              streamProgress: streamVal,
+              steamPhase: steamVal,
+              hasSugar: !isSugarFree,
+              isDark: isDark,
+            ),
           ),
         );
       },
@@ -376,69 +451,74 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
   Widget _buildCanCarousel(List<LocalSnack> drinks, bool isDark) {
     if (drinks.isEmpty) return const SizedBox.shrink();
 
-    // Lazily built (PageView.builder): each can's WebView is only created the
-    // first time it's scrolled into view, so devices never have to spin up
-    // several WebGL contexts at once (that's what caused the blank/gray
-    // renders). AutomaticKeepAliveClientMixin on Can3DRenderer means that once
-    // a can has been built and loaded, it's kept alive and never reloaded
-    // again — including when switching format tabs or bottom-nav tabs.
     return PageView.builder(
       controller: _canPageController,
       itemCount: drinks.length,
       clipBehavior: Clip.none,
-      onPageChanged: (index) {
-        if (_activeDrinkIndex != index) {
+      physics: const BouncingScrollPhysics(),
+      onPageChanged: (pageIndex) {
+        if (_activeDrinkIndex != pageIndex) {
+          HapticFeedback.selectionClick();
           setState(() {
-            _activeDrinkIndex = index;
+            _activeDrinkIndex = pageIndex;
             _isFilled = true;
           });
         }
       },
       itemBuilder: (context, index) {
+        final drink = drinks[index];
+        final drinkPresentation = DrinkPresentation.fromSnack(drink);
+
         return AnimatedBuilder(
           animation: _canPageController,
           builder: (context, child) {
-            // Guard with `positions.length == 1` (not just `hasClients`) before
-            // touching `.position` — that getter is `positions.single`
-            // internally and throws "Bad state: Too many elements" if this
-            // controller is ever transiently attached to more than one
-            // Scrollable (e.g. mid-rebuild while an old PageView is being torn
-            // down). That thrown StateError previously aborted this sliver's
-            // layout entirely, which is what made the can carousel go blank.
             double pageOffset = 0.0;
             if (_canPageController.positions.length == 1 &&
                 _canPageController.position.haveDimensions) {
-              pageOffset = (_canPageController.page ?? _canPageController.initialPage.toDouble()) - index;
+              pageOffset = (_canPageController.page ??
+                      _canPageController.initialPage.toDouble()) -
+                  index;
             } else {
               pageOffset = (_activeDrinkIndex - index).toDouble();
             }
 
             final distance = pageOffset.abs();
-            final scale = (1.0 - (distance * 0.22)).clamp(0.74, 1.0);
-            final xTranslation = -pageOffset * 22.0;
+            final scale = (1.0 - distance * 0.22).clamp(0.74, 1.0);
+            final opacity = (1.0 - distance * 0.45).clamp(0.35, 1.0);
+            final translationX = -pageOffset * 22.0;
+
+            final isCurrent = index == _activeDrinkIndex;
 
             return Transform.translate(
-              offset: Offset(xTranslation, 0),
+              offset: Offset(translationX, 0),
               child: Transform.scale(
                 scale: scale,
-                child: child,
+                child: Opacity(
+                  opacity: opacity,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (!isCurrent) {
+                        _pourDrink(index);
+                      }
+                    },
+                    child: Center(
+                      child: Can3DRenderer(
+                        key: ValueKey('can_3d_${drink.id}'),
+                        presentation: drinkPresentation,
+                        isDark: isDark,
+                        isActive:
+                            widget.isActive &&
+                            _selectedFormat == DrinkFormat.can &&
+                            isCurrent,
+                        semanticLabel: drink.name,
+                        fallbackAssetPath: drinkPresentation.logoAssetPath,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           },
-          child: GestureDetector(
-            onTap: () {
-              if (_activeDrinkIndex != index) {
-                _pourDrink(index);
-              }
-            },
-            child: Center(
-              child: Can3DRenderer(
-                key: ValueKey('can_item_${drinks[index].id}'),
-                presentation: DrinkPresentation.fromSnack(drinks[index]),
-                isDark: isDark,
-              ),
-            ),
-          ),
         );
       },
     );
@@ -460,7 +540,7 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
       ),
       CategoryItem(
         key: DrinkFormat.can.name,
-        label: 'Tins & Cans',
+        label: 'Tins',
         icon: Symbols.sports_bar_rounded,
         selectedIcon: Symbols.sports_bar_rounded,
       ),
@@ -485,13 +565,9 @@ class _DrinkDispenserStageState extends State<DrinkDispenserStage>
             if (fmt == DrinkFormat.can) {
               // Tins/cans always show the first one pre-selected (no pour animation).
               setState(() => _isFilled = true);
-              // `jumpToPage` reads `.position` internally too — same
-              // "Too many elements" hazard as elsewhere, so guard the same way.
-              if (_canPageController.positions.length == 1) {
-                _canPageController.jumpToPage(0);
-              }
             }
             // Cold/hot dispensers stay empty (no flavor picked, no pour) until tapped.
+            _syncLoopAnimations();
           }
         },
       ),

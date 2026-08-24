@@ -49,9 +49,67 @@ class AdminRepository {
     return Map<String, dynamic>.from(r.data);
   }
 
-  Future<Map<String, dynamic>> getSummary() async {
-    final r = await _apiClient.dio.get('/admin/summary');
+  Future<Map<String, dynamic>> getSummary({String? date}) async {
+    final r = await _apiClient.dio.get(
+      '/admin/summary',
+      queryParameters: date != null ? {'date': date} : null,
+    );
     return Map<String, dynamic>.from(r.data);
+  }
+
+  Future<void> reassignSummaryItem({
+    required String date,
+    required String toSnackId,
+    String? fromSnackId,
+    String? fromSnackName,
+    bool? isSugarFree,
+    List<String>? userIds,
+  }) async {
+    await _apiClient.dio.post(
+      '/admin/summary/reassign-item',
+      data: {
+        'date': date,
+        'toSnackId': toSnackId,
+        'fromSnackId': ?fromSnackId,
+        'fromSnackName': ?fromSnackName,
+        'isSugarFree': ?isSugarFree,
+        'userIds': ?userIds,
+      },
+    );
+  }
+
+  Future<void> updateUserOrderAdmin({
+    required String userId,
+    required String date,
+    required List<String> snackIds,
+    List<String>? sugarFreeSnackIds,
+  }) async {
+    await _apiClient.dio.post(
+      '/admin/summary/user-order',
+      data: {
+        'userId': userId,
+        'date': date,
+        'snackIds': snackIds,
+        'sugarFreeSnackIds': ?sugarFreeSnackIds,
+      },
+    );
+  }
+
+  Future<void> deleteUserOrderAdmin({
+    required String userId,
+    required String date,
+    String? snackId,
+    String? orderId,
+  }) async {
+    await _apiClient.dio.delete(
+      '/admin/summary/user-order',
+      data: {
+        'userId': userId,
+        'date': date,
+        'snackId': ?snackId,
+        'orderId': ?orderId,
+      },
+    );
   }
 
   Future<List<Map<String, dynamic>>> getUsers() async {

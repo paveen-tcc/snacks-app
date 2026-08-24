@@ -9,7 +9,7 @@ enum DrinkFormat { coldJuice, hotBrew, can }
 String drinkFormatLabel(DrinkFormat format) => switch (format) {
   DrinkFormat.coldJuice => 'Cold Brews',
   DrinkFormat.hotBrew => 'Hot Brews',
-  DrinkFormat.can => 'Tins & Cans',
+  DrinkFormat.can => 'Tins',
 };
 
 IconData drinkFormatIcon(DrinkFormat format) => switch (format) {
@@ -63,21 +63,28 @@ class DrinkPresentation {
       );
     }
     if (name.contains('monster')) {
-      final isUltra = name.contains('ultra') ||
+      final isUltra =
+          name.contains('ultra') ||
           name.contains('white') ||
           name.contains('zero');
       return DrinkPresentation(
         format: DrinkFormat.can,
-        primaryColor: isUltra ? const Color(0xFFF5F5F5) : const Color(0xFF141414),
-        secondaryColor: isUltra ? const Color(0xFFBDBDBD) : const Color(0xFF242424),
-        accentColor: isUltra ? const Color(0xFF00B0FF) : const Color(0xFF39FF14),
+        primaryColor: isUltra
+            ? const Color(0xFFF5F5F5)
+            : const Color(0xFF141414),
+        secondaryColor: isUltra
+            ? const Color(0xFFBDBDBD)
+            : const Color(0xFF242424),
+        accentColor: isUltra
+            ? const Color(0xFF00B0FF)
+            : const Color(0xFF39FF14),
         iconData: Symbols.electric_bolt_rounded,
         subtitle: isUltra ? 'Zero Ultra • 350ml' : 'Energy Drink • 350ml',
         canBrand: 'MONSTER',
         model3dPath: isUltra
             ? 'assets/models/monster_ultra_zero.glb'
             : 'assets/models/monster_green.glb',
-        logoAssetPath: localAsset ?? 'assets/images/drinks/monster_logo.jpg',
+        logoAssetPath: localAsset ?? 'assets/images/drinks/monster_logo.webp',
       );
     }
     if (name.contains('diet coke') ||
@@ -90,9 +97,9 @@ class DrinkPresentation {
         accentColor: const Color(0xFFE51C23),
         iconData: Symbols.local_drink_rounded,
         subtitle: 'Zero Sugar • 300ml',
-        canBrand: 'COKE',
+        canBrand: 'DIET_COKE',
         model3dPath: 'assets/models/diet_coke_can.glb',
-        logoAssetPath: localAsset ?? 'assets/images/drinks/diet_coke_logo.png',
+        logoAssetPath: localAsset ?? 'assets/images/drinks/diet_coke_logo.webp',
       );
     }
     if (name.contains('coke') ||
@@ -107,7 +114,7 @@ class DrinkPresentation {
         subtitle: 'Carbonated • 300ml',
         canBrand: 'COKE',
         model3dPath: 'assets/models/coke.glb',
-        logoAssetPath: localAsset ?? 'assets/images/drinks/coke_logo.png',
+        logoAssetPath: localAsset ?? 'assets/images/drinks/coke_logo.webp',
       );
     }
     if (name.contains('sprite') ||
@@ -257,7 +264,9 @@ class DrinkPresentation {
         logoAssetPath: localAsset,
       );
     }
-    if (name.contains('musk melon') || name.contains('muskmelon') || name.contains('melon')) {
+    if (name.contains('musk melon') ||
+        name.contains('muskmelon') ||
+        name.contains('melon')) {
       return DrinkPresentation(
         format: DrinkFormat.coldJuice,
         primaryColor: const Color(0xFFFFB74D),
@@ -268,7 +277,9 @@ class DrinkPresentation {
         logoAssetPath: localAsset,
       );
     }
-    if (name.contains('saththukudi') || name.contains('mosambi') || name.contains('sweet lime')) {
+    if (name.contains('saththukudi') ||
+        name.contains('mosambi') ||
+        name.contains('sweet lime')) {
       return DrinkPresentation(
         format: DrinkFormat.coldJuice,
         primaryColor: const Color(0xFFFDD835),
@@ -294,7 +305,9 @@ class DrinkPresentation {
         logoAssetPath: localAsset,
       );
     }
-    if (name.contains('butter fruit') || name.contains('buttur') || name.contains('avocado')) {
+    if (name.contains('butter fruit') ||
+        name.contains('buttur') ||
+        name.contains('avocado')) {
       return DrinkPresentation(
         format: DrinkFormat.coldJuice,
         primaryColor: const Color(0xFF9CCC65),
@@ -316,7 +329,9 @@ class DrinkPresentation {
         logoAssetPath: localAsset,
       );
     }
-    if (name.contains('dates') || name.contains('red banana') || name.contains('redbanana')) {
+    if (name.contains('dates') ||
+        name.contains('red banana') ||
+        name.contains('redbanana')) {
       return DrinkPresentation(
         format: DrinkFormat.coldJuice,
         primaryColor: const Color(0xFFA1887F),

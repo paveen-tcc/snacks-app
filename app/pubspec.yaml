@@ -37,6 +37,7 @@ dependencies:
   material_symbols_icons: ^4.2928.1
   flutter_svg: ^2.0.17
   model_viewer_plus: ^1.10.0
+  webview_flutter: ^4.14.1
   flutter_bloc: ^9.1.1
   drift: ^2.32.0
   sqlite3_flutter_libs: ^0.6.0+eol
@@ -58,8 +59,6 @@ dependencies:
   flutter_cache_manager: ^3.4.1
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.5
-  sensors_plus: ^7.1.0
-  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:

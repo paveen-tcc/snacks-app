@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/food_assets.dart';
 import '../../core/constants/snack_categories.dart';
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
@@ -287,7 +288,10 @@ class BudgetDailyTotalRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppRadii.rMd,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
         child: Row(
           children: [
             SizedBox(
@@ -406,81 +410,26 @@ class UserSpendingStatsCard extends StatelessWidget {
     );
     final count = activeUsers.length;
     final avgSpend = count > 0 ? (totalSpend / count).round() : 0;
-    final topSpender = activeUsers.isNotEmpty ? activeUsers.first : null;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 620;
-        if (!compact) {
-          return Row(
-            children: [
-              Expanded(
-                child: _KpiCard(
-                  label: 'Active spenders',
-                  value: '$count ${count == 1 ? 'person' : 'people'}',
-                  icon: Icons.people_alt_rounded,
-                  accent: context.palette.brand,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _KpiCard(
-                  label: 'Average spend',
-                  value: formatRupees(avgSpend),
-                  icon: Icons.analytics_rounded,
-                  accent: context.palette.info,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _KpiCard(
-                  label: 'Top spender',
-                  value: topSpender != null
-                      ? '${topSpender.username} (${formatRupees(topSpender.amountForFilter(filter))})'
-                      : '—',
-                  icon: Icons.military_tech_rounded,
-                  accent: context.palette.warning,
-                ),
-              ),
-            ],
-          );
-        }
-
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _KpiCard(
-                    label: 'Active spenders',
-                    value: '$count ${count == 1 ? 'person' : 'people'}',
-                    icon: Icons.people_alt_rounded,
-                    accent: context.palette.brand,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _KpiCard(
-                    label: 'Average spend',
-                    value: formatRupees(avgSpend),
-                    icon: Icons.analytics_rounded,
-                    accent: context.palette.info,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _KpiCard(
-              label: 'Top spender',
-              value: topSpender != null
-                  ? '${topSpender.username} (${formatRupees(topSpender.amountForFilter(filter))})'
-                  : '—',
-              icon: Icons.military_tech_rounded,
-              accent: context.palette.warning,
-            ),
-          ],
-        );
-      },
+    return Row(
+      children: [
+        Expanded(
+          child: _KpiCard(
+            label: 'Active spenders',
+            value: '$count ${count == 1 ? 'person' : 'people'}',
+            icon: Icons.people_alt_rounded,
+            accent: context.palette.brand,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: _KpiCard(
+            label: 'Average spend',
+            value: formatRupees(avgSpend),
+            icon: Icons.analytics_rounded,
+            accent: context.palette.info,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -585,7 +534,10 @@ class UserSpendingRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppRadii.rMd,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1005,23 +957,32 @@ class BudgetPurchaseLineCard extends StatelessWidget {
   const BudgetPurchaseLineCard({
     super.key,
     required this.line,
-    required this.onEdit,
-    required this.onRemove,
+    this.onEdit,
+    this.onRemove,
     this.isBusy = false,
+    this.dayTotalRupees,
   });
 
   final BudgetLine line;
   final VoidCallback? onEdit;
   final VoidCallback? onRemove;
   final bool isBusy;
+  final int? dayTotalRupees;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
     final isDrink = line.itemType == BudgetItemType.drink;
     final accent = isDrink ? palette.info : palette.warning;
+    final total = dayTotalRupees ?? line.lineTotalRupees;
+    final sharePercent = total > 0
+        ? ((line.lineTotalRupees / total) * 100).round()
+        : 0;
+
+    final assetPath = localFoodAssetMap[line.name.toLowerCase().trim()];
+
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: AppRadii.rLg,
@@ -1029,19 +990,36 @@ class BudgetPurchaseLineCard extends StatelessWidget {
         boxShadow: context.shadows.sm,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.12),
               borderRadius: AppRadii.rMd,
             ),
-            child: Icon(
-              isDrink ? Icons.local_cafe_rounded : Icons.restaurant_rounded,
-              color: accent,
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: assetPath != null
+                ? Image.asset(
+                    assetPath,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      isDrink
+                          ? Icons.local_cafe_rounded
+                          : Icons.restaurant_rounded,
+                      color: accent,
+                    ),
+                  )
+                : Icon(
+                    isDrink
+                        ? Icons.local_cafe_rounded
+                        : Icons.restaurant_rounded,
+                    color: accent,
+                  ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -1051,7 +1029,12 @@ class BudgetPurchaseLineCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(line.name, style: context.text.titleMedium),
+                      child: Text(
+                        line.name,
+                        style: context.text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     if (line.isManual)
                       _LineBadge(label: 'Custom', color: palette.info)
@@ -1059,48 +1042,587 @@ class BudgetPurchaseLineCard extends StatelessWidget {
                       _LineBadge(label: 'Edited', color: palette.warning),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: 2),
                 Text(
                   '${line.quantity} × ${formatRupees(line.unitPriceRupees)}',
-                  style: context.text.bodyMedium?.copyWith(
+                  style: context.text.bodySmall?.copyWith(
                     color: palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  formatRupees(line.lineTotalRupees),
-                  style: context.text.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
           ),
-          if (isBusy)
-            const Padding(
-              padding: EdgeInsets.all(AppSpacing.md),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            Column(
-              children: [
-                IconButton(
-                  tooltip: 'Edit ${line.name}',
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                formatRupees(line.lineTotalRupees),
+                style: context.text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: palette.textPrimary,
                 ),
-                IconButton(
-                  tooltip: 'Remove ${line.name}',
-                  onPressed: onRemove,
-                  color: palette.danger,
-                  icon: const Icon(Icons.delete_outline_rounded),
+              ),
+              if (sharePercent > 0) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '$sharePercent% of day',
+                  style: context.text.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: palette.textTertiary,
+                  ),
                 ),
               ],
+            ],
+          ),
+          if (isBusy) ...[
+            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
+          ] else if (onEdit != null || onRemove != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            if (onEdit != null)
+              IconButton(
+                tooltip: 'Edit ${line.name}',
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined, size: 18),
+              ),
+            if (onRemove != null)
+              IconButton(
+                tooltip: 'Remove ${line.name}',
+                onPressed: onRemove,
+                color: palette.danger,
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class DailySpendTrendChart extends StatelessWidget {
+  final List<BudgetDay> days;
+  final BudgetTypeFilter filter;
+  final ValueChanged<String>? onDaySelected;
+  final String? selectedDate;
+
+  const DailySpendTrendChart({
+    super.key,
+    required this.days,
+    this.filter = BudgetTypeFilter.all,
+    this.onDaySelected,
+    this.selectedDate,
+  });
+
+  static const _shortMonths = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (days.isEmpty) return const SizedBox.shrink();
+
+    final isMonthly = days.length > 7;
+    return isMonthly ? _buildMonthlyTrend(context) : _buildWeeklyTrend(context);
+  }
+
+  Widget _buildWeeklyTrend(BuildContext context) {
+    final palette = context.palette;
+    final maxSpend = days.fold<int>(
+      0,
+      (highest, day) => filter.amountFrom(day.totals) > highest
+          ? filter.amountFrom(day.totals)
+          : highest,
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md + 4),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: AppRadii.rLg,
+        border: Border.all(color: palette.border),
+        boxShadow: context.shadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Daily Spend Trend',
+            style: context.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Spending trajectory across this week',
+            style: context.text.bodySmall?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SizedBox(
+            height: 130,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: days.map((day) {
+                final amount = filter.amountFrom(day.totals);
+                final ratio = maxSpend > 0
+                    ? (amount / maxSpend).clamp(0.04, 1.0)
+                    : 0.04;
+                final isSelected = selectedDate == day.date;
+
+                final dt = DateTime.tryParse(day.date);
+                const shortWeekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                final dayLabel =
+                    dt != null ? shortWeekdays[dt.weekday - 1] : '';
+                final dayNumber = dt != null ? '${dt.day}' : '';
+
+                final barColor = isSelected
+                    ? palette.brand
+                    : (amount > 0
+                        ? palette.brand.withValues(alpha: 0.85)
+                        : palette.surfaceMuted);
+
+                return Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    key: Key('budget-trend-bar-${day.date}'),
+                    onTap: () => onDaySelected?.call(day.date),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (amount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  formatRupees(amount),
+                                  style: context.text.bodySmall?.copyWith(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSelected
+                                        ? palette.brand
+                                        : palette.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 16),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: FractionallySizedBox(
+                                heightFactor: ratio,
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: barColor,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            dayLabel,
+                            style: context.text.bodySmall?.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected
+                                  ? palette.brand
+                                  : palette.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            dayNumber,
+                            style: context.text.bodySmall?.copyWith(
+                              fontSize: 9,
+                              color: palette.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonthlyTrend(BuildContext context) {
+    final palette = context.palette;
+
+    // Group month days into weekly chunks
+    final weekChunks = <_MonthlyWeekChunk>[];
+    var weekIndex = 1;
+    for (var i = 0; i < days.length; i += 7) {
+      final chunk = days.sublist(
+        i,
+        (i + 7 > days.length) ? days.length : i + 7,
+      );
+      final total = chunk.fold<int>(
+        0,
+        (sum, d) => sum + filter.amountFrom(d.totals),
+      );
+      final firstDt = DateTime.tryParse(chunk.first.date);
+      final lastDt = DateTime.tryParse(chunk.last.date);
+      String rangeLabel = '';
+      if (firstDt != null && lastDt != null) {
+        final mName = _shortMonths[firstDt.month - 1];
+        rangeLabel = '$mName ${firstDt.day}–${lastDt.day}';
+      }
+      weekChunks.add(_MonthlyWeekChunk(
+        title: 'Week $weekIndex',
+        rangeLabel: rangeLabel,
+        totalRupees: total,
+        firstDate: chunk.first.date,
+      ));
+      weekIndex++;
+    }
+
+    final maxWeekSpend = weekChunks.fold<int>(
+      0,
+      (highest, g) => g.totalRupees > highest ? g.totalRupees : highest,
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md + 4),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: AppRadii.rLg,
+        border: Border.all(color: palette.border),
+        boxShadow: context.shadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Weekly Spend Trend',
+            style: context.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Weekly spend totals across this month',
+            style: context.text.bodySmall?.copyWith(
+              color: palette.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SizedBox(
+            height: 140,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: weekChunks.map((group) {
+                final ratio = maxWeekSpend > 0
+                    ? (group.totalRupees / maxWeekSpend).clamp(0.06, 1.0)
+                    : 0.06;
+
+                return Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    key: Key('budget-trend-week-${group.title.toLowerCase().replaceAll(' ', '')}'),
+                    onTap: () => onDaySelected?.call(group.firstDate),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (group.totalRupees > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  formatRupees(group.totalRupees),
+                                  style: context.text.bodySmall?.copyWith(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 18),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: FractionallySizedBox(
+                                heightFactor: ratio,
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: group.totalRupees > 0
+                                        ? palette.brand
+                                        : palette.surfaceMuted,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            group.title,
+                            style: context.text.bodySmall?.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            group.rangeLabel,
+                            style: context.text.bodySmall?.copyWith(
+                              fontSize: 9,
+                              color: palette.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthlyWeekChunk {
+  final String title;
+  final String rangeLabel;
+  final int totalRupees;
+  final String firstDate;
+
+  _MonthlyWeekChunk({
+    required this.title,
+    required this.rangeLabel,
+    required this.totalRupees,
+    required this.firstDate,
+  });
+}
+
+class TopCostDriversCard extends StatelessWidget {
+  final List<BudgetItemTotal> items;
+  final int totalPeriodSpend;
+
+  const TopCostDriversCard({
+    super.key,
+    required this.items,
+    required this.totalPeriodSpend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final sorted = List<BudgetItemTotal>.from(items)
+      ..sort((a, b) => b.totalRupees.compareTo(a.totalRupees));
+    final topItems = sorted.take(5).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: AppRadii.rLg,
+        border: Border.all(color: palette.border),
+        boxShadow: context.shadows.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Top Cost Drivers',
+                      style: context.text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Items with highest spend contribution',
+                      style: context.text.bodySmall?.copyWith(
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.pie_chart_outline_rounded,
+                  color: palette.brand, size: 20),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          for (var i = 0; i < topItems.length; i++) ...[
+            _TopCostItemRow(
+              rank: i + 1,
+              item: topItems[i],
+              totalPeriodSpend: totalPeriodSpend,
+            ),
+            if (i < topItems.length - 1) const Divider(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TopCostItemRow extends StatelessWidget {
+  final int rank;
+  final BudgetItemTotal item;
+  final int totalPeriodSpend;
+
+  const _TopCostItemRow({
+    required this.rank,
+    required this.item,
+    required this.totalPeriodSpend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final isDrink = item.itemType == BudgetItemType.drink;
+    final share = totalPeriodSpend > 0
+        ? (item.totalRupees / totalPeriodSpend).clamp(0.0, 1.0)
+        : 0.0;
+    final percent = (share * 100).round();
+
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: palette.surfaceMuted,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(
+              '#$rank',
+              style: context.text.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 10,
+                color: rank <= 3 ? palette.brand : palette.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.name,
+                      style: context.text.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    formatRupees(item.totalRupees),
+                    style: context.text.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: share,
+                        minHeight: 4,
+                        backgroundColor: palette.surfaceMuted,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isDrink ? palette.info : palette.warning,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$percent%',
+                    style: context.text.bodySmall?.copyWith(
+                      fontSize: 10,
+                      color: palette.textTertiary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class DaySummaryHintBanner extends StatelessWidget {
+  const DaySummaryHintBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: palette.brand.withValues(alpha: 0.08),
+        borderRadius: AppRadii.rMd,
+        border: Border.all(color: palette.brand.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, size: 18, color: palette.brand),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Orders and item mappings are managed directly in Day Summary.',
+              style: context.text.bodySmall?.copyWith(
+                color: palette.brand,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );

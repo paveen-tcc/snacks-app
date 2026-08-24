@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snacks_app/core/design/app_theme.dart';
@@ -96,54 +94,39 @@ void main() {
     expect(find.text('Coffee'), findsOneWidget);
   });
 
-  testWidgets('day editor validates and saves a whole-rupee custom item', (
+  testWidgets('renders read-only purchase line items with percentage breakdown', (
     tester,
   ) async {
-    Map<String, dynamic>? saved;
-    var dayLoads = 0;
+    const day = BudgetDay(
+      date: '2026-08-12',
+      totals: BudgetTotals(total: 200, snacks: 150, drinks: 50),
+      items: [
+        BudgetLine(
+          id: 'line-1',
+          date: '2026-08-12',
+          name: 'Paneer Roll',
+          itemType: BudgetItemType.snack,
+          quantity: 3,
+          unitPriceRupees: 50,
+          lineTotalRupees: 150,
+          isEdited: false,
+          isManual: false,
+        ),
+      ],
+    );
 
     await pumpBudget(
       tester,
-      loadDay: (date) async {
-        dayLoads++;
-        return BudgetDay(date: date, totals: BudgetTotals.zero);
-      },
+      loadDay: (_) async => day,
       loadRange: ({required start, required end}) async =>
           BudgetRange(start: start, end: end, totals: BudgetTotals.zero),
-      addItem: (date, data) async {
-        expect(date, '2026-08-12');
-        saved = data;
-      },
     );
 
-    await tester.tap(find.byKey(const Key('budget-add-item')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('budget-item-name')),
-      'Office fruit',
-    );
-    await tester.enterText(find.byKey(const Key('budget-item-quantity')), '2');
-    await tester.enterText(find.byKey(const Key('budget-item-price')), '12.5');
-    await tester.ensureVisible(find.byKey(const Key('budget-save-item')));
-    await tester.tap(find.byKey(const Key('budget-save-item')));
-    await tester.pump();
-
-    expect(find.text('Enter a whole-rupee price (0 or more)'), findsOneWidget);
-    expect(saved, isNull);
-
-    await tester.enterText(find.byKey(const Key('budget-item-price')), '45');
-    await tester.ensureVisible(find.byKey(const Key('budget-save-item')));
-    await tester.tap(find.byKey(const Key('budget-save-item')));
-    await tester.pumpAndSettle();
-
-    expect(saved, {
-      'name': 'Office fruit',
-      'itemType': 'snack',
-      'quantity': 2,
-      'unitPriceRupees': 45,
-    });
-    expect(dayLoads, 2);
-    expect(find.text('Item added'), findsOneWidget);
+    expect(find.text('Paneer Roll'), findsOneWidget);
+    expect(find.text('3 × ₹50'), findsOneWidget);
+    expect(find.text('₹150'), findsOneWidget);
+    expect(find.text('75% of day'), findsOneWidget);
+    expect(find.text('Orders and item mappings are managed directly in Day Summary.'), findsOneWidget);
   });
 
   testWidgets('week day tap opens the selected day editor', (tester) async {
@@ -203,6 +186,57 @@ void main() {
     expect(find.text('Day'), findsOneWidget);
   });
 
+  testWidgets('renders Daily Spend Trend chart and Top Cost Drivers in Range view', (
+    tester,
+  ) async {
+    await pumpBudget(
+      tester,
+      loadDay: (date) async => BudgetDay(date: date, totals: BudgetTotals.zero),
+      loadRange: ({required start, required end}) async {
+        final count = (start == '2026-08-10') ? 7 : 31;
+        return BudgetRange(
+          start: start,
+          end: end,
+          totals: const BudgetTotals(total: 500, snacks: 350, drinks: 150),
+          days: List.generate(
+            count,
+            (i) => BudgetDay(
+              date: '2026-08-${(i + 1).toString().padLeft(2, '0')}',
+              totals: const BudgetTotals(total: 100, snacks: 70, drinks: 30),
+            ),
+          ),
+          items: const [
+            BudgetItemTotal(
+              name: 'Chicken Pizza',
+              itemType: BudgetItemType.snack,
+              quantity: 5,
+              totalRupees: 300,
+            ),
+            BudgetItemTotal(
+              name: 'Cold Coffee',
+              itemType: BudgetItemType.drink,
+              quantity: 4,
+              totalRupees: 200,
+            ),
+          ],
+        );
+      },
+    );
+
+    await tester.tap(find.byKey(const Key('budget-period-week')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Daily Spend Trend'), findsOneWidget);
+    expect(find.text('Top Cost Drivers'), findsOneWidget);
+    expect(find.text('Chicken Pizza'), findsOneWidget);
+    expect(find.text('Cold Coffee'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('budget-period-month')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Weekly Spend Trend'), findsOneWidget);
+  });
+
   testWidgets('launch week clamps its range to the reporting start date', (
     tester,
   ) async {
@@ -260,159 +294,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(previousButton().onPressed, isNull);
     expect(requestedRanges.last, ('2026-08-01', '2026-08-31'));
-  });
-
-  testWidgets('calendar picker keeps the stable reporting start reachable', (
-    tester,
-  ) async {
-    await pumpBudget(
-      tester,
-      initialDate: DateTime(2027, 3, 15),
-      loadDay: (date) async => BudgetDay(date: date, totals: BudgetTotals.zero),
-      loadRange: ({required start, required end}) async =>
-          BudgetRange(start: start, end: end, totals: BudgetTotals.zero),
-    );
-
-    await tester.tap(find.byIcon(Icons.calendar_month_outlined));
-    await tester.pumpAndSettle();
-
-    final dialog = tester.widget<DatePickerDialog>(
-      find.byType(DatePickerDialog),
-    );
-    expect(dialog.firstDate, DateTime(2026, 8, 1));
-  });
-
-  testWidgets('day editor disables every input while saving', (tester) async {
-    final saveCompleter = Completer<void>();
-
-    await pumpBudget(
-      tester,
-      loadDay: (date) async => BudgetDay(date: date, totals: BudgetTotals.zero),
-      loadRange: ({required start, required end}) async =>
-          BudgetRange(start: start, end: end, totals: BudgetTotals.zero),
-      addItem: (_, _) => saveCompleter.future,
-    );
-
-    await tester.tap(find.byKey(const Key('budget-add-item')));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('budget-item-name')), 'Fruit');
-    await tester.enterText(find.byKey(const Key('budget-item-quantity')), '2');
-    await tester.enterText(find.byKey(const Key('budget-item-price')), '50');
-    await tester.ensureVisible(find.byKey(const Key('budget-save-item')));
-    await tester.tap(find.byKey(const Key('budget-save-item')));
-    await tester.pump();
-
-    TextFormField field(Key key) =>
-        tester.widget<TextFormField>(find.byKey(key));
-
-    expect(field(const Key('budget-item-name')).enabled, isFalse);
-    expect(field(const Key('budget-item-quantity')).enabled, isFalse);
-    expect(field(const Key('budget-item-price')).enabled, isFalse);
-
-    saveCompleter.complete();
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('day editor sends update callback with date, id, and values', (
-    tester,
-  ) async {
-    Map<String, dynamic>? updated;
-    String? updatedDate;
-    String? updatedId;
-    var loads = 0;
-    const line = BudgetLine(
-      id: 'line-1',
-      date: '2026-08-12',
-      name: 'Samosa',
-      itemType: BudgetItemType.snack,
-      quantity: 2,
-      unitPriceRupees: 40,
-      lineTotalRupees: 80,
-      isEdited: false,
-      isManual: false,
-    );
-
-    await pumpBudget(
-      tester,
-      loadDay: (date) async {
-        loads++;
-        return const BudgetDay(
-          date: '2026-08-12',
-          totals: BudgetTotals(total: 80, snacks: 80, drinks: 0),
-          items: [line],
-        );
-      },
-      loadRange: ({required start, required end}) async =>
-          BudgetRange(start: start, end: end, totals: BudgetTotals.zero),
-      updateItem: (date, id, data) async {
-        updatedDate = date;
-        updatedId = id;
-        updated = data;
-      },
-    );
-
-    await tester.tap(find.byTooltip('Edit Samosa'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('budget-item-price')), '45');
-    await tester.ensureVisible(find.byKey(const Key('budget-save-item')));
-    await tester.tap(find.byKey(const Key('budget-save-item')));
-    await tester.pumpAndSettle();
-
-    expect(updatedDate, '2026-08-12');
-    expect(updatedId, 'line-1');
-    expect(updated, {
-      'name': 'Samosa',
-      'itemType': 'snack',
-      'quantity': 2,
-      'unitPriceRupees': 45,
-    });
-    expect(loads, 2);
-  });
-
-  testWidgets('remove confirmation invokes callback and refreshes the day', (
-    tester,
-  ) async {
-    String? removedDate;
-    String? removedId;
-    var loads = 0;
-    const line = BudgetLine(
-      id: 'line-1',
-      date: '2026-08-12',
-      name: 'Tea',
-      itemType: BudgetItemType.drink,
-      quantity: 1,
-      unitPriceRupees: 18,
-      lineTotalRupees: 18,
-      isEdited: false,
-      isManual: false,
-    );
-
-    await pumpBudget(
-      tester,
-      loadDay: (date) async {
-        loads++;
-        return const BudgetDay(
-          date: '2026-08-12',
-          totals: BudgetTotals(total: 18, snacks: 0, drinks: 18),
-          items: [line],
-        );
-      },
-      loadRange: ({required start, required end}) async =>
-          BudgetRange(start: start, end: end, totals: BudgetTotals.zero),
-      removeItem: (date, id) async {
-        removedDate = date;
-        removedId = id;
-      },
-    );
-
-    await tester.tap(find.byTooltip('Remove Tea'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
-    await tester.pumpAndSettle();
-
-    expect(removedDate, '2026-08-12');
-    expect(removedId, 'line-1');
-    expect(loads, 2);
   });
 
   testWidgets('failed refresh retains the previously loaded budget data', (

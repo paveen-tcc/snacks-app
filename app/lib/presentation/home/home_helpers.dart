@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../core/constants/snack_categories.dart';
 import '../../data/local/app_database.dart';
 import 'bloc/home_bloc.dart';
@@ -174,3 +176,17 @@ bool isDrinkCategory(LocalSnack snack) =>
 /// sugar-free toggle is active for that item.
 String drinkDisplayName(String baseName, bool isSugarFree) =>
     isSugarFree ? '$baseName (Sugar Free)' : baseName;
+
+/// Refreshes home data and keeps pull-to-refresh visible until the bloc emits
+/// a new state. A timeout prevents an offline request from trapping the UI.
+Future<void> refreshHomeAndWait(HomeBloc bloc) async {
+  final stateBeforeRefresh = bloc.state;
+  bloc.add(RefreshHome());
+  try {
+    await bloc.stream
+        .firstWhere((state) => !identical(state, stateBeforeRefresh))
+        .timeout(const Duration(seconds: 6));
+  } on TimeoutException {
+    // Offline/stale data remains usable; the sync engine will retry later.
+  }
+}

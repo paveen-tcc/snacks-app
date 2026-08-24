@@ -40,8 +40,7 @@ class ClosedOrderWindowView extends StatelessWidget {
 
     return RefreshIndicator.adaptive(
       onRefresh: () async {
-        context.read<HomeBloc>().add(RefreshHome());
-        await Future.delayed(const Duration(milliseconds: 600));
+        await refreshHomeAndWait(context.read<HomeBloc>());
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -51,11 +50,11 @@ class ClosedOrderWindowView extends StatelessWidget {
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
+                  padding: EdgeInsets.fromLTRB(
                     AppSpacing.page,
                     AppSpacing.md,
                     AppSpacing.page,
-                    100,
+                    88 + MediaQuery.paddingOf(context).bottom,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -110,7 +109,9 @@ class ClosedOrderWindowView extends StatelessWidget {
                             const SizedBox(height: AppSpacing.xs),
                             if (uniqueItems.isEmpty)
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: AppSpacing.md,
+                                ),
                                 child: Center(
                                   child: Text(
                                     'No snacks or drinks ordered for today',
@@ -123,33 +124,41 @@ class ClosedOrderWindowView extends StatelessWidget {
                             else
                               for (final item in uniqueItems)
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 5,
+                                  ),
                                   child: Row(
                                     children: [
                                       VegBadge(isVeg: item.isVeg, size: 14),
                                       const SizedBox(width: 8),
                                       Text(
                                         '${counts[item.id]} x ',
-                                        style: context.text.bodyMedium?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          color: palette.textPrimary,
-                                          fontSize: 13,
-                                        ),
+                                        style: context.text.bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: palette.textPrimary,
+                                              fontSize: 13,
+                                            ),
                                       ),
                                       Expanded(
                                         child: Text(
-                                          displaySnackCategory(item.category).toLowerCase() ==
+                                          displaySnackCategory(
+                                                    item.category,
+                                                  ).toLowerCase() ==
                                                   'drinks'
                                               ? drinkDisplayName(
                                                   item.name,
-                                                  state.sugarFreePrefs[item.id] ?? false,
+                                                  state.sugarFreePrefs[item
+                                                          .id] ??
+                                                      false,
                                                 )
                                               : item.name,
-                                          style: context.text.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w500,
-                                            color: palette.textPrimary,
-                                            fontSize: 13,
-                                          ),
+                                          style: context.text.bodyMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w500,
+                                                color: palette.textPrimary,
+                                                fontSize: 13,
+                                              ),
                                         ),
                                       ),
                                     ],

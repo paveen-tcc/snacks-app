@@ -60,8 +60,9 @@ class FoodCard extends StatelessWidget {
   }
 
   Widget _buildContent(String effectiveEmoji, AppPalette palette) {
-    // 1. Check for local bundled transparent PNG asset first
-    final localAsset = resolveLocalFoodAsset(name) ??
+    // 1. Check for a local bundled transparent image first.
+    final localAsset =
+        resolveLocalFoodAsset(name) ??
         (imageUrl != null && imageUrl!.trim().startsWith('assets/')
             ? imageUrl!.trim()
             : null);
@@ -72,8 +73,7 @@ class FoodCard extends StatelessWidget {
         child: Image.asset(
           localAsset,
           fit: BoxFit.contain,
-          cacheWidth: 360,
-          filterQuality: FilterQuality.medium,
+          filterQuality: FilterQuality.high,
           errorBuilder: (context, error, stackTrace) => Icon(
             Icons.fastfood_rounded,
             size: 34,
@@ -123,10 +123,7 @@ class FoodCard extends StatelessWidget {
     if (effectiveEmoji.isNotEmpty &&
         !effectiveEmoji.startsWith('http') &&
         effectiveEmoji.length <= 4) {
-      return Text(
-        effectiveEmoji,
-        style: const TextStyle(fontSize: 38),
-      );
+      return Text(effectiveEmoji, style: const TextStyle(fontSize: 38));
     }
 
     // 4. Fallback: Default clean centered icon
@@ -153,20 +150,19 @@ class FoodCard extends StatelessWidget {
         servingSize != '1 serving';
 
     return Semantics(
-      button: true,
+      container: true,
+      button: !isSelected,
+      enabled: !disabled,
       selected: isSelected,
       label:
           '$name${showVegBadge ? (isVeg ? ', Veg' : ', Non-veg') : ''}${isSelected ? ', $effectiveCount added' : ''}',
       child: GestureDetector(
-        onTap: _handleTap,
+        onTap: disabled || isSelected ? null : _handleTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: reduceMotion ? Duration.zero : AppMotion.base,
           curve: AppMotion.standard,
-          constraints: const BoxConstraints(minHeight: 160),
-          decoration: const BoxDecoration(
-            color: Colors.transparent,
-          ),
+          decoration: const BoxDecoration(color: Colors.transparent),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -180,8 +176,9 @@ class FoodCard extends StatelessWidget {
                       children: [
                         Positioned.fill(
                           child: AnimatedContainer(
-                            duration:
-                                reduceMotion ? Duration.zero : AppMotion.base,
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : AppMotion.base,
                             curve: AppMotion.standard,
                             decoration: BoxDecoration(
                               // Clean white background with soft blue circular gradient light
@@ -192,44 +189,54 @@ class FoodCard extends StatelessWidget {
                                       radius: 0.85,
                                       colors: isDark
                                           ? [
-                                              palette.brand.withValues(alpha: 0.25),
+                                              palette.brand.withValues(
+                                                alpha: 0.25,
+                                              ),
                                               palette.surface,
                                             ]
                                           : [
-                                              palette.brand.withValues(alpha: 0.14),
+                                              palette.brand.withValues(
+                                                alpha: 0.14,
+                                              ),
                                               const Color(0xFFF2F7FD),
                                               Colors.white,
                                             ],
-                                      stops: isDark ? const [0.0, 1.0] : const [0.0, 0.6, 1.0],
+                                      stops: isDark
+                                          ? const [0.0, 1.0]
+                                          : const [0.0, 0.6, 1.0],
                                     )
                                   : RadialGradient(
                                       center: const Alignment(0, 0.05),
                                       radius: 0.82,
                                       colors: palette.cardGlowGradient,
-                                      stops: isDark ? const [0.0, 0.55, 1.0] : const [0.0, 0.55, 1.0],
+                                      stops: isDark
+                                          ? const [0.0, 0.55, 1.0]
+                                          : const [0.0, 0.55, 1.0],
                                     ),
                               borderRadius: AppRadii.rMd,
                               border: Border.all(
                                 color: isSelected
                                     ? palette.brand
                                     : (isDark
-                                        ? palette.border
-                                        : const Color(0xFFE5ECF6)),
+                                          ? palette.border
+                                          : const Color(0xFFE5ECF6)),
                                 width: isSelected ? 1.5 : 1.0,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF003874).withValues(
-                                    alpha: isDark ? 0.2 : 0.04,
-                                  ),
+                                  color: const Color(
+                                    0xFF003874,
+                                  ).withValues(alpha: isDark ? 0.2 : 0.04),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
                             alignment: Alignment.center,
-                            child:
-                                _buildContent(emoji ?? fallbackEmoji, palette),
+                            child: _buildContent(
+                              emoji ?? fallbackEmoji,
+                              palette,
+                            ),
                           ),
                         ),
                         // Smoothly animated stepper position and width
@@ -240,8 +247,11 @@ class FoodCard extends StatelessWidget {
                           right: 4,
                           bottom: -8,
                           child: _AddStepperButton(
+                            itemName: name,
                             count: effectiveCount,
-                            onIncrement: disabled ? null : (onIncrement ?? onTap),
+                            onIncrement: disabled
+                                ? null
+                                : (onIncrement ?? onTap),
                             onDecrement: disabled ? null : onDecrement,
                             reduceMotion: reduceMotion,
                             disabled: disabled,
@@ -263,9 +273,7 @@ class FoodCard extends StatelessWidget {
               Text(
                 name,
                 style: context.text.labelMedium?.copyWith(
-                  color: disabled
-                      ? palette.textSecondary
-                      : palette.textPrimary,
+                  color: disabled ? palette.textSecondary : palette.textPrimary,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
                   fontSize: 13,
@@ -296,6 +304,7 @@ class FoodCard extends StatelessWidget {
 
 class _AddStepperButton extends StatelessWidget {
   const _AddStepperButton({
+    required this.itemName,
     required this.count,
     this.onIncrement,
     this.onDecrement,
@@ -303,6 +312,7 @@ class _AddStepperButton extends StatelessWidget {
     this.disabled = false,
   });
 
+  final String itemName;
   final int count;
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
@@ -318,33 +328,28 @@ class _AddStepperButton extends StatelessWidget {
     final backgroundColor = disabled
         ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
         : (isSelected
-            ? palette.brand
-            : (isDark ? palette.surface : Colors.white));
+              ? palette.brand
+              : (isDark ? palette.surface : Colors.white));
 
     final borderColor = disabled
         ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))
         : (isSelected
-            ? palette.brand
-            : (isDark ? palette.border : const Color(0xFFE2E8F0)));
+              ? palette.brand
+              : (isDark ? palette.border : const Color(0xFFE2E8F0)));
 
     final textColor = disabled
         ? (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))
-        : (isSelected
-            ? Colors.white
-            : palette.brand);
+        : (isSelected ? Colors.white : palette.brand);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
-      height: 30,
+      height: 44,
       decoration: BoxDecoration(
         // Solid fill at all times so there is zero transparent flicker during expansion
         color: backgroundColor,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: borderColor,
-          width: 1.0,
-        ),
+        border: Border.all(color: borderColor, width: 1.0),
         boxShadow: disabled ? null : context.shadows.sm,
       ),
       child: ClipRRect(
@@ -357,26 +362,31 @@ class _AddStepperButton extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     if (!disabled)
-                      PressableScale(
-                        scale: 0.85,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          onDecrement?.call();
-                        },
-                        child: const Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          child: Icon(
-                            Icons.remove_rounded,
-                            size: 16,
-                            color: Colors.white,
+                      Semantics(
+                        button: true,
+                        label: 'Decrease $itemName quantity',
+                        child: PressableScale(
+                          scale: 0.85,
+                          onTap: onDecrement,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                            child: Icon(
+                              Icons.remove_rounded,
+                              size: 17,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       )
                     else
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         child: Icon(
                           Icons.remove_rounded,
                           size: 16,
@@ -392,26 +402,31 @@ class _AddStepperButton extends StatelessWidget {
                       ),
                     ),
                     if (!disabled)
-                      PressableScale(
-                        scale: 0.85,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          onIncrement?.call();
-                        },
-                        child: const Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          child: Icon(
-                            Icons.add_rounded,
-                            size: 16,
-                            color: Colors.white,
+                      Semantics(
+                        button: true,
+                        label: 'Increase $itemName quantity',
+                        child: PressableScale(
+                          scale: 0.85,
+                          onTap: onIncrement,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                            child: Icon(
+                              Icons.add_rounded,
+                              size: 17,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       )
                     else
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         child: Icon(
                           Icons.add_rounded,
                           size: 16,
@@ -421,28 +436,8 @@ class _AddStepperButton extends StatelessWidget {
                   ],
                 )
               : (disabled
-                  ? Container(
-                      key: const ValueKey('stepper_disabled'),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 11),
-                      child: Text(
-                        'ADD',
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    )
-                  : PressableScale(
-                      key: const ValueKey('stepper_idle'),
-                      scale: 0.90,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        onIncrement?.call();
-                      },
-                      child: Container(
+                    ? Container(
+                        key: const ValueKey('stepper_disabled'),
                         alignment: Alignment.center,
                         padding: const EdgeInsets.symmetric(horizontal: 11),
                         child: Text(
@@ -454,8 +449,29 @@ class _AddStepperButton extends StatelessWidget {
                             letterSpacing: 0.4,
                           ),
                         ),
-                      ),
-                    )),
+                      )
+                    : Semantics(
+                        button: true,
+                        label: 'Add $itemName',
+                        child: PressableScale(
+                          key: const ValueKey('stepper_idle'),
+                          scale: 0.90,
+                          onTap: onIncrement,
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 11),
+                            child: Text(
+                              'ADD',
+                              style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )),
         ),
       ),
     );
@@ -504,12 +520,7 @@ class DrinkCard extends FoodCard {
 
 /// Veg badge with official green dot in green square.
 class VegBadge extends StatelessWidget {
-  const VegBadge({
-    super.key,
-    required this.isVeg,
-    this.size = 14,
-    this.color,
-  });
+  const VegBadge({super.key, required this.isVeg, this.size = 14, this.color});
 
   final bool isVeg;
   final double size;
@@ -517,28 +528,35 @@ class VegBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? (isVeg ? context.palette.veg : context.palette.nonVeg);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: effectiveColor, width: 1.2),
+    final effectiveColor =
+        color ?? (isVeg ? context.palette.veg : context.palette.nonVeg);
+    return Semantics(
+      image: true,
+      label: isVeg ? 'Vegetarian' : 'Non-vegetarian',
+      child: ExcludeSemantics(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: effectiveColor, width: 1.2),
+          ),
+          alignment: Alignment.center,
+          child: isVeg
+              ? Container(
+                  width: size * 0.44,
+                  height: size * 0.44,
+                  decoration: BoxDecoration(
+                    color: effectiveColor,
+                    shape: BoxShape.circle,
+                  ),
+                )
+              : CustomPaint(
+                  size: Size(size * 0.5, size * 0.5),
+                  painter: _TrianglePainter(color: effectiveColor),
+                ),
+        ),
       ),
-      alignment: Alignment.center,
-      child: isVeg
-          ? Container(
-              width: size * 0.44,
-              height: size * 0.44,
-              decoration: BoxDecoration(
-                color: effectiveColor,
-                shape: BoxShape.circle,
-              ),
-            )
-          : CustomPaint(
-              size: Size(size * 0.5, size * 0.5),
-              painter: _TrianglePainter(color: effectiveColor),
-            ),
     );
   }
 }

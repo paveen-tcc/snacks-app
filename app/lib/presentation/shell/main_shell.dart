@@ -193,25 +193,30 @@ class _MainShellState extends State<MainShell> {
         ? const SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarBrightness: Brightness.dark, // iOS: white text & icons
-            statusBarIconBrightness: Brightness.light, // Android: white text & icons
+            statusBarIconBrightness:
+                Brightness.light, // Android: white text & icons
             systemNavigationBarColor: Colors.transparent,
             systemNavigationBarIconBrightness: Brightness.light,
           )
         : (isDark
-            ? const SystemUiOverlayStyle(
-                statusBarColor: Colors.transparent,
-                statusBarBrightness: Brightness.dark, // iOS: white text & icons
-                statusBarIconBrightness: Brightness.light, // Android: white text & icons
-                systemNavigationBarColor: Colors.transparent,
-                systemNavigationBarIconBrightness: Brightness.light,
-              )
-            : const SystemUiOverlayStyle(
-                statusBarColor: Colors.transparent,
-                statusBarBrightness: Brightness.light, // iOS: dark text & icons
-                statusBarIconBrightness: Brightness.dark, // Android: dark text & icons
-                systemNavigationBarColor: Colors.transparent,
-                systemNavigationBarIconBrightness: Brightness.dark,
-              ));
+              ? const SystemUiOverlayStyle(
+                  statusBarColor: Colors.transparent,
+                  statusBarBrightness:
+                      Brightness.dark, // iOS: white text & icons
+                  statusBarIconBrightness:
+                      Brightness.light, // Android: white text & icons
+                  systemNavigationBarColor: Colors.transparent,
+                  systemNavigationBarIconBrightness: Brightness.light,
+                )
+              : const SystemUiOverlayStyle(
+                  statusBarColor: Colors.transparent,
+                  statusBarBrightness:
+                      Brightness.light, // iOS: dark text & icons
+                  statusBarIconBrightness:
+                      Brightness.dark, // Android: dark text & icons
+                  systemNavigationBarColor: Colors.transparent,
+                  systemNavigationBarIconBrightness: Brightness.dark,
+                ));
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
@@ -224,82 +229,100 @@ class _MainShellState extends State<MainShell> {
           decoration: BoxDecoration(gradient: gradient),
           child: Scaffold(
             backgroundColor: Colors.transparent,
-          extendBody:
-              true, // body scrolls under the glass nav so the blur shows
-          body: Stack(
-            children: [
-              NotificationListener<UserScrollNotification>(
-                onNotification: _onScroll,
-                child: IndexedStack(
-                  index: _index,
-                  children: [
-                    const FoodTab(),
-                    const DrinkTab(),
-                    SafeArea(
-                      bottom: false,
-                      child: OrdersTab(isActive: _index == 2),
-                    ),
-                    if (_isAdmin)
-                      SafeArea(
-                        bottom: false,
-                        child: SummaryScreen(
-                          isTab: true,
-                          isActive: _index == 3,
+            extendBody:
+                true, // body scrolls under the glass nav so the blur shows
+            body: Stack(
+              children: [
+                NotificationListener<UserScrollNotification>(
+                  onNotification: _onScroll,
+                  child: IndexedStack(
+                    index: _index,
+                    children: [
+                      TickerMode(
+                        enabled: _index == 0,
+                        child: FoodTab(isActive: _index == 0),
+                      ),
+                      TickerMode(
+                        enabled: _index == 1,
+                        child: DrinkTab(isActive: _index == 1),
+                      ),
+                      TickerMode(
+                        enabled: _index == 2,
+                        child: SafeArea(
+                          bottom: false,
+                          child: OrdersTab(isActive: _index == 2),
                         ),
                       ),
-                    if (_isAdmin)
-                      SafeArea(
-                        bottom: false,
-                        child: BudgetScreen(isActive: _index == 4),
+                      if (_isAdmin)
+                        TickerMode(
+                          enabled: _index == 3,
+                          child: SafeArea(
+                            bottom: false,
+                            child: SummaryScreen(
+                              isTab: true,
+                              isActive: _index == 3,
+                            ),
+                          ),
+                        ),
+                      if (_isAdmin)
+                        TickerMode(
+                          enabled: _index == 4,
+                          child: SafeArea(
+                            bottom: false,
+                            child: BudgetScreen(isActive: _index == 4),
+                          ),
+                        ),
+                      TickerMode(
+                        enabled: _index == (_isAdmin ? 5 : 3),
+                        child: SafeArea(
+                          bottom: false,
+                          child: ProfileScreen(
+                            username: _username,
+                            isAdmin: _isAdmin,
+                            homeBloc: _homeBloc,
+                          ),
+                        ),
                       ),
-                    SafeArea(
-                      bottom: false,
-                      child: ProfileScreen(
-                        username: _username,
-                        isAdmin: _isAdmin,
-                        homeBloc: _homeBloc,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              // Ambient bottom fade effect
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 90,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: const [0.0, 0.45, 1.0],
-                        colors: [
-                          (isDark ? palette.background : Colors.white)
-                              .withValues(alpha: 0.0),
-                          (isDark ? palette.background : Colors.white)
-                              .withValues(alpha: 0.65),
-                          (isDark ? palette.background : Colors.white)
-                              .withValues(alpha: 0.98),
-                        ],
+                // Ambient bottom fade effect
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 90,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.0, 0.45, 1.0],
+                          colors: [
+                            (isDark ? palette.background : Colors.white)
+                                .withValues(alpha: 0.0),
+                            (isDark ? palette.background : Colors.white)
+                                .withValues(alpha: 0.65),
+                            (isDark ? palette.background : Colors.white)
+                                .withValues(alpha: 0.98),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: _BottomChrome(
-            navVisible: _navVisible,
-            showCart: _index == 0 || _index == 1,
-            homeBloc: _homeBloc,
-            nav: GlassBottomNav(
-              currentIndex: _index,
-              onTap: _selectTab,
-              destinations: _destinations,
+              ],
             ),
+            bottomNavigationBar: _BottomChrome(
+              navVisible: _navVisible,
+              showCart: _index == 0 || _index == 1,
+              homeBloc: _homeBloc,
+              nav: GlassBottomNav(
+                currentIndex: _index,
+                onTap: _selectTab,
+                destinations: _destinations,
+              ),
             ),
           ),
         ),
@@ -342,16 +365,19 @@ class _BottomChrome extends StatelessWidget {
                 final isClosed = isOrderingClosed(state);
                 final effectiveCount = isClosed
                     ? (state.confirmedSnackIds.isNotEmpty
-                        ? state.confirmedSnackIds.length
-                        : (state.todaysOrders.isNotEmpty
-                            ? state.todaysOrders.length
-                            : state.selectedSnackIds.length))
+                          ? state.confirmedSnackIds.length
+                          : (state.todaysOrders.isNotEmpty
+                                ? state.todaysOrders.length
+                                : state.selectedSnackIds.length))
                     : state.selectedSnackIds.length;
                 final orderPlaced = isOrderPlaced(state);
                 final hasChanges = hasOrderChanges(state);
                 final closeTime = formatOrderWindowCloseTime(state);
                 final hasOrder =
-                    orderPlaced || hasSavedOrder(state) || effectiveCount > 0 || hasChanges;
+                    orderPlaced ||
+                    hasSavedOrder(state) ||
+                    effectiveCount > 0 ||
+                    hasChanges;
 
                 if (state.isShutdown || !hasOrder) {
                   return const SizedBox.shrink();
@@ -362,7 +388,8 @@ class _BottomChrome extends StatelessWidget {
                   padding: EdgeInsets.only(bottom: visible ? 0 : bottomInset),
                   child: CartBar(
                     itemCount: effectiveCount,
-                    orderPlaced: orderPlaced || (isClosed && effectiveCount > 0),
+                    orderPlaced:
+                        orderPlaced || (isClosed && effectiveCount > 0),
                     hasChanges: isClosed ? false : hasChanges,
                     editUntilLabel: closeTime,
                     isClosed: isClosed,

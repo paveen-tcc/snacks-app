@@ -72,14 +72,14 @@ class ShakerCupPainter extends CustomPainter {
       shadowPaint,
     );
 
-    // 4. Transparent Frosted Glass Background
+    // 4. Transparent Frosted Glass Background with Crystal Luster
     final glassBg = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        (isDark ? Colors.white : Colors.grey.shade400).withValues(alpha: 0.09),
-        (isDark ? Colors.white : Colors.grey.shade300).withValues(alpha: 0.03),
-        (isDark ? Colors.white : Colors.grey.shade400).withValues(alpha: 0.10),
+        (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7)).withValues(alpha: isDark ? 0.16 : 0.09),
+        (isDark ? Colors.white : Colors.grey.shade300).withValues(alpha: isDark ? 0.08 : 0.04),
+        (isDark ? const Color(0xFF6366F1) : const Color(0xFF818CF8)).withValues(alpha: isDark ? 0.14 : 0.08),
       ],
     ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawPath(cupPath, Paint()..shader = glassBg);
@@ -120,7 +120,7 @@ class ShakerCupPainter extends CustomPainter {
 
       // Wave 2: Top Surface Shimmer / Light Crest
       final shimmerPaint = Paint()
-        ..color = accentLiquidColor.withValues(alpha: 0.4)
+        ..color = accentLiquidColor.withValues(alpha: 0.45)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5;
       final wave2 = Path()..moveTo(0, liquidSurfaceY);
@@ -146,21 +146,34 @@ class ShakerCupPainter extends CustomPainter {
 
     // 9. Glass Specular Highlights & Outlines
     final glassOutline = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.2)
+      ..color = (isDark ? const Color(0xFF93C5FD) : const Color(0xFF64748B)).withValues(alpha: isDark ? 0.45 : 0.35)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6;
+      ..strokeWidth = 1.8;
     canvas.drawPath(cupPath, glassOutline);
 
-    // Left curved specular sheen line
+    // Left curved primary specular sheen line
     final sheenPath = Path()
-      ..moveTo(cupLeft + 7, cupTop + 10)
-      ..lineTo(cupBottomLeft + 6, cupBottom - 14);
+      ..moveTo(cupLeft + 8, cupTop + 10)
+      ..lineTo(cupBottomLeft + 7, cupBottom - 14);
     canvas.drawPath(
       sheenPath,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.45)
+        ..color = Colors.white.withValues(alpha: 0.65)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
+        ..strokeWidth = 3.0
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Right secondary subtle reflection
+    final rightSheenPath = Path()
+      ..moveTo(cupRight - 8, cupTop + 16)
+      ..lineTo(cupBottomRight - 7, cupBottom - 20);
+    canvas.drawPath(
+      rightSheenPath,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
         ..strokeCap = StrokeCap.round,
     );
 
@@ -170,8 +183,8 @@ class ShakerCupPainter extends CustomPainter {
 
   void _drawMeasurementTicks(Canvas canvas, double cupLeft, double cupBottomLeft, double cupTop, double cupBottom) {
     final tickPaint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.2)
-      ..strokeWidth = 1.2;
+      ..color = (isDark ? const Color(0xFFBAE6FD) : const Color(0xFF475569)).withValues(alpha: 0.45)
+      ..strokeWidth = 1.5;
 
     for (int i = 1; i <= 3; i++) {
       final t = i / 4.0;
@@ -217,15 +230,21 @@ class ShakerCupPainter extends CustomPainter {
     final lidLeft = cx - lidWidth * 0.5;
     final lidRight = cx + lidWidth * 0.5;
 
-    // Dark sleek molded lid colors (from user photo)
+    // Dark sleek molded lid colors
     final lidGradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [
-        const Color(0xFF2E343B),
-        const Color(0xFF1B1F24),
-        const Color(0xFF101418),
-      ],
+      colors: isDark
+          ? [
+              const Color(0xFF475569),
+              const Color(0xFF334155),
+              const Color(0xFF1E293B),
+            ]
+          : [
+              const Color(0xFF64748B),
+              const Color(0xFF475569),
+              const Color(0xFF334155),
+            ],
     ).createShader(Rect.fromLTWH(lidLeft, topY - 38, lidWidth, 42));
 
     final lidPaint = Paint()..shader = lidGradient;
@@ -248,7 +267,7 @@ class ShakerCupPainter extends CustomPainter {
 
     // Sip-spout on top right
     final spoutPaint = Paint()
-      ..color = const Color(0xFF14181C)
+      ..color = isDark ? const Color(0xFF1E293B) : const Color(0xFF334155)
       ..style = PaintingStyle.fill;
     final spoutPath = Path()
       ..moveTo(cx + 12, topY - 28)
@@ -260,7 +279,7 @@ class ShakerCupPainter extends CustomPainter {
 
     // Loop strap on spout (as in photo)
     final loopPaint = Paint()
-      ..color = const Color(0xFF2A3138)
+      ..color = isDark ? const Color(0xFF64748B) : const Color(0xFF475569)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round;
@@ -271,9 +290,9 @@ class ShakerCupPainter extends CustomPainter {
 
     // Lid Highlight ridge
     final lidHighlight = Paint()
-      ..color = Colors.white.withValues(alpha: 0.28)
+      ..color = Colors.white.withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
+      ..strokeWidth = 1.5;
     canvas.drawLine(Offset(lidLeft + 8, topY - 9), Offset(lidRight - 8, topY - 9), lidHighlight);
   }
 

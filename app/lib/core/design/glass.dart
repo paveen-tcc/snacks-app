@@ -17,11 +17,14 @@ import 'app_tokens.dart';
 class GlassCapability {
   GlassCapability._();
 
+  /// User-controlled fallback for devices where blur is distracting or slow.
+  static final ValueNotifier<bool> reduceTransparency = ValueNotifier(false);
+
   /// Escape hatch for app wiring to force the solid fallback globally.
   static bool forceDisableBlur = false;
 
   static bool blurEnabled(BuildContext context) {
-    if (forceDisableBlur) return false;
+    if (forceDisableBlur || reduceTransparency.value) return false;
     if (kIsWeb) return false;
     final mq = MediaQuery.maybeOf(context);
     if (mq != null && mq.highContrast) return false;

@@ -1,10 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/design/app_theme.dart';
 import '../../core/design/app_tokens.dart';
 import '../../core/di/locator.dart';
-import '../../core/widgets/app_buttons.dart';
+import '../../core/formatters/rupees.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/models/budget_models.dart';
 import '../../data/repositories/admin_repository.dart';
@@ -86,19 +87,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
   bool _loading = false;
   String? _error;
   String _searchQuery = '';
-  final Set<String> _activeMutations = {};
   int _requestToken = 0;
 
   BudgetDayLoader get _dayLoader =>
       widget.loadDay ?? locator<AdminRepository>().getBudgetDay;
   BudgetRangeLoader get _rangeLoader =>
       widget.loadRange ?? locator<AdminRepository>().getBudgetRange;
-  BudgetItemAdder get _itemAdder =>
-      widget.addItem ?? locator<AdminRepository>().addBudgetItem;
-  BudgetItemUpdater get _itemUpdater =>
-      widget.updateItem ?? locator<AdminRepository>().updateBudgetItem;
-  BudgetItemRemover get _itemRemover =>
-      widget.removeItem ?? locator<AdminRepository>().removeBudgetItem;
 
   @override
   void initState() {
@@ -216,10 +210,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
         BudgetPeriod.day => _anchor.add(Duration(days: direction)),
         BudgetPeriod.week => _anchor.add(Duration(days: 7 * direction)),
         BudgetPeriod.month => DateTime(
-          _anchor.year,
-          _anchor.month + direction,
-          1,
-        ),
+            _anchor.year,
+            _anchor.month + direction,
+            1,
+          ),
       };
       _anchor = moved.isBefore(_reportingStartDate)
           ? _reportingStartDate
@@ -258,13 +252,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   bool get _canMovePrevious => switch (_period) {
-    BudgetPeriod.day => _anchor.isAfter(_reportingStartDate),
-    BudgetPeriod.week => _rangeBounds.$1.isAfter(_reportingStartDate),
-    BudgetPeriod.month => DateTime(
-      _anchor.year,
-      _anchor.month,
-    ).isAfter(_reportingStartDate),
-  };
+        BudgetPeriod.day => _anchor.isAfter(_reportingStartDate),
+        BudgetPeriod.week => _rangeBounds.$1.isAfter(_reportingStartDate),
+        BudgetPeriod.month => DateTime(
+            _anchor.year,
+            _anchor.month,
+          ).isAfter(_reportingStartDate),
+      };
 
   void _openDay(String date) {
     setState(() {
@@ -298,84 +292,6 @@ class _BudgetScreenState extends State<BudgetScreen> {
       return '${_weekdays[parsed.weekday - 1]} ${parsed.day}';
     }
     return '${_shortMonths[parsed.month - 1]} ${parsed.day}';
-  }
-
-  Future<void> _editItem(BudgetLine? line) async {
-    await showBudgetItemSheet(
-      context: context,
-      line: line,
-      onSave: (data) async {
-        final key = line == null ? 'add' : 'edit:${line.id}';
-        final success = line == null ? 'Item added' : 'Item updated';
-        await _performMutation(
-          key: key,
-          action: () => line == null
-              ? _itemAdder(_isoDate(_anchor), data)
-              : _itemUpdater(_isoDate(_anchor), line.id, data),
-          successMessage: success,
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmRemove(BudgetLine line) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Remove purchase item?'),
-        content: Text(
-          '${line.name} will no longer count toward this day’s budget.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await _performMutation(
-        key: 'remove:${line.id}',
-        action: () => _itemRemover(_isoDate(_anchor), line.id),
-        successMessage: 'Item removed',
-      );
-    } catch (_) {
-      // _performMutation already presents the actionable failure.
-    }
-  }
-
-  Future<void> _performMutation({
-    required String key,
-    required Future<void> Function() action,
-    required String successMessage,
-  }) async {
-    if (_activeMutations.contains(key)) return;
-    setState(() => _activeMutations.add(key));
-    try {
-      await action();
-      final refreshed = await _load(
-        showSpinner: false,
-        announceRefreshFailure: false,
-      );
-      if (!mounted) return;
-      _showMessage(
-        refreshed
-            ? successMessage
-            : '$successMessage, but refresh failed. Pull down to retry.',
-      );
-    } catch (error) {
-      final message = _errorMessage(error, 'Could not save budget item');
-      if (mounted) _showMessage('$message. Try again.');
-      throw Exception(message);
-    } finally {
-      if (mounted) setState(() => _activeMutations.remove(key));
-    }
   }
 
   String _errorMessage(Object error, String fallback) {
@@ -413,7 +329,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'Budget',
+                  'Spend Analytics',
                   style: context.text.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -443,6 +359,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     final totals = _period == BudgetPeriod.day
         ? _day?.totals ?? BudgetTotals.zero
         : _range?.totals ?? BudgetTotals.zero;
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -460,11 +377,15 @@ class _BudgetScreenState extends State<BudgetScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  BudgetPeriodControl(value: _period, onChanged: _changePeriod),
+                  BudgetPeriodControl(
+                    value: _period,
+                    onChanged: _changePeriod,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                   _DateNavigator(
                     label: _periodLabel,
-                    onPrevious: _canMovePrevious ? () => _movePeriod(-1) : null,
+                    onPrevious:
+                        _canMovePrevious ? () => _movePeriod(-1) : null,
                     onNext: () => _movePeriod(1),
                     onCalendar: _pickDate,
                   ),
@@ -473,14 +394,17 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     value: _viewMode,
                     onChanged: (mode) => setState(() => _viewMode = mode),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
-                  BudgetSummaryCards(totals: totals),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
+                  BudgetSummaryCards(totals: totals)
+                      .animate()
+                      .fadeIn(duration: 300.ms)
+                      .slideY(begin: 0.05, end: 0),
+                  const SizedBox(height: AppSpacing.md),
                   BudgetTypeControl(
                     value: _filter,
                     onChanged: (value) => setState(() => _filter = value),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
                   if (_viewMode == BudgetViewMode.people)
                     _buildPeopleContent()
                   else if (_period == BudgetPeriod.day)
@@ -528,8 +452,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
         UserSpendingStatsCard(
           userSpendings: allSpendings,
           filter: _filter,
-        ),
-        const SizedBox(height: AppSpacing.xl),
+        ).animate().fadeIn(duration: 300.ms),
+        const SizedBox(height: AppSpacing.lg),
         BudgetSearchField(
           query: _searchQuery,
           onChanged: (value) => setState(() => _searchQuery = value),
@@ -566,77 +490,60 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         ),
                       ),
                       if (index != filteredSpendings.length - 1)
-                        const Divider(),
+                        const Divider(
+                          height: 1,
+                          indent: AppSpacing.md,
+                          endIndent: AppSpacing.md,
+                        ),
                     ],
                   ],
                 ),
-        ),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0),
       ],
     );
   }
 
   Widget _buildDayContent() {
     final query = _searchQuery.trim().toLowerCase();
+    final dayTotal = _filter.amountFrom(_day?.totals ?? BudgetTotals.zero);
     final lines = (_day?.items ?? const <BudgetLine>[])
         .where((line) => _filter.includes(line.itemType))
-        .where((line) => query.isEmpty || line.name.toLowerCase().contains(query))
+        .where((line) =>
+            query.isEmpty || line.name.toLowerCase().contains(query))
         .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const DaySummaryHintBanner(),
         BudgetSearchField(
           query: _searchQuery,
           onChanged: (value) => setState(() => _searchQuery = value),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: _SectionHeading(
-                title: 'Purchase lines',
-                subtitle: '${lines.length} visible',
-              ),
-            ),
-            SizedBox(
-              width: 176,
-              child: SecondaryButton(
-                key: const Key('budget-add-item'),
-                label: 'Add custom item',
-                icon: Icons.add_rounded,
-                onPressed: !_activeMutations.contains('add')
-                    ? () => _editItem(null)
-                    : null,
-              ),
-            ),
-          ],
+        _SectionHeading(
+          title: 'Purchase lines',
+          subtitle:
+              '${lines.length} items · Total ${formatRupees(dayTotal)}',
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.sm),
         if (lines.isEmpty)
           const _BudgetEmpty(
             icon: Icons.shopping_basket_outlined,
             title: 'No purchases in this view',
-            message: 'Add a custom item or choose another item type.',
+            message: 'No orders recorded for this date selection.',
           )
         else
-          for (final line in lines)
+          for (var i = 0; i < lines.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: BudgetPurchaseLineCard(
-                line: line,
-                isBusy:
-                    _activeMutations.contains('edit:${line.id}') ||
-                    _activeMutations.contains('remove:${line.id}'),
-                onEdit:
-                    !_activeMutations.contains('edit:${line.id}') &&
-                        !_activeMutations.contains('remove:${line.id}')
-                    ? () => _editItem(line)
-                    : null,
-                onRemove:
-                    !_activeMutations.contains('edit:${line.id}') &&
-                        !_activeMutations.contains('remove:${line.id}')
-                    ? () => _confirmRemove(line)
-                    : null,
-              ),
+                line: lines[i],
+                dayTotalRupees: dayTotal,
+              )
+                  .animate(delay: (i * 30).ms)
+                  .fadeIn(duration: 250.ms)
+                  .slideY(begin: 0.05, end: 0),
             ),
       ],
     );
@@ -647,19 +554,33 @@ class _BudgetScreenState extends State<BudgetScreen> {
     final items = (_range?.items ?? const <BudgetItemTotal>[])
         .where((item) => _filter.includes(item.itemType))
         .toList();
-    final maxAmount = days.fold<int>(
-      0,
-      (highest, day) => _filter.amountFrom(day.totals) > highest
-          ? _filter.amountFrom(day.totals)
-          : highest,
-    );
+    final totalPeriodSpend =
+        _filter.amountFrom(_range?.totals ?? BudgetTotals.zero);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeading(
-          title: 'Daily spend',
-          subtitle: 'Tap a day to edit purchases',
+        // Daily Spend Trend Bar Chart
+        DailySpendTrendChart(
+          days: days,
+          filter: _filter,
+          onDaySelected: _openDay,
+          selectedDate: _isoDate(_anchor),
+        ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.04, end: 0),
+
+        const SizedBox(height: AppSpacing.lg),
+
+        // Top Cost Drivers Breakdown
+        TopCostDriversCard(
+          items: items,
+          totalPeriodSpend: totalPeriodSpend,
+        ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04, end: 0),
+
+        const SizedBox(height: AppSpacing.lg),
+
+        _SectionHeading(
+          title: 'Daily breakdown',
+          subtitle: 'Tap any day to view purchase items',
         ),
         const SizedBox(height: AppSpacing.sm),
         _SectionCard(
@@ -673,39 +594,28 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   children: [
                     for (var index = 0; index < days.length; index++) ...[
                       BudgetDailyTotalRow(
+                        label: _dayLabel(days[index].date),
                         day: days[index],
                         filter: _filter,
-                        maxAmount: maxAmount,
-                        label: _dayLabel(days[index].date),
+                        maxAmount: days.fold<int>(
+                          0,
+                          (highest, d) =>
+                              _filter.amountFrom(d.totals) > highest
+                                  ? _filter.amountFrom(d.totals)
+                                  : highest,
+                        ),
                         onTap: () => _openDay(days[index].date),
                       ),
-                      if (index != days.length - 1) const Divider(),
+                      if (index != days.length - 1)
+                        const Divider(
+                          height: 1,
+                          indent: AppSpacing.md,
+                          endIndent: AppSpacing.md,
+                        ),
                     ],
                   ],
                 ),
-        ),
-        const SizedBox(height: AppSpacing.xxl),
-        const _SectionHeading(
-          title: 'Item totals',
-          subtitle: 'Combined across the selected period',
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _SectionCard(
-          child: items.isEmpty
-              ? const _BudgetEmpty(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'No item totals in this view',
-                  message: 'Choose another item type or period.',
-                )
-              : Column(
-                  children: [
-                    for (var index = 0; index < items.length; index++) ...[
-                      BudgetItemTotalRow(item: items[index]),
-                      if (index != items.length - 1) const Divider(),
-                    ],
-                  ],
-                ),
-        ),
+        ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04, end: 0),
       ],
     );
   }
@@ -726,29 +636,57 @@ class _DateNavigator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
+    final palette = context.palette;
+    return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: AppRadii.rMd,
+        border: Border.all(color: palette.border),
+        boxShadow: context.shadows.sm,
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
             tooltip: 'Previous period',
             onPressed: onPrevious,
-            icon: const Icon(Icons.chevron_left_rounded),
+            icon: const Icon(Icons.chevron_left_rounded, size: 20),
           ),
-          Expanded(
-            child: TextButton.icon(
-              onPressed: onCalendar,
-              icon: const Icon(Icons.calendar_month_outlined, size: 19),
-              label: Text(label, textAlign: TextAlign.center),
+          InkWell(
+            onTap: onCalendar,
+            borderRadius: AppRadii.rSm,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.calendar_today_outlined,
+                    size: 16,
+                    color: palette.brand,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    label,
+                    style: context.text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           IconButton(
             tooltip: 'Next period',
             onPressed: onNext,
-            icon: const Icon(Icons.chevron_right_rounded),
+            icon: const Icon(Icons.chevron_right_rounded, size: 20),
           ),
         ],
       ),
@@ -764,15 +702,21 @@ class _SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: context.text.titleMedium),
+        Text(
+          title,
+          style: context.text.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 2),
         Text(
           subtitle,
           style: context.text.bodySmall?.copyWith(
-            color: context.palette.textSecondary,
+            color: palette.textSecondary,
           ),
         ),
       ],
@@ -781,26 +725,87 @@ class _SectionHeading extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.child,
-    this.padding = const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-  });
+  const _SectionCard({required this.child});
 
   final Widget child;
-  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
-      width: double.infinity,
-      padding: padding,
       decoration: BoxDecoration(
-        color: context.palette.surface,
+        color: palette.surface,
         borderRadius: AppRadii.rLg,
-        border: Border.all(color: context.palette.border),
+        border: Border.all(color: palette.border),
         boxShadow: context.shadows.sm,
       ),
+      clipBehavior: Clip.antiAlias,
       child: child,
+    );
+  }
+}
+
+class _BudgetLoading extends StatelessWidget {
+  const _BudgetLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.page),
+      children: const [
+        Skeleton(height: 48),
+        SizedBox(height: AppSpacing.md),
+        Skeleton(height: 120),
+        SizedBox(height: AppSpacing.lg),
+        Skeleton(height: 80),
+        SizedBox(height: AppSpacing.md),
+        Skeleton(height: 80),
+      ],
+    );
+  }
+}
+
+class _BudgetError extends StatelessWidget {
+  const _BudgetError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.page),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded,
+                size: 48, color: palette.danger),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Could not load budget',
+              style: context.text.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: context.text.bodySmall?.copyWith(
+                color: palette.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -820,16 +825,19 @@ class _BudgetEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.xxl,
-      ),
+      padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 34, color: palette.textTertiary),
-            const SizedBox(height: AppSpacing.sm),
-            Text(title, style: context.text.titleSmall),
+            Icon(icon, size: 40, color: palette.textTertiary),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              title,
+              style: context.text.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               message,
@@ -837,79 +845,6 @@ class _BudgetEmpty extends StatelessWidget {
               style: context.text.bodySmall?.copyWith(
                 color: palette.textSecondary,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BudgetLoading extends StatelessWidget {
-  const _BudgetLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.page),
-      children: const [
-        Skeleton(height: 44, borderRadius: AppRadii.rPill),
-        SizedBox(height: AppSpacing.md),
-        Skeleton(height: 56, borderRadius: AppRadii.rLg),
-        SizedBox(height: AppSpacing.xl),
-        Skeleton(height: 104, borderRadius: AppRadii.rLg),
-        SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(child: Skeleton(height: 88, borderRadius: AppRadii.rLg)),
-            SizedBox(width: AppSpacing.md),
-            Expanded(child: Skeleton(height: 88, borderRadius: AppRadii.rLg)),
-          ],
-        ),
-        SizedBox(height: AppSpacing.xl),
-        Skeleton(height: 44, borderRadius: AppRadii.rPill),
-        SizedBox(height: AppSpacing.xl),
-        Skeleton(height: 108, borderRadius: AppRadii.rLg),
-      ],
-    );
-  }
-}
-
-class _BudgetError extends StatelessWidget {
-  const _BudgetError({required this.message, required this.onRetry});
-
-  final String message;
-  final Future<bool> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_off_rounded,
-              size: 44,
-              color: context.palette.textTertiary,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text('Budget unavailable', style: context.text.titleLarge),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: context.text.bodyMedium?.copyWith(
-                color: context.palette.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            PrimaryButton(
-              label: 'Try again',
-              icon: Icons.refresh_rounded,
-              fullWidth: false,
-              onPressed: onRetry,
             ),
           ],
         ),

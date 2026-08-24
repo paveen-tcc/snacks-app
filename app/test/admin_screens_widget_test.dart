@@ -138,7 +138,7 @@ void main() {
     expect(find.text('Add drink'), findsOneWidget);
     expect(find.text('Cold Brews'), findsWidgets);
     expect(find.text('Hot Brews'), findsWidgets);
-    expect(find.text('Tins & Cans'), findsWidgets);
+    expect(find.text('Tins'), findsWidgets);
 
     await tester.enterText(find.byKey(const Key('manage-menu-search')), 'tea');
     await tester.pump();

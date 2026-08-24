@@ -207,7 +207,7 @@ type SourceGroup = {
     fallbackCategory: string | null;
 };
 
-async function synchronizeDate(db: Database, date: string) {
+export async function synchronizeDate(db: Database, date: string) {
     const orderRows = await db.select({
         snackId: orders.snackId,
         snackNameSnapshot: orders.snackNameSnapshot,
